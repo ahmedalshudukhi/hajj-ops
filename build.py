@@ -305,6 +305,44 @@ def compute_augmentations(aug_rows):
 def compute_status_counts(units_rows):
     return {"SUPPORT":98,"SURGE":52,"ACTIVE":38,"STANDBY":36}
 
+def compute_stations_detail(units_rows, staff_rows, unit_readiness_rows):
+    unit_filled = defaultdict(lambda: {"total":0,"filled":0})
+    for r in staff_rows:
+        unit = s(r.get("Unit"))
+        if not unit: continue
+        unit_filled[unit]["total"] += 1
+        if s(r.get("Status")) == "Filled" and s(r.get("Name")):
+            unit_filled[unit]["filled"] += 1
+    unit_ready = {}
+    for r in unit_readiness_rows:
+        uid = s(r.get("Unit ID"))
+        if uid: unit_ready[uid] = s(r.get("Ready"))
+    by_home = defaultdict(list)
+    for u in units_rows:
+        uid = s(u.get("Unit ID"))
+        utype = s(u.get("Unit Type"))
+        cat = s(u.get("Category"))
+        size = int(num(u.get("Size", 2)))
+        home = s(u.get("Home Station"))
+        if not home: continue
+        f = unit_filled[uid]
+        by_home[home].append({
+            "id": uid, "type": utype, "category": cat, "size": size,
+            "filled": f["filled"], "total": f["total"],
+            "ready": unit_ready.get(uid, "")
+        })
+    out = {}
+    for st, units in by_home.items():
+        by_type = Counter(u["type"] for u in units)
+        out[st] = {
+            "units": sorted(units, key=lambda u: (u["category"] != "Operational", u["type"], u["id"])),
+            "by_type": dict(by_type),
+            "total_units": len(units),
+            "total_size": sum(u["size"] for u in units),
+            "total_filled_paras": sum(u["filled"] for u in units),
+        }
+    return out
+
 # ─── Main ─────────────────────────────────────────────────────────
 def main():
     print("Hajj Ops Builder v5 (v11 schema)")
@@ -318,6 +356,7 @@ def main():
     shifts = read_sheet(wb, "Shifts")
     schedule = read_sheet(wb, "Schedule")
     augs = read_sheet(wb, "Augmentations", r"^[A-Z]+-\d+$")
+    unit_readiness = read_sheet(wb, "Unit_Readiness")
     print(f"  Roles: {len(roles)} · Units: {len(units)} · Staff: {len(staff)} · Shifts: {len(shifts)} · Schedule: {len(schedule)}")
 
     personnel = compute_personnel(roles)
@@ -326,6 +365,7 @@ def main():
     aug = compute_augmentations(augs)
     status_counts = compute_status_counts(units)
     hourly = build_hourly(staff, schedule, shifts, units)
+    stations_detail = compute_stations_detail(units, staff, unit_readiness)
 
     data = {
         "refreshed_at": datetime.now(timezone.utc).strftime("%d %b %Y · %H:%M UTC"),
@@ -344,6 +384,7 @@ def main():
         "roster": roster,
         "augmentations": aug,
         "hourly": hourly,
+        "stations_detail": stations_detail,
     }
 
     with open("data.json", "w") as f:

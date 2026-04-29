@@ -262,10 +262,11 @@
     <button class="tab-btn" data-tab="mobilization"><span class="tab-btn-num">02</span> Mobilization</button>
     <button class="tab-btn" data-tab="hourly"><span class="tab-btn-num">03</span> Hourly</button>
     <button class="tab-btn" data-tab="roster"><span class="tab-btn-num">04</span> Roster</button>
-    <button class="tab-btn" data-tab="ambulances"><span class="tab-btn-num">05</span> Ambulances</button>
-    <button class="tab-btn" data-tab="augmentations"><span class="tab-btn-num">06</span> Augmentations</button>
-    <button class="tab-btn" data-tab="assets"><span class="tab-btn-num">07</span> Assets</button>
-    <button class="tab-btn" data-tab="timeline"><span class="tab-btn-num">08</span> Timeline</button>
+    <button class="tab-btn" data-tab="stations"><span class="tab-btn-num">05</span> Stations</button>
+    <button class="tab-btn" data-tab="ambulances"><span class="tab-btn-num">06</span> Ambulances</button>
+    <button class="tab-btn" data-tab="augmentations"><span class="tab-btn-num">07</span> Augmentations</button>
+    <button class="tab-btn" data-tab="assets"><span class="tab-btn-num">08</span> Assets</button>
+    <button class="tab-btn" data-tab="timeline"><span class="tab-btn-num">09</span> Timeline</button>
   </div>
 </header>
 
@@ -361,9 +362,27 @@
   </div>
 </section>
 
+<section id="tab-stations" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/05 — STATIONS</div><h2 class="section-title">Unit <span class="accent">assignments</span></h2></div>
+    <p class="section-blurb">Which units belong to each station. Operational units shown by type (Mike / Alpha / Romeo) plus any leadership and command units assigned to support locations.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Station <span class="accent">roster</span></div>
+    <div class="card-subtitle">Click any unit chip to see its current fill status. Color = unit type. Bordered chips = unit has unfilled slots.</div>
+    <div class="slot-legend" style="margin-top: 10px;">
+      <div class="slot-legend-item"><span class="slot-swatch" style="background:#ef4444;opacity:.85"></span>Mike (Medical)</div>
+      <div class="slot-legend-item"><span class="slot-swatch" style="background:#3b82f6;opacity:.85"></span>Alpha (Ambulance)</div>
+      <div class="slot-legend-item"><span class="slot-swatch" style="background:#10b981;opacity:.85"></span>Romeo (Foot-Runner)</div>
+      <div class="slot-legend-item"><span class="slot-swatch" style="background:#a855f7;opacity:.85"></span>Leadership/Command</div>
+    </div>
+    <div id="stations-detail-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-top: 18px;"></div>
+  </div>
+</section>
+
 <section id="tab-ambulances" class="tab-panel">
   <div class="section-head">
-    <div><div class="section-num">/05 — AMBULANCES</div><h2 class="section-title">Fleet <span class="accent">deployment</span></h2></div>
+    <div><div class="section-num">/06 — AMBULANCES</div><h2 class="section-title">Fleet <span class="accent">deployment</span></h2></div>
     <p class="section-blurb">25 ALS ambulances always on duty. 9 Essential + 9 Backup + 4 Roving + 2 Forward + 1 Depot.</p>
   </div>
   <div class="three-col">
@@ -572,6 +591,56 @@ function renderAugmentations(d) {
       <div class="aug-count">${a.para}</div>
       <div><span class="status-pill" data-s="${a.status}">${a.status}</span></div>
     </div>`).join('');
+}
+function renderStations(d) {
+  if (!d.stations_detail) return;
+  const order = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3',
+                 'OCC','Depot','SRCA','Logistics','Training','Mobile'];
+  const TYPE_COLOR = {
+    'Medical': '#ef4444', 'Ambulance': '#3b82f6', 'Foot-Runner': '#10b981',
+  };
+  const grid = document.getElementById('stations-detail-grid');
+  if (!grid) return;
+  const html = order.filter(st => d.stations_detail[st] && d.stations_detail[st].total_units > 0).map(st => {
+    const data = d.stations_detail[st];
+    const isClinical = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'].includes(st);
+    const zone = st.startsWith('ARF') ? 'Arafat' : st.startsWith('MUZ') ? 'Muzdalifah' : st.startsWith('MIN') ? 'Mina' : 'Support';
+    const types = data.by_type;
+    const fillPct = data.total_size > 0 ? Math.round(data.total_filled_paras / data.total_size * 100) : 0;
+    const chips = data.units.map(u => {
+      let color = '#a855f7';
+      if (TYPE_COLOR[u.type]) color = TYPE_COLOR[u.type];
+      const isFull = u.filled === u.total && u.total > 0;
+      const opacity = isFull ? '1' : '0.6';
+      const border = isFull ? '0' : '1.5px dashed currentColor';
+      const fillIndicator = u.total > 0 ? `${u.filled}/${u.total}` : '';
+      return `<span class="unit-chip" title="${u.id} · ${u.type} · ${u.filled}/${u.total} filled${u.ready ? ' · Ready: '+u.ready : ''}" style="background:${color}; opacity:${opacity}; color:#fff; border:${border}; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:600; display:inline-flex; align-items:center; gap:4px;">${u.id}<span style="opacity:.75; font-weight:400; font-size:10px;">${fillIndicator}</span></span>`;
+    }).join(' ');
+    const typeBadges = Object.entries(types).map(([t, c]) =>
+      `<span style="background:${TYPE_COLOR[t] || '#a855f7'}; color:#fff; padding:2px 7px; border-radius:4px; font-size:10px; font-weight:600;">${c} ${t.split('-')[0]}</span>`
+    ).join(' ');
+    return `
+      <div class="card" style="background: var(--bg-2, #111827); padding: 14px;">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom: 6px;">
+          <div>
+            <div style="font-size: 18px; font-weight: 700; letter-spacing: 0.04em;">${st}</div>
+            <div style="font-size: 11px; opacity: 0.6;">${zone} · ${isClinical ? 'Clinical' : 'Support'}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size: 22px; font-weight: 700;">${data.total_units}</div>
+            <div style="font-size: 10px; opacity: 0.6;">units</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom: 10px;">
+          ${typeBadges || '<span style="font-size:10px; opacity:0.5;">No type breakdown</span>'}
+        </div>
+        <div style="font-size: 11px; opacity: 0.7; margin-bottom: 8px;">
+          ${data.total_size} paras · <span style="color:${fillPct >= 80 ? '#10b981' : fillPct >= 40 ? '#f59e0b' : '#ef4444'}; font-weight:600;">${data.total_filled_paras}/${data.total_size} filled (${fillPct}%)</span>
+        </div>
+        <div style="display:flex; gap:4px; flex-wrap:wrap;">${chips}</div>
+      </div>`;
+  }).join('');
+  grid.innerHTML = html || '<div style="opacity:0.6; padding: 30px; text-align:center;">No station data available. Make sure units have Home Station assigned.</div>';
 }
 function renderTimeline(d) {
   document.getElementById('phase-count').textContent = d.movement_phases.length;
@@ -885,6 +954,7 @@ async function boot() {
   safeRender('calendar', () => renderCalendar(DATA));
   safeRender('movements', () => renderMovements(DATA));
   safeRender('roster', () => renderRoster(DATA));
+  safeRender('stations', () => renderStations(DATA));
   safeRender('accommodation', () => renderAccommodation(DATA));
   safeRender('augmentations', () => renderAugmentations(DATA));
   safeRender('timeline', () => renderTimeline(DATA));
