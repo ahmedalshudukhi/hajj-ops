@@ -305,33 +305,68 @@ def compute_augmentations(aug_rows):
 def compute_status_counts(units_rows):
     return {"SUPPORT":98,"SURGE":52,"ACTIVE":38,"STANDBY":36}
 
+def compute_units_detail(units_rows, staff_rows):
+    """Per-unit detail with members & their radio call signs."""
+    members_by_unit = defaultdict(list)
+    for r in staff_rows:
+        unit = s(r.get("Unit"))
+        if not unit: continue
+        members_by_unit[unit].append({
+            "staff_id": s(r.get("Staff ID")),
+            "name": s(r.get("Name")),
+            "role": s(r.get("Role")),
+            "slot": s(r.get("Slot")),
+            "phone": s(r.get("Phone")),
+            "email": s(r.get("Email")),
+            "call_sign": s(r.get("Radio Call Sign")) or unit,
+            "status": s(r.get("Status")),
+        })
+    out = []
+    for u in units_rows:
+        uid = s(u.get("Unit ID"))
+        if not uid: continue
+        members = members_by_unit.get(uid, [])
+        out.append({
+            "id": uid,
+            "type": s(u.get("Unit Type")),
+            "category": s(u.get("Category")),
+            "size": int(num(u.get("Size", 1))),
+            "home": s(u.get("Home Station")),
+            "default_shift": s(u.get("Default Shift")),
+            "tags": s(u.get("Tags")),
+            "notes": s(u.get("Notes")),
+            "members": members,
+            "filled_count": sum(1 for m in members if m["status"] == "Filled" and m["name"]),
+            "total_count": len(members),
+        })
+    return out
+
 def compute_ambulance_data(amb_rows, units_rows):
-    """Build ambulance roster table + per-station counts.
+    """Build ambulance roster table + per-station counts (total + by type).
        Home Station is computed from Day Alpha crew's home (mirrors xlsx formula)."""
     unit_home = {s(u.get("Unit ID")): s(u.get("Home Station")) for u in units_rows}
     roster = []
     by_station = defaultdict(int)
+    by_station_type = defaultdict(lambda: {"Essential": 0, "Backup": 0, "Roving": 0})
     for r in amb_rows:
         aid = s(r.get("Ambulance ID"))
         if not aid: continue
         day = s(r.get("Day Alpha Crew"))
         night = s(r.get("Night Alpha Crew"))
-        # Home: try the formula result first, else compute from day alpha
+        atype = s(r.get("Type"))
         home = s(r.get("Home Station"))
         if not home and day:
             home = unit_home.get(day, "")
         roster.append({
-            "id": aid,
-            "type": s(r.get("Type")),
-            "cls": s(r.get("Class")),
-            "day_crew": day,
-            "night_crew": night,
-            "home": home,
-            "status": s(r.get("Status")) or "Ready",
-            "notes": s(r.get("Notes")),
+            "id": aid, "type": atype, "cls": s(r.get("Class")),
+            "day_crew": day, "night_crew": night, "home": home,
+            "status": s(r.get("Status")) or "Ready", "notes": s(r.get("Notes")),
         })
-        if home: by_station[home] += 1
-    return roster, dict(by_station)
+        if home:
+            by_station[home] += 1
+            if atype in by_station_type[home]:
+                by_station_type[home][atype] += 1
+    return roster, dict(by_station), {k: dict(v) for k, v in by_station_type.items()}
 
 def compute_stations_detail(units_rows, staff_rows, unit_readiness_rows):
     unit_filled = defaultdict(lambda: {"total":0,"filled":0})
@@ -395,7 +430,8 @@ def main():
     status_counts = compute_status_counts(units)
     hourly = build_hourly(staff, schedule, shifts, units)
     stations_detail = compute_stations_detail(units, staff, unit_readiness)
-    ambulance_roster, amb_by_station = compute_ambulance_data(ambulances, units)
+    ambulance_roster, amb_by_station, amb_by_station_type = compute_ambulance_data(ambulances, units)
+    units_detail = compute_units_detail(units, staff)
 
     data = {
         "refreshed_at": datetime.now(timezone.utc).strftime("%d %b %Y · %H:%M UTC"),
@@ -417,6 +453,8 @@ def main():
         "stations_detail": stations_detail,
         "ambulance_roster": ambulance_roster,
         "amb_by_station": amb_by_station,
+        "amb_by_station_type": amb_by_station_type,
+        "units_detail": units_detail,
     }
 
     with open("data.json", "w") as f:

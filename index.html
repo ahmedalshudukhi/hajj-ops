@@ -225,7 +225,7 @@
 <nav class="nav">
   <div class="container nav-inner">
     <div class="nav-brand">
-      <div class="nav-brand-mark">⌘</div>
+      <img src="./hmg-logo.png" alt="HMG" style="height: 36px; width: auto; background: #fff; padding: 4px 10px; border-radius: 6px; box-shadow: 0 0 0 1px rgba(255,255,255,0.06);">
       <div>
         <span class="nav-brand-text">Hajj Operations</span>
         <span class="nav-brand-sub">// 1447 AH</span>
@@ -263,10 +263,11 @@
     <button class="tab-btn" data-tab="hourly"><span class="tab-btn-num">03</span> Hourly</button>
     <button class="tab-btn" data-tab="roster"><span class="tab-btn-num">04</span> Roster</button>
     <button class="tab-btn" data-tab="stations"><span class="tab-btn-num">05</span> Stations</button>
-    <button class="tab-btn" data-tab="ambulances"><span class="tab-btn-num">06</span> Ambulances</button>
-    <button class="tab-btn" data-tab="augmentations"><span class="tab-btn-num">07</span> Augmentations</button>
-    <button class="tab-btn" data-tab="assets"><span class="tab-btn-num">08</span> Assets</button>
-    <button class="tab-btn" data-tab="timeline"><span class="tab-btn-num">09</span> Timeline</button>
+    <button class="tab-btn" data-tab="units"><span class="tab-btn-num">06</span> Units</button>
+    <button class="tab-btn" data-tab="ambulances"><span class="tab-btn-num">07</span> Ambulances</button>
+    <button class="tab-btn" data-tab="augmentations"><span class="tab-btn-num">08</span> Augmentations</button>
+    <button class="tab-btn" data-tab="assets"><span class="tab-btn-num">09</span> Assets</button>
+    <button class="tab-btn" data-tab="timeline"><span class="tab-btn-num">10</span> Timeline</button>
   </div>
 </header>
 
@@ -384,9 +385,50 @@
   </div>
 </section>
 
+<section id="tab-units" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/06 — UNITS</div><h2 class="section-title">Unit <span class="accent">breakdown &amp; call signs</span></h2></div>
+    <p class="section-blurb">All 130 units with home station, members, and radio call signs. Filter by category or type. Click a unit to see member detail.</p>
+  </div>
+  <div class="card">
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom: 14px;">
+      <input id="units-search" placeholder="Search unit ID, member name, or call sign…" style="flex:1; min-width:240px; background: var(--bg-2); border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px; color: var(--text); font-size: 13px;">
+      <select id="units-filter-cat" style="background: var(--bg-2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 6px; color: var(--text); font-size: 12px;">
+        <option value="">All categories</option>
+        <option value="Leadership">Leadership</option>
+        <option value="Command">Command</option>
+        <option value="Operational">Operational</option>
+      </select>
+      <select id="units-filter-type" style="background: var(--bg-2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 6px; color: var(--text); font-size: 12px;">
+        <option value="">All types</option>
+        <option value="Medical">Mike (Medical)</option>
+        <option value="Ambulance">Alpha (Ambulance)</option>
+        <option value="Foot-Runner">Romeo (Foot-Runner)</option>
+      </select>
+      <span id="units-count" style="font-size: 12px; color: var(--text-dim); margin-left: auto;"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Unit ID</th>
+            <th>Type</th>
+            <th>Category</th>
+            <th class="num-cell">Size</th>
+            <th>Home</th>
+            <th class="num-cell">Filled</th>
+            <th>Members &amp; Call Signs</th>
+          </tr>
+        </thead>
+        <tbody id="units-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
 <section id="tab-ambulances" class="tab-panel">
   <div class="section-head">
-    <div><div class="section-num">/06 — AMBULANCES</div><h2 class="section-title">Fleet <span class="accent">deployment</span></h2></div>
+    <div><div class="section-num">/07 — AMBULANCES</div><h2 class="section-title">Fleet <span class="accent">deployment</span></h2></div>
     <p class="section-blurb">25 ambulances always manned. 10 Essential ALS · 9 Backup BLS · 6 Roving ALS. Each ambulance has a Day and Night Alpha crew.</p>
   </div>
   <div class="three-col">
@@ -403,7 +445,7 @@
 
 <section id="tab-augmentations" class="tab-panel">
   <div class="section-head">
-    <div><div class="section-num">/07 — AUGMENTATIONS</div><h2 class="section-title">Inter-station <span class="accent">flow</span></h2></div>
+    <div><div class="section-num">/08 — AUGMENTATIONS</div><h2 class="section-title">Inter-station <span class="accent">flow</span></h2></div>
     <p class="section-blurb">Planned redeployments during operations. Move paramedics from low-pressure to surge stations.</p>
   </div>
   <div class="two-col">
@@ -419,7 +461,7 @@
 
 <section id="tab-assets" class="tab-panel">
   <div class="section-head">
-    <div><div class="section-num">/08 — ASSETS &amp; LOGISTICS</div><h2 class="section-title">Beds &amp; <span class="accent">support</span></h2></div>
+    <div><div class="section-num">/09 — ASSETS &amp; LOGISTICS</div><h2 class="section-title">Beds &amp; <span class="accent">support</span></h2></div>
     <p class="section-blurb">Accommodation across operational sites and the depot. Org structure shows day vs night staffing by category.</p>
   </div>
   <div class="two-col">
@@ -440,7 +482,7 @@
 
 <section id="tab-timeline" class="tab-panel">
   <div class="section-head">
-    <div><div class="section-num">/09 — MOVEMENT PHASES</div><h2 class="section-title">Operational <span class="accent">timeline</span></h2></div>
+    <div><div class="section-num">/10 — MOVEMENT PHASES</div><h2 class="section-title">Operational <span class="accent">timeline</span></h2></div>
     <p class="section-blurb">Hour-by-hour movement transitions across 6 operational days.</p>
   </div>
   <div class="card">
@@ -686,6 +728,61 @@ function renderStations(d) {
     });
   }
 }
+function renderUnits(d) {
+  if (!d.units_detail || !d.units_detail.length) return;
+  const tbody = document.getElementById('units-table-body');
+  const search = document.getElementById('units-search');
+  const filterCat = document.getElementById('units-filter-cat');
+  const filterType = document.getElementById('units-filter-type');
+  const countEl = document.getElementById('units-count');
+  if (!tbody || !search || !filterCat || !filterType) return;
+  const TYPE_COLOR = { 'Medical': '#ef4444', 'Ambulance': '#3b82f6', 'Foot-Runner': '#10b981' };
+  function categoryOrder(c) {
+    return c === 'Leadership' ? 0 : c === 'Command' ? 1 : 2;
+  }
+  function render() {
+    const q = (search.value || '').trim().toLowerCase();
+    const cat = filterCat.value;
+    const typ = filterType.value;
+    const filtered = d.units_detail.filter(u => {
+      if (cat && u.category !== cat) return false;
+      if (typ && u.type !== typ) return false;
+      if (!q) return true;
+      if ((u.id || '').toLowerCase().includes(q)) return true;
+      return (u.members || []).some(m =>
+        (m.name||'').toLowerCase().includes(q) ||
+        (m.call_sign||'').toLowerCase().includes(q));
+    }).sort((a,b) => categoryOrder(a.category) - categoryOrder(b.category) || a.id.localeCompare(b.id));
+    countEl.textContent = `${filtered.length} unit${filtered.length===1?'':'s'} · ${d.units_detail.length} total`;
+    tbody.innerHTML = filtered.map(u => {
+      const color = TYPE_COLOR[u.type] || '#a855f7';
+      const fillPct = u.total_count ? Math.round(u.filled_count / u.total_count * 100) : 0;
+      const fillColor = fillPct >= 80 ? '#10b981' : fillPct >= 40 ? '#f59e0b' : fillPct > 0 ? '#ef4444' : 'var(--text-dim)';
+      const memberPills = (u.members || []).map(m => {
+        const filled = m.status === 'Filled' && m.name;
+        const label = m.name ? `${m.name} <span style="opacity:.6">· ${m.call_sign}</span>` : `<span style="opacity:.5">vacant</span> <span style="opacity:.5">· ${m.call_sign}</span>`;
+        return `<div style="display:flex; gap:6px; align-items:center; padding:2px 0; font-size:11px;">
+          <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:${filled?'#10b981':'#6b7280'};"></span>
+          <span class="mono" style="opacity:.7; min-width:60px;">${m.role || ''}</span>
+          <span>${label}</span>
+        </div>`;
+      }).join('');
+      return `<tr>
+        <td><span class="mono" style="background:${color}; color:#fff; padding:2px 8px; border-radius:4px; font-weight:600; font-size:11px;">${u.id}</span></td>
+        <td><span style="font-size:11px;">${u.type}</span></td>
+        <td style="font-size:11px; opacity:.7;">${u.category}</td>
+        <td class="num-cell mono">${u.size}</td>
+        <td class="mono" style="font-size:11px;">${u.home || '<span style="opacity:.4">—</span>'}</td>
+        <td class="num-cell mono"><span style="color:${fillColor}; font-weight:600;">${u.filled_count}/${u.total_count}</span></td>
+        <td>${memberPills || '<span style="opacity:.4; font-size:11px;">no members</span>'}</td>
+      </tr>`;
+    }).join('');
+  }
+  search.addEventListener('input', render);
+  filterCat.addEventListener('change', render);
+  filterType.addEventListener('change', render);
+  render();
+}
 function renderTimeline(d) {
   document.getElementById('phase-count').textContent = d.movement_phases.length;
   document.getElementById('mvt-timeline').innerHTML = d.movement_phases.map(p => `
@@ -880,23 +977,26 @@ function renderCharts(d) {
     options: { responsive: true, maintainAspectRatio: false, cutout: '60%',
       plugins: { legend: { position: 'bottom', labels: { padding: 10, usePointStyle: true, font: {size: 10} } }, tooltip: tooltipStyle } }
   });
-  // Ambulances per station
-  const ambByStation = d.amb_by_station || {};
-  const ambStLabels = Object.keys(ambByStation).filter(k => ambByStation[k] > 0);
-  const ambStData = ambStLabels.map(k => ambByStation[k]);
+  // Ambulances per station — stacked by type (Essential / Backup / Roving)
+  const ambByType = d.amb_by_station_type || {};
+  const ambStLabels = Object.keys(ambByType).filter(k => {
+    const t = ambByType[k]; return (t.Essential||0) + (t.Backup||0) + (t.Roving||0) > 0;
+  });
+  if (ambStLabels.length === 0 && d.amb_by_station) {
+    Object.keys(d.amb_by_station).forEach(k => { if (d.amb_by_station[k]>0) ambStLabels.push(k); });
+  }
   new Chart(document.getElementById('chart-amb-station'), {
     type: 'bar',
     data: { labels: ambStLabels,
-      datasets: [{ label: 'Ambulances', data: ambStData,
-        backgroundColor: ambStLabels.map(l => {
-          if (l.startsWith('ARF')) return '#F59E0BCC';
-          if (l.startsWith('MUZ')) return '#10B981CC';
-          if (l.startsWith('MIN')) return '#8B5CF6CC';
-          return '#6B7280CC';
-        }), borderRadius: 3 }] },
+      datasets: [
+        { label: 'Essential ALS', data: ambStLabels.map(s => (ambByType[s]?.Essential)||0), backgroundColor: '#DC2626' },
+        { label: 'Backup BLS',    data: ambStLabels.map(s => (ambByType[s]?.Backup)||0),    backgroundColor: '#F97316' },
+        { label: 'Roving ALS',    data: ambStLabels.map(s => (ambByType[s]?.Roving)||0),    backgroundColor: '#EAB308' },
+      ] },
     options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: tooltipStyle },
-      scales: { y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true, ticks: { stepSize: 1 } }, x: { grid: { display: false } } } }
+      plugins: { legend: { position: 'bottom', labels: { padding: 10, usePointStyle: true, font: {size: 10} } }, tooltip: tooltipStyle },
+      scales: { x: { stacked: true, grid: { display: false } },
+                y: { stacked: true, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true, ticks: { stepSize: 1 } } } }
   });
   // Ambulance roster table
   if (d.ambulance_roster && d.ambulance_roster.length) {
@@ -1018,6 +1118,7 @@ async function boot() {
   safeRender('movements', () => renderMovements(DATA));
   safeRender('roster', () => renderRoster(DATA));
   safeRender('stations', () => renderStations(DATA));
+  safeRender('units', () => renderUnits(DATA));
   safeRender('accommodation', () => renderAccommodation(DATA));
   safeRender('augmentations', () => renderAugmentations(DATA));
   safeRender('timeline', () => renderTimeline(DATA));
