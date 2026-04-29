@@ -1,0 +1,48 @@
+name: Refresh dashboard data
+
+on:
+  # Refresh every 15 minutes during operations
+  schedule:
+    - cron: '*/15 * * * *'
+  # Also allow manual trigger
+  workflow_dispatch:
+  # Refresh on every push (for testing)
+  push:
+    branches: [main]
+    paths:
+      - 'build.py'
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Refresh data.json from Smartsheet
+        env:
+          SMARTSHEET_TOKEN: ${{ secrets.SMARTSHEET_TOKEN }}
+        run: python build.py
+
+      - name: Commit & push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain data.json)" ]; then
+            git add data.json
+            git commit -m "data: refresh $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git push
+          else
+            echo "No data changes."
+          fi
