@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hajj 1447 — Operations Command</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg-deep: #0A0E1A; --bg-surface: #0F1729; --bg-elevated: #141E36;
+    --border: rgba(255,255,255,0.07); --border-strong: rgba(255,255,255,0.14);
+    --text: #E8E5E0; --text-dim: #8B92A4; --text-faint: #4A5266;
+    --amber: #D97706; --amber-glow: #F59E0B;
+    --teal: #0891B2; --teal-glow: #06B6D4;
+    --arf: #F59E0B; --muz: #10B981; --min: #8B5CF6;
+    --surge: #DC2626; --active: #F97316; --standby: #EAB308; --support: #3B82F6;
+    --vacant: #DC2626; --filled: #10B981;
+    --gradient-warm: linear-gradient(135deg, #D97706 0%, #B45309 100%);
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg-deep); color: var(--text); font-family: var(--font-sans);
+    font-size: 14px; line-height: 1.5; min-height: 100vh; overflow-x: hidden;
+    background-image:
+      radial-gradient(circle at 15% 0%, rgba(217,119,6,0.04) 0%, transparent 40%),
+      radial-gradient(circle at 85% 100%, rgba(8,145,178,0.04) 0%, transparent 40%);
+  }
+  .num, .kpi-value, .countdown-value, .movement-stat-value,
+  td, th, .day-num { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' /%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+    opacity: 0.025; pointer-events: none; z-index: 1;
+  }
+  .container { max-width: 1440px; margin: 0 auto; padding: 0 32px; position: relative; z-index: 2; }
+
+  #boot-status { position: fixed; top: 0; left: 0; right: 0; background: var(--vacant);
+    color: white; padding: 10px 20px; z-index: 99999; font-family: var(--font-mono); font-size: 12px;
+    display: none; }
+  #boot-status.show { display: block; }
+  #boot-status.success { background: var(--filled); }
+
+  .nav { position: sticky; top: 0; backdrop-filter: blur(24px) saturate(180%); background: rgba(10,14,26,0.85); border-bottom: 1px solid var(--border); z-index: 100; padding: 14px 0; }
+  .nav-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+  .nav-brand { display: flex; align-items: center; gap: 14px; }
+  .nav-brand-mark { width: 32px; height: 32px; background: var(--gradient-warm); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; color: #0A0E1A; box-shadow: 0 0 0 1px rgba(217,119,6,0.3), 0 8px 24px rgba(217,119,6,0.15); }
+  .nav-brand-text { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
+  .nav-brand-sub { color: var(--text-dim); font-size: 11px; font-family: var(--font-mono); margin-left: 8px; }
+  .nav-status { display: flex; align-items: center; gap: 8px; font-size: 11px; font-family: var(--font-mono); color: var(--text-dim); }
+  .nav-status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--filled); box-shadow: 0 0 8px var(--filled); animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.85); } }
+
+  .hero { padding: 40px 0 24px; }
+  .hero-eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--amber); margin-bottom: 14px; display: flex; align-items: center; gap: 12px; }
+  .hero-eyebrow::before { content: ''; width: 32px; height: 1px; background: var(--amber); }
+  .hero-title { font-weight: 600; font-size: clamp(28px, 3.6vw, 42px); line-height: 1.1; letter-spacing: -0.02em; margin-bottom: 10px; }
+  .hero-title .accent { color: var(--amber); font-weight: 600; }
+  .hero-subtitle { font-size: 14px; color: var(--text-dim); max-width: 720px; line-height: 1.6; }
+  .countdown-strip { display: grid; grid-template-columns: 1fr auto; align-items: end; margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--border); gap: 32px; }
+  .countdown-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; }
+  .countdown-value { font-weight: 300; font-size: 48px; line-height: 1; letter-spacing: -0.03em; }
+  .countdown-value-unit { font-size: 16px; color: var(--text-dim); margin-left: 12px; font-weight: 400; }
+  .countdown-detail { text-align: right; color: var(--text-dim); font-size: 12px; line-height: 1.7; }
+  .countdown-detail strong { color: var(--text); font-weight: 500; }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 28px; }
+  .kpi { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; position: relative; overflow: hidden; transition: all 0.2s; }
+  .kpi:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+  .kpi::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: var(--accent, var(--amber)); opacity: 0.6; }
+  .kpi[data-c="warm"] { --accent: var(--amber); }
+  .kpi[data-c="cool"] { --accent: var(--teal); }
+  .kpi[data-c="success"] { --accent: var(--filled); }
+  .kpi[data-c="warning"] { --accent: var(--standby); }
+  .kpi[data-c="danger"] { --accent: var(--vacant); }
+  .kpi[data-c="arf"] { --accent: var(--arf); }
+  .kpi[data-c="muz"] { --accent: var(--muz); }
+  .kpi[data-c="min"] { --accent: var(--min); }
+  .kpi-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; }
+  .kpi-value { font-weight: 500; font-size: 26px; line-height: 1; letter-spacing: -0.02em; }
+  .kpi-value.accent-color { color: var(--accent); }
+  .kpi-meta { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); margin-top: 5px; }
+  .kpi-meta strong { color: var(--accent, var(--amber)); font-weight: 500; }
+
+  .tabbar { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; padding: 6px; margin-top: 36px; display: flex; gap: 4px; overflow-x: auto; }
+  .tab-btn { background: transparent; color: var(--text-dim); border: none; padding: 9px 16px; border-radius: 6px; cursor: pointer; font-family: var(--font-sans); font-size: 12px; font-weight: 500; letter-spacing: 0.02em; white-space: nowrap; transition: all 0.15s; display: flex; align-items: center; gap: 8px; }
+  .tab-btn:hover { color: var(--text); background: var(--bg-elevated); }
+  .tab-btn.active { background: var(--bg-elevated); color: var(--amber); box-shadow: inset 0 0 0 1px rgba(217,119,6,0.3); }
+  .tab-btn-num { font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); }
+  .tab-btn.active .tab-btn-num { color: var(--amber); opacity: 0.7; }
+
+  .tab-panel { display: none; padding: 28px 0 16px; animation: tabIn 0.25s ease; }
+  .tab-panel.active { display: block; }
+  @keyframes tabIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 32px; margin-bottom: 24px; flex-wrap: wrap; }
+  .section-num { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); letter-spacing: 0.12em; }
+  .section-title { font-weight: 600; font-size: 26px; letter-spacing: -0.02em; line-height: 1.2; }
+  .section-title .accent { color: var(--amber); font-weight: 500; }
+  .section-blurb { color: var(--text-dim); font-size: 13px; max-width: 480px; text-align: right; line-height: 1.55; }
+
+  .day-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  .day-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 14px 12px; transition: all 0.15s; position: relative; overflow: hidden; }
+  .day-card:hover { border-color: var(--border-strong); }
+  .day-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--phase-color, var(--text-faint)); opacity: 0.7; }
+  .day-card[data-phase="Site Prep"] { --phase-color: #6366F1; }
+  .day-card[data-phase="Training"] { --phase-color: var(--standby); }
+  .day-card[data-phase*="Ops"] { --phase-color: var(--surge); }
+  .day-card[data-phase="Demob"] { --phase-color: #6B7280; }
+  .day-num { font-weight: 700; font-size: 20px; letter-spacing: -0.02em; line-height: 1; }
+  .day-num-label { font-size: 9px; color: var(--text-faint); font-family: var(--font-mono); letter-spacing: 0.15em; margin-left: 4px; }
+  .day-greg { font-size: 11px; color: var(--text-dim); margin-top: 6px; font-family: var(--font-mono); }
+  .day-phase { font-size: 10px; font-weight: 600; color: var(--phase-color, var(--text)); margin-top: 10px; padding: 2px 6px; border-radius: 3px; background: rgba(255,255,255,0.04); display: inline-block; letter-spacing: 0.04em; }
+  .day-events { font-size: 11px; color: var(--text); margin-top: 8px; line-height: 1.4; min-height: 30px; }
+
+  .movement-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .movement { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; position: relative; overflow: hidden; transition: all 0.2s; }
+  .movement:hover { border-color: var(--border-strong); }
+  .movement::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 0% 0%, var(--mvt-color, var(--amber)) 0%, transparent 60%); opacity: 0.06; pointer-events: none; }
+  .movement-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .movement-code { font-weight: 700; font-size: 22px; letter-spacing: -0.01em; line-height: 1; }
+  .movement-shift { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-dim); padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; }
+  .movement-shift[data-shift="NIGHT"] { color: #93C5FD; border-color: rgba(147,197,253,0.2); }
+  .movement-shift[data-shift="DAY"] { color: var(--amber-glow); border-color: rgba(245,158,11,0.2); }
+  .movement-shift[data-shift="MIXED"] { color: #C084FC; border-color: rgba(192,132,252,0.2); }
+  .movement-label { font-size: 12px; color: var(--text-dim); margin-bottom: 14px; min-height: 32px; line-height: 1.5; }
+  .movement-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .movement-stat-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; color: var(--text-faint); text-transform: uppercase; margin-bottom: 4px; }
+  .movement-stat-value { font-weight: 600; font-size: 18px; letter-spacing: -0.01em; }
+  .movement-stat-value-mono { font-family: var(--font-mono); font-size: 13px; font-weight: 500; }
+
+  .card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px; }
+  .card-title { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; margin-bottom: 4px; }
+  .card-subtitle { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); letter-spacing: 0.04em; margin-bottom: 18px; }
+  .chart-container { position: relative; height: 280px; }
+  .chart-container.tall { height: 380px; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .three-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 1100px) { .two-col, .three-col { grid-template-columns: 1fr; } }
+
+  .ctrl-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+  .ctrl-select, .ctrl-toggle { background: var(--bg-elevated); color: var(--text); border: 1px solid var(--border); padding: 7px 12px; border-radius: 5px; font-size: 12px; font-family: var(--font-mono); cursor: pointer; transition: all 0.15s; }
+  .ctrl-select:hover, .ctrl-select:focus { border-color: var(--border-strong); outline: none; }
+  .ctrl-toggle-group { display: inline-flex; gap: 0; }
+  .ctrl-toggle { border-radius: 0; border-right-width: 0; }
+  .ctrl-toggle:first-child { border-radius: 5px 0 0 5px; }
+  .ctrl-toggle:last-child { border-radius: 0 5px 5px 0; border-right-width: 1px; }
+  .ctrl-toggle.active { background: rgba(217,119,6,0.15); color: var(--amber); border-color: rgba(217,119,6,0.4); }
+  .ctrl-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-faint); text-transform: uppercase; }
+
+  .heatmap { display: grid; gap: 2px; font-family: var(--font-mono); font-size: 10px; }
+  .heat-cell { padding: 8px 4px; text-align: center; color: var(--text); border-radius: 2px; min-height: 26px; line-height: 1.4; }
+  .heat-label { color: var(--text-dim); padding: 8px 4px; text-align: right; border-right: 1px solid var(--border); font-weight: 600; }
+  .heat-header { color: var(--text-dim); padding: 8px 4px; text-align: center; font-weight: 600; border-bottom: 1px solid var(--border); }
+
+  .table-wrap { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 10px 14px; text-align: left; }
+  th { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); background: var(--bg-elevated); border-bottom: 1px solid var(--border); font-weight: 500; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+  tbody tr:hover { background: rgba(255,255,255,0.02); }
+  tbody tr:last-child { border-bottom: none; }
+  td.mono { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); }
+  td strong { font-weight: 500; color: var(--text); }
+  td.num-cell { font-family: var(--font-mono); text-align: right; }
+
+  .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 4px; font-family: var(--font-mono); font-size: 10px; font-weight: 500; letter-spacing: 0.06em; }
+  .status-pill::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .status-pill[data-s="Vacant"] { color: var(--vacant); background: rgba(220,38,38,0.1); }
+  .status-pill[data-s="Filled"] { color: var(--filled); background: rgba(16,185,129,0.1); }
+  .status-pill[data-s="Planned"] { color: var(--standby); background: rgba(234,179,8,0.1); }
+
+  .slot-legend { display: flex; gap: 16px; margin: 12px 0; font-size: 11px; color: var(--text-dim); font-family: var(--font-mono); }
+  .slot-legend-item { display: flex; align-items: center; gap: 6px; }
+  .slot-swatch { width: 10px; height: 10px; border-radius: 2px; }
+  .slot-grid { display: grid; grid-template-columns: repeat(20, 1fr); gap: 3px; padding: 14px; background: var(--bg-elevated); border-radius: 8px; }
+  .slot { aspect-ratio: 1; background: var(--vacant); opacity: 0.65; border-radius: 2px; transition: all 0.15s; }
+  .slot.filled { background: var(--filled); opacity: 0.85; }
+  .slot:hover { transform: scale(1.5); opacity: 1; z-index: 5; }
+
+  .aug-flow { display: grid; grid-template-columns: 70px 1fr 70px 80px; align-items: center; gap: 12px; padding: 10px 14px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 5px; font-size: 13px; }
+  .aug-mvt { font-weight: 600; }
+  .aug-arrow { display: flex; align-items: center; gap: 10px; font-family: var(--font-mono); font-size: 12px; }
+  .aug-arrow-line { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--text-faint), transparent); position: relative; }
+  .aug-arrow-line::after { content: '→'; position: absolute; left: 50%; top: -8px; transform: translateX(-50%); color: var(--amber); font-size: 14px; }
+  .aug-from { color: var(--standby); }
+  .aug-to { color: var(--filled); }
+  .aug-count { font-weight: 600; font-size: 16px; text-align: center; }
+
+  .mvt-timeline { background: var(--bg-elevated); border-radius: 8px; padding: 16px; }
+  .mvt-bar { display: flex; align-items: center; padding: 6px 12px; border-radius: 4px; margin-bottom: 4px; font-size: 12px; gap: 14px; transition: all 0.15s; }
+  .mvt-bar:hover { background: rgba(255,255,255,0.02); }
+  .mvt-bar-code { font-family: var(--font-mono); font-weight: 600; min-width: 56px; }
+  .mvt-bar-time { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); min-width: 200px; }
+  .mvt-bar-shift { font-family: var(--font-mono); font-size: 10px; padding: 2px 8px; border-radius: 3px; background: rgba(255,255,255,0.05); }
+
+  footer { margin-top: 48px; padding: 28px 0 24px; border-top: 1px solid var(--border); color: var(--text-dim); font-size: 12px; }
+  .footer-grid { display: grid; grid-template-columns: 1fr auto; gap: 32px; align-items: end; }
+  .footer-meta { font-family: var(--font-mono); }
+  .footer-meta strong { color: var(--text); font-weight: 500; }
+  .footer-brand { font-weight: 600; color: var(--text-dim); font-family: var(--font-mono); font-size: 13px; }
+
+  @media (max-width: 768px) {
+    .container { padding: 0 16px; }
+    .countdown-strip { grid-template-columns: 1fr; }
+    .countdown-detail { text-align: left; }
+    .section-head { flex-direction: column; align-items: flex-start; }
+    .section-blurb { text-align: left; }
+    .countdown-value { font-size: 36px; }
+    .slot-grid { grid-template-columns: repeat(12, 1fr); }
+    .day-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div id="boot-status">STATUS: <span id="boot-status-text">initializing…</span></div>
+
+<nav class="nav">
+  <div class="container nav-inner">
+    <div class="nav-brand">
+      <div class="nav-brand-mark">⌘</div>
+      <div>
+        <span class="nav-brand-text">Hajj Operations</span>
+        <span class="nav-brand-sub">// 1447 AH</span>
+      </div>
+    </div>
+    <div class="nav-status">
+      <span class="nav-status-dot"></span>
+      <span id="nav-time">LOADING…</span>
+    </div>
+  </div>
+</nav>
+
+<header class="hero container">
+  <div class="hero-eyebrow">SAR · MMMP-SL · Operations Dashboard</div>
+  <h1 class="hero-title">Hajj 1447 <span class="accent">medical</span> mobilization.</h1>
+  <p class="hero-subtitle">SAR Mecca Mass-transit Medical Plan · Sub-Lead operations. 276 medical personnel · 25 ALS ambulances · 9 stations across Arafat, Muzdalifah, Mina · 18 clinics · 7 movements over 6 days.</p>
+
+  <div class="countdown-strip">
+    <div>
+      <div class="countdown-label">T-minus to Tarwiyah deployment</div>
+      <div class="countdown-value" id="countdown-days">—<span class="countdown-value-unit">days</span></div>
+    </div>
+    <div class="countdown-detail">
+      <div>Deployment <strong>25 May 2026</strong> · 8 Dhul-Hijjah</div>
+      <div>First movement <strong>B1A</strong> · NIGHT shift 20:00</div>
+      <div>Operations end <strong>30 May 2026</strong> · 13 Dhul-Hijjah</div>
+    </div>
+  </div>
+
+  <div class="kpi-grid" id="kpi-grid"></div>
+
+  <div class="tabbar" id="tabbar">
+    <button class="tab-btn active" data-tab="calendar"><span class="tab-btn-num">01</span> Calendar</button>
+    <button class="tab-btn" data-tab="mobilization"><span class="tab-btn-num">02</span> Mobilization</button>
+    <button class="tab-btn" data-tab="hourly"><span class="tab-btn-num">03</span> Hourly</button>
+    <button class="tab-btn" data-tab="roster"><span class="tab-btn-num">04</span> Roster</button>
+    <button class="tab-btn" data-tab="ambulances"><span class="tab-btn-num">05</span> Ambulances</button>
+    <button class="tab-btn" data-tab="augmentations"><span class="tab-btn-num">06</span> Augmentations</button>
+    <button class="tab-btn" data-tab="assets"><span class="tab-btn-num">07</span> Assets</button>
+    <button class="tab-btn" data-tab="timeline"><span class="tab-btn-num">08</span> Timeline</button>
+  </div>
+</header>
+
+<main class="container">
+
+<section id="tab-calendar" class="tab-panel active">
+  <div class="section-head">
+    <div><div class="section-num">/01 — CALENDAR</div><h2 class="section-title">Operations <span class="accent">timeline</span></h2></div>
+    <p class="section-blurb">Day-by-day phase progression from Site Prep through Demob. 15 days · 4 phases.</p>
+  </div>
+  <div class="day-grid" id="day-grid"></div>
+</section>
+
+<section id="tab-mobilization" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/02 — MOBILIZATION</div><h2 class="section-title">Movement <span class="accent">plan</span></h2></div>
+    <p class="section-blurb">Per-movement staffing across stations. 7 active operational movements over Hajj week.</p>
+  </div>
+  <div class="movement-grid" id="movement-grid"></div>
+  <div class="two-col" style="margin-top: 24px;">
+    <div class="card"><div class="card-title">Staff distribution by movement</div><div class="card-subtitle">SUM(Total Staff) per movement</div><div class="chart-container"><canvas id="chart-movement"></canvas></div></div>
+    <div class="card"><div class="card-title">Status mix</div><div class="card-subtitle">SURGE / ACTIVE / STANDBY / SUPPORT</div><div class="chart-container"><canvas id="chart-status"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-top: 20px;">
+    <div class="card-title">Zone × Movement</div><div class="card-subtitle">Total staff per zone, by movement (excludes pre-ops setup)</div>
+    <div class="chart-container tall"><canvas id="chart-zone"></canvas></div>
+  </div>
+</section>
+
+<section id="tab-hourly" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/03 — HOURLY STAFFING</div><h2 class="section-title">Live <span class="accent">deployment</span> curve</h2></div>
+    <p class="section-blurb">180 hours of operational data. Filter by movement, switch view between line and heatmap.</p>
+  </div>
+  <div class="card">
+    <div class="ctrl-row">
+      <span class="ctrl-label">Movement</span>
+      <select class="ctrl-select" id="hourly-mvt">
+        <option value="all">All Operations</option>
+        <option value="GAP">GAP</option>
+        <option value="B1A">B1A</option>
+        <option value="B1B">B1B</option>
+        <option value="B2A">B2A</option>
+        <option value="B2B">B2B</option>
+        <option value="C">C — CRITICAL</option>
+        <option value="D">D</option>
+        <option value="E">E</option>
+        <option value="MAINT">MAINT</option>
+      </select>
+      <span class="ctrl-label" style="margin-left:14px">Granularity</span>
+      <div class="ctrl-toggle-group">
+        <button class="ctrl-toggle active" data-gran="zone">Zone (3)</button>
+        <button class="ctrl-toggle" data-gran="station">Station (9)</button>
+      </div>
+      <span class="ctrl-label" style="margin-left:14px">View</span>
+      <div class="ctrl-toggle-group">
+        <button class="ctrl-toggle active" data-view="line">Line</button>
+        <button class="ctrl-toggle" data-view="heatmap">Heatmap</button>
+      </div>
+    </div>
+    <div class="card-title" id="hourly-title">Zone staffing over time</div>
+    <div class="card-subtitle" id="hourly-subtitle">Day shift: 127 para · Night: 124 · Ambulances: always 25</div>
+    <div id="hourly-line-wrap"><div class="chart-container tall"><canvas id="chart-hourly"></canvas></div></div>
+    <div id="hourly-heat-wrap" style="display:none"><div id="heatmap-grid" style="margin-top: 8px;"></div></div>
+  </div>
+</section>
+
+<section id="tab-roster" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/04 — ROSTER</div><h2 class="section-title">Staff <span class="accent">assignment</span></h2></div>
+    <p class="section-blurb">272 named slots awaiting assignment (252 paramedic + 20 GP). Each tile = one person-slot.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Vacancy map · <span id="vacancy-count">272</span> slots</div>
+    <div class="card-subtitle">Confirmed assignments turn green</div>
+    <div class="slot-legend">
+      <div class="slot-legend-item"><span class="slot-swatch" style="background:var(--filled);opacity:.85"></span>Filled</div>
+      <div class="slot-legend-item"><span class="slot-swatch" style="background:var(--vacant);opacity:.65"></span>Vacant</div>
+    </div>
+    <div class="slot-grid" id="slot-grid"></div>
+  </div>
+  <div class="two-col" style="margin-top: 20px;">
+    <div class="card"><div class="card-title">Vacancy by sub-role</div><div class="card-subtitle">Where to focus recruitment</div><div class="chart-container"><canvas id="chart-subrole"></canvas></div></div>
+    <div class="card"><div class="card-title">GP coverage</div><div class="card-subtitle">Day / night physician per station</div>
+      <div class="table-wrap" style="margin-top: 12px;">
+        <table><thead><tr><th>Station</th><th>GP Day</th><th>GP Night</th></tr></thead><tbody id="gp-table"></tbody></table>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top: 20px;">
+    <div class="card-title">Day vs Night paramedics per station</div><div class="card-subtitle">Total per-station paramedic count during peak hours</div>
+    <div class="chart-container"><canvas id="chart-day-night"></canvas></div>
+  </div>
+</section>
+
+<section id="tab-ambulances" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/05 — AMBULANCES</div><h2 class="section-title">Fleet <span class="accent">deployment</span></h2></div>
+    <p class="section-blurb">25 ALS ambulances always on duty. 9 Essential + 9 Backup + 4 Roving + 2 Forward + 1 Depot.</p>
+  </div>
+  <div class="three-col">
+    <div class="card"><div class="card-title">Fleet composition</div><div class="card-subtitle">25 ALS ambulances</div><div class="chart-container"><canvas id="chart-fleet"></canvas></div></div>
+    <div class="card"><div class="card-title">Crew headcount</div><div class="card-subtitle">100 paramedics across 25 amb × 4 crew</div><div class="chart-container"><canvas id="chart-crew"></canvas></div></div>
+    <div class="card"><div class="card-title">Stacked deployment</div><div class="card-subtitle">Always = 25 vehicles</div><div class="chart-container"><canvas id="chart-amb-mvt"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-top: 20px;">
+    <div class="card-title">Ambulance distribution over time</div><div class="card-subtitle">Per-zone ambulance presence across operations</div>
+    <div class="chart-container"><canvas id="chart-amb-time"></canvas></div>
+  </div>
+</section>
+
+<section id="tab-augmentations" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/06 — AUGMENTATIONS</div><h2 class="section-title">Inter-station <span class="accent">flow</span></h2></div>
+    <p class="section-blurb">Planned redeployments during operations. Move paramedics from low-pressure to surge stations.</p>
+  </div>
+  <div class="two-col">
+    <div class="card"><div class="card-title">By movement</div><div class="card-subtitle">Where flexibility is concentrated</div><div class="chart-container"><canvas id="chart-aug-mvt"></canvas></div></div>
+    <div class="card"><div class="card-title">Donor stations</div><div class="card-subtitle">Para count contributed FROM each station</div><div class="chart-container"><canvas id="chart-aug-from"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-top: 20px;">
+    <div class="card-title">Sample flow · 24 of <span id="aug-total">114</span> augmentations</div>
+    <div class="card-subtitle">From → To · Para Moved</div>
+    <div id="aug-flow-list" style="margin-top: 16px;"></div>
+  </div>
+</section>
+
+<section id="tab-assets" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/07 — ASSETS &amp; LOGISTICS</div><h2 class="section-title">Beds &amp; <span class="accent">support</span></h2></div>
+    <p class="section-blurb">275 beds across 11 locations. Bunk-set inventory tracked separately.</p>
+  </div>
+  <div class="two-col">
+    <div class="card"><div class="card-title">Accommodation by location</div><div class="card-subtitle">Total beds · 275 across all sites</div><div class="chart-container"><canvas id="chart-accom"></canvas></div></div>
+    <div class="card"><div class="card-title">Org structure summary</div><div class="card-subtitle">Day vs night staffing by category</div><div class="chart-container"><canvas id="chart-org"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-top: 20px;">
+    <div class="card-title">Accommodation detail</div><div class="card-subtitle">Sta Para · Amb Crew · Rov/Fwd · GPs · Support · Total Beds</div>
+    <div class="table-wrap" style="margin-top: 16px;">
+      <table>
+        <thead><tr><th>Location</th><th class="num-cell">Sta</th><th class="num-cell">Amb</th><th class="num-cell">R/F</th><th class="num-cell">GPs</th><th class="num-cell">Sup</th><th class="num-cell">Total</th><th class="num-cell">Bunks</th></tr></thead>
+        <tbody id="accom-table"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="tab-timeline" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/08 — MOVEMENT PHASES</div><h2 class="section-title">Operational <span class="accent">timeline</span></h2></div>
+    <p class="section-blurb">Hour-by-hour movement transitions across 6 operational days.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Movement phases · <span id="phase-count">16</span> transitions</div>
+    <div class="card-subtitle">From start to end of each operational phase</div>
+    <div class="mvt-timeline" id="mvt-timeline" style="margin-top: 16px;"></div>
+  </div>
+  <div class="card" style="margin-top: 20px;">
+    <div class="card-title">Phase activities</div><div class="card-subtitle">High-level project timeline · Phase × Activity × Owner</div>
+    <div class="table-wrap" style="margin-top: 16px;">
+      <table><thead><tr><th>Phase</th><th>Activity</th><th>Date DH</th><th>Greg</th><th>Owner</th></tr></thead><tbody id="timeline-table"></tbody></table>
+    </div>
+  </div>
+</section>
+
+<footer class="container">
+  <div class="footer-grid">
+    <div class="footer-meta">
+      <div>Data source · <strong id="footer-source">Google Drive · Mobilization_Plan.xlsx</strong></div>
+      <div>Last refresh · <strong id="footer-refresh">—</strong></div>
+      <div>Auto-refresh every 30 minutes via GitHub Actions</div>
+    </div>
+    <div class="footer-brand">hajj.shuki.tech</div>
+  </div>
+</footer>
+
+</main>
+
+<script>
+const mvtColors = {
+  "PRE-B": "#6366F1", "GAP": "#A78BFA", "B1A": "#D97706", "B1B": "#D97706",
+  "B2A": "#F59E0B", "B2B": "#F59E0B", "C": "#DC2626", "D": "#0891B2", "E": "#0891B2", "MAINT": "#6B7280"
+};
+const stationColors = {
+  ARF1:'#fbbf24', ARF2:'#f59e0b', ARF3:'#d97706',
+  MUZ1:'#34d399', MUZ2:'#10b981', MUZ3:'#059669',
+  MIN1:'#a78bfa', MIN2:'#8b5cf6', MIN3:'#7c3aed'
+};
+const tooltipStyle = {
+  backgroundColor: '#0F1729', borderColor: 'rgba(255,255,255,0.14)', borderWidth: 1,
+  titleFont: { family: 'Inter', weight: 600, size: 12 },
+  bodyFont: { family: 'JetBrains Mono', size: 11 },
+  padding: 10, cornerRadius: 6, displayColors: true, boxPadding: 6
+};
+if (typeof Chart !== 'undefined') {
+  Chart.defaults.font.family = "Inter, system-ui, sans-serif";
+  Chart.defaults.font.size = 11;
+  Chart.defaults.color = "#8B92A4";
+  Chart.defaults.borderColor = "rgba(255,255,255,0.07)";
+}
+
+let DATA = null;
+let hourlyChart = null;
+let hourlyState = { mvt: 'all', gran: 'zone', view: 'line' };
+
+function status(msg, kind) {
+  const el = document.getElementById('boot-status');
+  const txt = document.getElementById('boot-status-text');
+  if (!el || !txt) return;
+  txt.textContent = msg;
+  el.className = 'show' + (kind === 'success' ? ' success' : '');
+  if (kind === 'success') setTimeout(() => el.classList.remove('show'), 2500);
+}
+function safeRender(name, fn) {
+  try { fn(); } catch (e) {
+    console.error(`Render failed: ${name}`, e);
+    status(`ERR ${name}: ${e.message}`);
+  }
+}
+
+function renderKPIs(d) {
+  const tiles = [
+    { label: "Personnel", value: d.personnel.total, meta: `<strong>${d.personnel.paramedics}</strong> para · ${d.personnel.gps} GPs · ${d.personnel.leadership_admin} lead`, color: "warm" },
+    { label: "Day Shift", value: d.personnel.day_para, meta: "paramedics on duty", color: "warning" },
+    { label: "Night Shift", value: d.personnel.night_para, meta: "paramedics on duty", color: "cool" },
+    { label: "Ambulances", value: d.personnel.ambulances, meta: `9E · 9B · 4R · 2F · 1D`, color: "danger" },
+    { label: "Roster Fill", value: `${d.roster.all_fill_pct}%`, meta: `<strong>${d.roster.all_vacant} vacant</strong> of ${d.roster.all_total}`, color: d.roster.all_vacant > 0 ? "danger" : "success" },
+    { label: "Peak Arafat", value: d.hourly.peak_arafat, meta: "max staff zone", color: "arf" },
+    { label: "Peak Muz", value: d.hourly.peak_muzdalifah, meta: "max staff zone", color: "muz" },
+    { label: "Peak Mina", value: d.hourly.peak_mina, meta: "max staff zone", color: "min" },
+  ];
+  document.getElementById('kpi-grid').innerHTML = tiles.map(t => `
+    <div class="kpi" data-c="${t.color}">
+      <div class="kpi-label">${t.label}</div>
+      <div class="kpi-value accent-color">${t.value}</div>
+      <div class="kpi-meta">${t.meta}</div>
+    </div>
+  `).join('');
+}
+function renderCountdown() {
+  const target = new Date('2026-05-25T00:00:00');
+  const days = Math.max(0, Math.ceil((target - new Date()) / 86400000));
+  document.getElementById('countdown-days').innerHTML = `${days}<span class="countdown-value-unit">days</span>`;
+}
+function renderCalendar(d) {
+  document.getElementById('day-grid').innerHTML = d.calendar.map(day => `
+    <div class="day-card" data-phase="${day.phase}">
+      <div><span class="day-num">${day.dh}</span><span class="day-num-label">DH · ${day.day}</span></div>
+      <div class="day-greg">${day.greg}</div>
+      <div class="day-phase">${day.phase}</div>
+      <div class="day-events">${day.events || '—'}</div>
+    </div>`).join('');
+}
+function renderMovements(d) {
+  document.getElementById('movement-grid').innerHTML = d.movements.map(m => `
+    <div class="movement" style="--mvt-color: ${mvtColors[m.code] || '#888'};">
+      <div class="movement-head">
+        <div class="movement-code">${m.code}</div>
+        <div class="movement-shift" data-shift="${m.shift}">${m.shift}</div>
+      </div>
+      <div class="movement-label">${m.label}</div>
+      <div class="movement-stats">
+        <div><div class="movement-stat-label">Staff</div><div class="movement-stat-value">${m.staff}</div></div>
+        <div><div class="movement-stat-label">Para</div><div class="movement-stat-value">${m.para}</div></div>
+        <div><div class="movement-stat-label">Vehicles</div><div class="movement-stat-value">${m.amb}</div></div>
+        <div><div class="movement-stat-label">Day</div><div class="movement-stat-value-mono">${m.dh}</div></div>
+      </div>
+    </div>`).join('');
+}
+function renderRoster(d) {
+  document.getElementById('vacancy-count').textContent = d.roster.all_total;
+  let html = '';
+  for (let i = 0; i < d.roster.all_total; i++) {
+    const filled = i < d.roster.all_filled;
+    html += `<div class="slot ${filled ? 'filled' : ''}" title="Slot ${i+1} · ${filled ? 'Filled' : 'Vacant'}"></div>`;
+  }
+  document.getElementById('slot-grid').innerHTML = html;
+  document.getElementById('gp-table').innerHTML = d.gp_coverage.map(g => `
+    <tr><td><strong>${g.station}</strong></td><td class="mono">${g.gp_day}</td><td class="mono">${g.gp_night}</td></tr>`).join('');
+}
+function renderAccommodation(d) {
+  document.getElementById('accom-table').innerHTML = d.accommodation.map(a => `
+    <tr>
+      <td><strong>${a.location}</strong></td>
+      <td class="num-cell mono">${a.sta_para}</td>
+      <td class="num-cell mono">${a.amb_crew}</td>
+      <td class="num-cell mono">${a.rov_fwd}</td>
+      <td class="num-cell mono">${a.gps}</td>
+      <td class="num-cell mono">${a.support}</td>
+      <td class="num-cell mono"><strong>${a.total_beds}</strong></td>
+      <td class="num-cell mono">${a.bunk_sets}</td>
+    </tr>`).join('');
+}
+function renderAugmentations(d) {
+  document.getElementById('aug-total').textContent = d.augmentations.total;
+  document.getElementById('aug-flow-list').innerHTML = d.augmentations.sample.map(a => `
+    <div class="aug-flow">
+      <div class="aug-mvt">${a.mvt}</div>
+      <div class="aug-arrow">
+        <span class="aug-from">${a.from}</span>
+        <span class="aug-arrow-line"></span>
+        <span class="aug-to">${a.to}</span>
+      </div>
+      <div class="aug-count">${a.para}</div>
+      <div><span class="status-pill" data-s="${a.status}">${a.status}</span></div>
+    </div>`).join('');
+}
+function renderTimeline(d) {
+  document.getElementById('phase-count').textContent = d.movement_phases.length;
+  document.getElementById('mvt-timeline').innerHTML = d.movement_phases.map(p => `
+    <div class="mvt-bar" style="border-left: 3px solid ${mvtColors[p.mvt] || '#888'}; padding-left: 9px;">
+      <span class="mvt-bar-code" style="color: ${mvtColors[p.mvt] || '#888'}">${p.mvt}</span>
+      <span class="mvt-bar-time">${p.start_dh} ${p.start_hour} → ${p.end_dh} ${p.end_hour}</span>
+      <span class="mvt-bar-shift">${p.shift}</span>
+    </div>`).join('');
+  document.getElementById('timeline-table').innerHTML = d.timeline.map(t => `
+    <tr>
+      <td class="mono">P${t.phase}</td>
+      <td><strong>${t.activity}</strong></td>
+      <td class="mono">${t.date_dh}</td>
+      <td class="mono">${t.greg}</td>
+      <td class="mono">${t.owner}</td>
+    </tr>`).join('');
+}
+
+function renderHeatmap() {
+  const stations = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+  const allMvts = ['GAP','B1A','B1B','B2A','B2B','C','D','E','MAINT'];
+  const mvts = hourlyState.mvt === 'all' ? allMvts : [hourlyState.mvt];
+  const peaks = {};
+  mvts.forEach(m => peaks[m] = {});
+  DATA.hourly.hours.forEach(h => {
+    if (!peaks[h.mvt]) return;
+    if (hourlyState.gran === 'zone') {
+      peaks[h.mvt].arf = Math.max(peaks[h.mvt].arf || 0, h.arf_s);
+      peaks[h.mvt].muz = Math.max(peaks[h.mvt].muz || 0, h.muz_s);
+      peaks[h.mvt].min = Math.max(peaks[h.mvt].min || 0, h.min_s);
+    } else {
+      stations.forEach(st => { peaks[h.mvt][st] = Math.max(peaks[h.mvt][st] || 0, h.stations[st] || 0); });
+    }
+  });
+  const cols = hourlyState.gran === 'zone' ? ['arf','muz','min'] : stations;
+  const colLabels = hourlyState.gran === 'zone' ? ['Arafat','Muzdalifah','Mina'] : stations;
+  let maxAll = 0;
+  mvts.forEach(m => cols.forEach(c => { if (peaks[m][c] > maxAll) maxAll = peaks[m][c]; }));
+  function heatColor(v) {
+    if (!v) return 'rgba(255,255,255,0.03)';
+    const a = 0.15 + (v / Math.max(maxAll, 1)) * 0.7;
+    return `rgba(217, 119, 6, ${a.toFixed(2)})`;
+  }
+  let html = `<div class="heatmap" style="grid-template-columns: 110px repeat(${cols.length}, 1fr);">`;
+  html += '<div class="heat-header">Movement</div>';
+  colLabels.forEach(c => html += `<div class="heat-header">${c}</div>`);
+  mvts.forEach(m => {
+    html += `<div class="heat-label" style="color: ${mvtColors[m]}">${m}</div>`;
+    cols.forEach(c => {
+      const v = peaks[m][c] || 0;
+      html += `<div class="heat-cell" style="background: ${heatColor(v)};">${v || '—'}</div>`;
+    });
+  });
+  html += '</div>';
+  document.getElementById('heatmap-grid').innerHTML = html;
+}
+
+function buildHourlyChart() {
+  if (typeof Chart === 'undefined') return;
+  const d = DATA;
+  const hours = d.hourly.hours.filter(h => hourlyState.mvt === 'all' ? h.mvt !== 'PRE-B' : h.mvt === hourlyState.mvt);
+  const labels = hours.map(h => h.label);
+  document.getElementById('hourly-title').textContent =
+    (hourlyState.gran === 'zone' ? 'Zone' : 'Station') + ' staffing — ' +
+    (hourlyState.mvt === 'all' ? 'all operations' : `movement ${hourlyState.mvt}`);
+
+  let datasets = [];
+  if (hourlyState.gran === 'zone') {
+    datasets = [
+      { label: 'Arafat', data: hours.map(h => h.arf_s), borderColor: '#F59E0B', backgroundColor: 'transparent', borderWidth: 2, tension: 0.3, pointRadius: 0 },
+      { label: 'Muzdalifah', data: hours.map(h => h.muz_s), borderColor: '#10B981', backgroundColor: 'transparent', borderWidth: 2, tension: 0.3, pointRadius: 0 },
+      { label: 'Mina', data: hours.map(h => h.min_s), borderColor: '#8B5CF6', backgroundColor: 'transparent', borderWidth: 2, tension: 0.3, pointRadius: 0 }
+    ];
+  } else {
+    const stns = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+    datasets = stns.map(st => ({
+      label: st, data: hours.map(h => h.stations[st] || 0),
+      borderColor: stationColors[st], backgroundColor: 'transparent', borderWidth: 1.8, tension: 0.3, pointRadius: 0
+    }));
+  }
+  if (hourlyChart) hourlyChart.destroy();
+  hourlyChart = new Chart(document.getElementById('chart-hourly'), {
+    type: 'line', data: { labels, datasets },
+    options: { responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'bottom', labels: { padding: 14, usePointStyle: true } }, tooltip: tooltipStyle },
+      scales: { y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true },
+                x: { grid: { display: false }, ticks: { maxTicksLimit: 14, autoSkip: true, font: { size: 10 } } } } }
+  });
+}
+
+function renderCharts(d) {
+  if (typeof Chart === 'undefined') {
+    status('Chart.js not loaded — text rendered, charts unavailable');
+    return;
+  }
+  new Chart(document.getElementById('chart-movement'), {
+    type: 'bar',
+    data: { labels: d.movements.map(m => m.code),
+      datasets: [{ label: 'Total staff', data: d.movements.map(m => m.staff),
+        backgroundColor: d.movements.map(m => (mvtColors[m.code] || '#888') + 'CC'),
+        borderColor: d.movements.map(m => mvtColors[m.code] || '#888'),
+        borderWidth: 1.5, borderRadius: 4 }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: tooltipStyle },
+      scales: { y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }, x: { grid: { display: false } } } }
+  });
+  new Chart(document.getElementById('chart-status'), {
+    type: 'doughnut',
+    data: { labels: Object.keys(d.status_counts), datasets: [{ data: Object.values(d.status_counts),
+      backgroundColor: ['#DC2626','#F97316','#EAB308','#3B82F6'], borderColor: '#0F1729', borderWidth: 3 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '65%',
+      plugins: { legend: { position: 'right', labels: { padding: 12, usePointStyle: true } }, tooltip: tooltipStyle } }
+  });
+  new Chart(document.getElementById('chart-zone'), {
+    type: 'bar',
+    data: { labels: Object.keys(d.zone_by_mvt),
+      datasets: [
+        { label: 'Arafat', data: Object.values(d.zone_by_mvt).map(z => z.Arafat), backgroundColor: '#F59E0BCC', borderRadius: 2 },
+        { label: 'Muzdalifah', data: Object.values(d.zone_by_mvt).map(z => z.Muzdalifah), backgroundColor: '#10B981CC', borderRadius: 2 },
+        { label: 'Mina', data: Object.values(d.zone_by_mvt).map(z => z.Mina), backgroundColor: '#8B5CF6CC', borderRadius: 2 },
+        { label: 'Support', data: Object.values(d.zone_by_mvt).map(z => z.Support), backgroundColor: '#6B7280CC', borderRadius: 2 }
+      ] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { padding: 14, usePointStyle: true } }, tooltip: tooltipStyle },
+      scales: { y: { stacked: true, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true },
+                x: { stacked: true, grid: { display: false } } } }
+  });
+  new Chart(document.getElementById('chart-subrole'), {
+    type: 'bar',
+    data: { labels: Object.keys(d.roster.by_subrole),
+      datasets: [
+        { label: 'Vacant', data: Object.keys(d.roster.by_subrole).map(k => (d.roster.by_subrole_status[k] || {vacant:0}).vacant), backgroundColor: '#DC2626CC', borderRadius: 3 },
+        { label: 'Filled', data: Object.keys(d.roster.by_subrole).map(k => (d.roster.by_subrole_status[k] || {filled:0}).filled), backgroundColor: '#10B981CC', borderRadius: 3 }
+      ] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { padding: 14, usePointStyle: true } }, tooltip: tooltipStyle },
+      scales: { x: { stacked: true, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }, y: { stacked: true, grid: { display: false } } } }
+  });
+  const peakDay = {}, peakNight = {};
+  d.hourly.hours.forEach(h => {
+    Object.entries(h.stations).forEach(([st, v]) => {
+      if (h.shift === 'DAY' && v > (peakDay[st] || 0)) peakDay[st] = v;
+      if (h.shift === 'NIGHT' && v > (peakNight[st] || 0)) peakNight[st] = v;
+    });
+  });
+  const stns = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+  new Chart(document.getElementById('chart-day-night'), {
+    type: 'bar',
+    data: { labels: stns,
+      datasets: [
+        { label: 'Day peak', data: stns.map(s => peakDay[s] || 0), backgroundColor: '#F59E0BCC', borderRadius: 3 },
+        { label: 'Night peak', data: stns.map(s => peakNight[s] || 0), backgroundColor: '#3B82F6CC', borderRadius: 3 }
+      ] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { padding: 14, usePointStyle: true } }, tooltip: tooltipStyle },
+      scales: { y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }, x: { grid: { display: false } } } }
+  });
+  new Chart(document.getElementById('chart-aug-mvt'), {
+    type: 'bar',
+    data: { labels: Object.keys(d.augmentations.by_movement),
+      datasets: [{ label: 'Augmentations', data: Object.values(d.augmentations.by_movement), backgroundColor: '#EAB308CC', borderRadius: 4 }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: tooltipStyle },
+      scales: { y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }, x: { grid: { display: false } } } }
+  });
+  new Chart(document.getElementById('chart-aug-from'), {
+    type: 'bar',
+    data: { labels: Object.keys(d.augmentations.by_donor),
+      datasets: [{ label: 'Para', data: Object.values(d.augmentations.by_donor),
+        backgroundColor: Object.keys(d.augmentations.by_donor).map(s => {
+          if (s.startsWith('ARF')) return '#F59E0BCC';
+          if (s.startsWith('MUZ')) return '#10B981CC';
+          if (s.startsWith('MIN')) return '#8B5CF6CC';
+          return '#6B7280CC';
+        }), borderRadius: 3 }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: tooltipStyle },
+      scales: { x: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }, y: { grid: { display: false } } } }
+  });
+  new Chart(document.getElementById('chart-fleet'), {
+    type: 'doughnut',
+    data: { labels: ['Essential (E)', 'Backup (B)', 'Roving (R)', 'Forward (F)', 'Depot (D)'],
+      datasets: [{ data: [9,9,4,2,1], backgroundColor: ['#DC2626','#F97316','#EAB308','#3B82F6','#6B7280'], borderColor: '#0F1729', borderWidth: 3 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '60%',
+      plugins: { legend: { position: 'bottom', labels: { padding: 10, usePointStyle: true, font: {size: 10} } }, tooltip: tooltipStyle } }
+  });
+  new Chart(document.getElementById('chart-crew'), {
+    type: 'doughnut',
+    data: { labels: ['E-Amb (36)','B-Amb (36)','Roving (16)','Forward (8)','Depot (4)'],
+      datasets: [{ data: [36,36,16,8,4], backgroundColor: ['#DC2626','#F97316','#EAB308','#3B82F6','#6B7280'], borderColor: '#0F1729', borderWidth: 3 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '60%',
+      plugins: { legend: { position: 'bottom', labels: { padding: 10, usePointStyle: true, font: {size: 10} } }, tooltip: tooltipStyle } }
+  });
+  new Chart(document.getElementById('chart-amb-mvt'), {
+    type: 'bar',
+    data: { labels: d.movements.map(m => m.code),
+      datasets: [{ label: 'Vehicles', data: d.movements.map(m => m.amb), backgroundColor: d.movements.map(m => (mvtColors[m.code] || '#888') + 'CC'), borderRadius: 3 }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: tooltipStyle },
+      scales: { y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }, x: { grid: { display: false } } } }
+  });
+  const opsHours = d.hourly.hours.filter(h => h.mvt !== 'PRE-B');
+  new Chart(document.getElementById('chart-amb-time'), {
+    type: 'line',
+    data: { labels: opsHours.map(h => h.label),
+      datasets: [
+        { label: 'Arafat', data: opsHours.map(h => h.arf_a), borderColor: '#F59E0B', backgroundColor: 'transparent', borderWidth: 2, tension: 0.3, pointRadius: 0 },
+        { label: 'Muzdalifah', data: opsHours.map(h => h.muz_a), borderColor: '#10B981', backgroundColor: 'transparent', borderWidth: 2, tension: 0.3, pointRadius: 0 },
+        { label: 'Mina', data: opsHours.map(h => h.min_a), borderColor: '#8B5CF6', backgroundColor: 'transparent', borderWidth: 2, tension: 0.3, pointRadius: 0 }
+      ] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { padding: 14, usePointStyle: true } }, tooltip: tooltipStyle },
+      scales: { y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true, max: 12 },
+                x: { grid: { display: false }, ticks: { maxTicksLimit: 12, autoSkip: true } } } }
+  });
+  new Chart(document.getElementById('chart-accom'), {
+    type: 'bar',
+    data: { labels: d.accommodation.map(a => a.location),
+      datasets: [{ label: 'Beds', data: d.accommodation.map(a => a.total_beds),
+        backgroundColor: d.accommodation.map(a => {
+          const l = a.location.toLowerCase();
+          if (l.includes('arafat')) return '#F59E0BCC';
+          if (l.includes('muz')) return '#10B981CC';
+          if (l.includes('mina')) return '#8B5CF6CC';
+          return '#6B7280CC';
+        }), borderRadius: 3 }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: tooltipStyle },
+      scales: { x: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }, y: { grid: { display: false } } } }
+  });
+  const cats = {};
+  d.org_structure.forEach(o => {
+    if (!cats[o.category]) cats[o.category] = {day: 0, night: 0};
+    cats[o.category].day += o.day;
+    cats[o.category].night += o.night;
+  });
+  new Chart(document.getElementById('chart-org'), {
+    type: 'bar',
+    data: { labels: Object.keys(cats),
+      datasets: [
+        { label: 'Day', data: Object.values(cats).map(c => c.day), backgroundColor: '#F59E0BCC', borderRadius: 3 },
+        { label: 'Night', data: Object.values(cats).map(c => c.night), backgroundColor: '#3B82F6CC', borderRadius: 3 }
+      ] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { padding: 14, usePointStyle: true } }, tooltip: tooltipStyle },
+      scales: { x: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }, y: { grid: { display: false } } } }
+  });
+}
+
+function setupTabs() {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.getAttribute('data-tab');
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
+      window.location.hash = tab;
+      window.dispatchEvent(new Event('resize'));
+    });
+  });
+  const initial = (window.location.hash || '').replace('#','');
+  if (initial) {
+    const btn = document.querySelector(`.tab-btn[data-tab="${initial}"]`);
+    if (btn) btn.click();
+  }
+}
+function setupHourlyControls() {
+  document.getElementById('hourly-mvt').addEventListener('change', e => {
+    hourlyState.mvt = e.target.value; updateHourly();
+  });
+  document.querySelectorAll('[data-gran]').forEach(b => {
+    b.addEventListener('click', () => {
+      hourlyState.gran = b.getAttribute('data-gran');
+      document.querySelectorAll('[data-gran]').forEach(x => x.classList.toggle('active', x === b));
+      updateHourly();
+    });
+  });
+  document.querySelectorAll('[data-view]').forEach(b => {
+    b.addEventListener('click', () => {
+      hourlyState.view = b.getAttribute('data-view');
+      document.querySelectorAll('[data-view]').forEach(x => x.classList.toggle('active', x === b));
+      document.getElementById('hourly-line-wrap').style.display = hourlyState.view === 'line' ? 'block' : 'none';
+      document.getElementById('hourly-heat-wrap').style.display = hourlyState.view === 'heatmap' ? 'block' : 'none';
+      updateHourly();
+    });
+  });
+}
+function updateHourly() {
+  if (hourlyState.view === 'line') buildHourlyChart();
+  else renderHeatmap();
+}
+
+async function boot() {
+  status('loading data…');
+  try {
+    if (window.__INLINE_DATA__) {
+      DATA = window.__INLINE_DATA__;
+      status('data loaded (inline)');
+    } else {
+      const r = await fetch('./data.json?t=' + Date.now());
+      DATA = await r.json();
+      status('data loaded (fetch)');
+    }
+  } catch (e) {
+    status(`Data load failed: ${e.message}`);
+    return;
+  }
+  safeRender('countdown', renderCountdown);
+  safeRender('kpis', () => renderKPIs(DATA));
+  safeRender('calendar', () => renderCalendar(DATA));
+  safeRender('movements', () => renderMovements(DATA));
+  safeRender('roster', () => renderRoster(DATA));
+  safeRender('accommodation', () => renderAccommodation(DATA));
+  safeRender('augmentations', () => renderAugmentations(DATA));
+  safeRender('timeline', () => renderTimeline(DATA));
+  safeRender('charts', () => renderCharts(DATA));
+  safeRender('hourly', buildHourlyChart);
+  safeRender('hourly-controls', setupHourlyControls);
+  safeRender('tabs', setupTabs);
+
+  document.getElementById('nav-time').textContent = `LIVE · ${DATA.refreshed_at}`;
+  document.getElementById('footer-refresh').textContent = DATA.refreshed_at;
+  document.getElementById('footer-source').textContent = DATA.source;
+  status('ready', 'success');
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', boot);
+} else {
+  boot();
+}
+</script>
+</body>
+</html>
