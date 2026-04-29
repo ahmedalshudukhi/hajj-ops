@@ -146,14 +146,18 @@ def compute_personnel(roles_rows):
     }
 
 def compute_roster(staff_rows):
-    para_rows = [r for r in staff_rows if s(r.get("Role")) not in ("PM","Deputy PM","Admin Lead","Med Direction Lead","GP")]
+    LEADERSHIP_ROLES = ("PM","Deputy PM","Admin Lead","Med Direction Lead")
+    para_rows = [r for r in staff_rows if s(r.get("Role")) not in LEADERSHIP_ROLES + ("GP",)]
     gp_rows = [r for r in staff_rows if s(r.get("Role")) == "GP"]
+    leader_rows = [r for r in staff_rows if s(r.get("Role")) in LEADERSHIP_ROLES]
     def is_filled(r): return s(r.get("Status")) == "Filled" and s(r.get("Name")) != ""
     para_filled = sum(1 for r in para_rows if is_filled(r))
     gp_filled = sum(1 for r in gp_rows if is_filled(r))
-    para_total = len(para_rows); gp_total = len(gp_rows)
-    all_total = para_total + gp_total
-    all_filled = para_filled + gp_filled
+    leader_filled = sum(1 for r in leader_rows if is_filled(r))
+    para_total = len(para_rows); gp_total = len(gp_rows); leader_total = len(leader_rows)
+    # all_total = paras + GPs + leadership/admin (full roster headline)
+    all_total = para_total + gp_total + leader_total
+    all_filled = para_filled + gp_filled + leader_filled
     by_subrole = Counter()
     by_subrole_status = defaultdict(lambda: {"vacant":0, "filled":0})
     ROLE_TO_SUB = {
