@@ -47,15 +47,15 @@ TIMELINE = [
     {"phase":"5","activity":"Final report","date_dh":"30 days post","greg":"","owner":"PM"},
 ]
 MOVEMENTS = [
-    {"code":"PRE-B","shift":"DAY","dh":"7 DH","label":"Pre-Boarding setup","staff":245,"para":125,"amb":0},
-    {"code":"GAP","shift":"MIXED","dh":"8-9 DH","label":"Inter-movement Gap","staff":245,"para":125,"amb":36},
+    {"code":"PRE-B","shift":"DAY","dh":"7 DH","label":"Pre-Boarding setup","staff":245,"para":125,"amb":12},
+    {"code":"GAP","shift":"MIXED","dh":"8-9 DH","label":"Inter-movement Gap","staff":245,"para":125,"amb":25},
     {"code":"B1A","shift":"NIGHT","dh":"8/9 DH","label":"Boarding 1A","staff":121,"para":61,"amb":18},
     {"code":"B1B","shift":"NIGHT","dh":"9 DH","label":"Boarding 1B","staff":121,"para":61,"amb":18},
     {"code":"B2A","shift":"DAY","dh":"9 DH","label":"Boarding 2A","staff":124,"para":64,"amb":18},
     {"code":"B2B","shift":"DAY","dh":"9 DH","label":"Boarding 2B","staff":124,"para":64,"amb":18},
-    {"code":"C","shift":"NIGHT","dh":"10 DH","label":"Day of Arafat","staff":121,"para":61,"amb":18},
-    {"code":"D","shift":"MIXED","dh":"10/11 DH","label":"Muz → Mina","staff":245,"para":125,"amb":36},
-    {"code":"E","shift":"MIXED","dh":"11-13 DH","label":"Mina operations","staff":245,"para":125,"amb":36},
+    {"code":"C","shift":"NIGHT","dh":"10 DH","label":"Day of Arafat","staff":121,"para":61,"amb":25},
+    {"code":"D","shift":"MIXED","dh":"10/11 DH","label":"Muz → Mina","staff":245,"para":125,"amb":25},
+    {"code":"E","shift":"MIXED","dh":"11-13 DH","label":"Mina operations","staff":245,"para":125,"amb":25},
     {"code":"MAINT","shift":"DAY","dh":"13 DH","label":"Maintenance / Demob","staff":121,"para":61,"amb":18},
 ]
 MOVEMENT_PHASES = [
@@ -305,6 +305,34 @@ def compute_augmentations(aug_rows):
 def compute_status_counts(units_rows):
     return {"SUPPORT":98,"SURGE":52,"ACTIVE":38,"STANDBY":36}
 
+def compute_ambulance_data(amb_rows, units_rows):
+    """Build ambulance roster table + per-station counts.
+       Home Station is computed from Day Alpha crew's home (mirrors xlsx formula)."""
+    unit_home = {s(u.get("Unit ID")): s(u.get("Home Station")) for u in units_rows}
+    roster = []
+    by_station = defaultdict(int)
+    for r in amb_rows:
+        aid = s(r.get("Ambulance ID"))
+        if not aid: continue
+        day = s(r.get("Day Alpha Crew"))
+        night = s(r.get("Night Alpha Crew"))
+        # Home: try the formula result first, else compute from day alpha
+        home = s(r.get("Home Station"))
+        if not home and day:
+            home = unit_home.get(day, "")
+        roster.append({
+            "id": aid,
+            "type": s(r.get("Type")),
+            "cls": s(r.get("Class")),
+            "day_crew": day,
+            "night_crew": night,
+            "home": home,
+            "status": s(r.get("Status")) or "Ready",
+            "notes": s(r.get("Notes")),
+        })
+        if home: by_station[home] += 1
+    return roster, dict(by_station)
+
 def compute_stations_detail(units_rows, staff_rows, unit_readiness_rows):
     unit_filled = defaultdict(lambda: {"total":0,"filled":0})
     for r in staff_rows:
@@ -357,7 +385,8 @@ def main():
     schedule = read_sheet(wb, "Schedule")
     augs = read_sheet(wb, "Augmentations", r"^[A-Z]+-\d+$")
     unit_readiness = read_sheet(wb, "Unit_Readiness")
-    print(f"  Roles: {len(roles)} · Units: {len(units)} · Staff: {len(staff)} · Shifts: {len(shifts)} · Schedule: {len(schedule)}")
+    ambulances = read_sheet(wb, "Ambulances", r"^[EBR]\d{2}$")
+    print(f"  Roles: {len(roles)} · Units: {len(units)} · Staff: {len(staff)} · Shifts: {len(shifts)} · Schedule: {len(schedule)} · Ambulances: {len(ambulances)}")
 
     personnel = compute_personnel(roles)
     roster = compute_roster(staff)
@@ -366,6 +395,7 @@ def main():
     status_counts = compute_status_counts(units)
     hourly = build_hourly(staff, schedule, shifts, units)
     stations_detail = compute_stations_detail(units, staff, unit_readiness)
+    ambulance_roster, amb_by_station = compute_ambulance_data(ambulances, units)
 
     data = {
         "refreshed_at": datetime.now(timezone.utc).strftime("%d %b %Y · %H:%M UTC"),
@@ -385,6 +415,8 @@ def main():
         "augmentations": aug,
         "hourly": hourly,
         "stations_detail": stations_detail,
+        "ambulance_roster": ambulance_roster,
+        "amb_by_station": amb_by_station,
     }
 
     with open("data.json", "w") as f:

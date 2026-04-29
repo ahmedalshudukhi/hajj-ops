@@ -367,6 +367,10 @@
     <div><div class="section-num">/05 — STATIONS</div><h2 class="section-title">Unit <span class="accent">assignments</span></h2></div>
     <p class="section-blurb">Which units belong to each station. Operational units shown by type (Mike / Alpha / Romeo) plus any leadership and command units assigned to support locations.</p>
   </div>
+  <div class="two-col" style="margin-bottom: 20px;">
+    <div class="card"><div class="card-title">Unit type per station</div><div class="card-subtitle">Mike + Alpha + Romeo stacked</div><div class="chart-container"><canvas id="chart-station-mix"></canvas></div></div>
+    <div class="card"><div class="card-title">Headcount per station</div><div class="card-subtitle">Total paramedics + GPs based at each station</div><div class="chart-container"><canvas id="chart-station-paras"></canvas></div></div>
+  </div>
   <div class="card">
     <div class="card-title">Station <span class="accent">roster</span></div>
     <div class="card-subtitle">Click any unit chip to see its current fill status. Color = unit type. Bordered chips = unit has unfilled slots.</div>
@@ -383,22 +387,23 @@
 <section id="tab-ambulances" class="tab-panel">
   <div class="section-head">
     <div><div class="section-num">/06 — AMBULANCES</div><h2 class="section-title">Fleet <span class="accent">deployment</span></h2></div>
-    <p class="section-blurb">25 ALS ambulances always on duty. 9 Essential + 9 Backup + 4 Roving + 2 Forward + 1 Depot.</p>
+    <p class="section-blurb">25 ambulances always manned. 10 Essential ALS · 9 Backup BLS · 6 Roving ALS. Each ambulance has a Day and Night Alpha crew.</p>
   </div>
   <div class="three-col">
-    <div class="card"><div class="card-title">Fleet composition</div><div class="card-subtitle">25 ALS ambulances</div><div class="chart-container"><canvas id="chart-fleet"></canvas></div></div>
-    <div class="card"><div class="card-title">Crew headcount</div><div class="card-subtitle">100 paramedics across 25 amb × 4 crew</div><div class="chart-container"><canvas id="chart-crew"></canvas></div></div>
-    <div class="card"><div class="card-title">Stacked deployment</div><div class="card-subtitle">Always = 25 vehicles</div><div class="chart-container"><canvas id="chart-amb-mvt"></canvas></div></div>
+    <div class="card"><div class="card-title">Fleet composition</div><div class="card-subtitle">25 vehicles by type</div><div class="chart-container"><canvas id="chart-fleet"></canvas></div></div>
+    <div class="card"><div class="card-title">Crew headcount</div><div class="card-subtitle">100 paramedics · 50 Alpha units (Day + Night)</div><div class="chart-container"><canvas id="chart-crew"></canvas></div></div>
+    <div class="card"><div class="card-title">Ambulances per station</div><div class="card-subtitle">Where each vehicle is based</div><div class="chart-container"><canvas id="chart-amb-station"></canvas></div></div>
   </div>
   <div class="card" style="margin-top: 20px;">
-    <div class="card-title">Ambulance distribution over time</div><div class="card-subtitle">Per-zone ambulance presence across operations</div>
-    <div class="chart-container"><canvas id="chart-amb-time"></canvas></div>
+    <div class="card-title">Ambulance roster · 25 vehicles</div>
+    <div class="card-subtitle">Each row shows Day + Night Alpha crew and home station</div>
+    <div id="ambulance-roster" style="margin-top: 16px;"></div>
   </div>
 </section>
 
 <section id="tab-augmentations" class="tab-panel">
   <div class="section-head">
-    <div><div class="section-num">/06 — AUGMENTATIONS</div><h2 class="section-title">Inter-station <span class="accent">flow</span></h2></div>
+    <div><div class="section-num">/07 — AUGMENTATIONS</div><h2 class="section-title">Inter-station <span class="accent">flow</span></h2></div>
     <p class="section-blurb">Planned redeployments during operations. Move paramedics from low-pressure to surge stations.</p>
   </div>
   <div class="two-col">
@@ -414,19 +419,20 @@
 
 <section id="tab-assets" class="tab-panel">
   <div class="section-head">
-    <div><div class="section-num">/07 — ASSETS &amp; LOGISTICS</div><h2 class="section-title">Beds &amp; <span class="accent">support</span></h2></div>
-    <p class="section-blurb">275 beds across 11 locations. Bunk-set inventory tracked separately.</p>
+    <div><div class="section-num">/08 — ASSETS &amp; LOGISTICS</div><h2 class="section-title">Beds &amp; <span class="accent">support</span></h2></div>
+    <p class="section-blurb">Accommodation across operational sites and the depot. Org structure shows day vs night staffing by category.</p>
   </div>
   <div class="two-col">
-    <div class="card"><div class="card-title">Accommodation by location</div><div class="card-subtitle">Total beds · 275 across all sites</div><div class="chart-container"><canvas id="chart-accom"></canvas></div></div>
+    <div class="card"><div class="card-title">Accommodation by location</div><div class="card-subtitle">Beds per site</div><div class="chart-container"><canvas id="chart-accom"></canvas></div></div>
     <div class="card"><div class="card-title">Org structure summary</div><div class="card-subtitle">Day vs night staffing by category</div><div class="chart-container"><canvas id="chart-org"></canvas></div></div>
   </div>
   <div class="card" style="margin-top: 20px;">
-    <div class="card-title">Accommodation detail</div><div class="card-subtitle">Sta Para · Amb Crew · Rov/Fwd · GPs · Support · Total Beds</div>
+    <div class="card-title">Org structure detail</div>
+    <div class="card-subtitle">Each role / station with day, night, and total counts</div>
     <div class="table-wrap" style="margin-top: 16px;">
       <table>
-        <thead><tr><th>Location</th><th class="num-cell">Sta</th><th class="num-cell">Amb</th><th class="num-cell">R/F</th><th class="num-cell">GPs</th><th class="num-cell">Sup</th><th class="num-cell">Total</th><th class="num-cell">Bunks</th></tr></thead>
-        <tbody id="accom-table"></tbody>
+        <thead><tr><th>Category</th><th>Role / Station</th><th class="num-cell">Day</th><th class="num-cell">Night</th><th class="num-cell">Total</th><th>Notes</th></tr></thead>
+        <tbody id="org-detail-table"></tbody>
       </table>
     </div>
   </div>
@@ -434,7 +440,7 @@
 
 <section id="tab-timeline" class="tab-panel">
   <div class="section-head">
-    <div><div class="section-num">/08 — MOVEMENT PHASES</div><h2 class="section-title">Operational <span class="accent">timeline</span></h2></div>
+    <div><div class="section-num">/09 — MOVEMENT PHASES</div><h2 class="section-title">Operational <span class="accent">timeline</span></h2></div>
     <p class="section-blurb">Hour-by-hour movement transitions across 6 operational days.</p>
   </div>
   <div class="card">
@@ -566,17 +572,18 @@ function renderRoster(d) {
     <tr><td><strong>${g.station}</strong></td><td class="mono">${g.gp_day}</td><td class="mono">${g.gp_night}</td></tr>`).join('');
 }
 function renderAccommodation(d) {
-  document.getElementById('accom-table').innerHTML = d.accommodation.map(a => `
-    <tr>
-      <td><strong>${a.location}</strong></td>
-      <td class="num-cell mono">${a.sta_para}</td>
-      <td class="num-cell mono">${a.amb_crew}</td>
-      <td class="num-cell mono">${a.rov_fwd}</td>
-      <td class="num-cell mono">${a.gps}</td>
-      <td class="num-cell mono">${a.support}</td>
-      <td class="num-cell mono"><strong>${a.total_beds}</strong></td>
-      <td class="num-cell mono">${a.bunk_sets}</td>
-    </tr>`).join('');
+  const tbl = document.getElementById('org-detail-table');
+  if (tbl && d.org_structure) {
+    tbl.innerHTML = d.org_structure.map(o => `
+      <tr>
+        <td>${o.category}</td>
+        <td><strong>${o.role}</strong></td>
+        <td class="num-cell mono">${o.day}</td>
+        <td class="num-cell mono">${o.night}</td>
+        <td class="num-cell mono"><strong>${o.total}</strong></td>
+        <td style="opacity:0.7;font-size:11px">${o.notes||''}</td>
+      </tr>`).join('');
+  }
 }
 function renderAugmentations(d) {
   document.getElementById('aug-total').textContent = d.augmentations.total;
@@ -641,6 +648,43 @@ function renderStations(d) {
       </div>`;
   }).join('');
   grid.innerHTML = html || '<div style="opacity:0.6; padding: 30px; text-align:center;">No station data available. Make sure units have Home Station assigned.</div>';
+
+  // Charts at top of tab — stacked unit-mix per station + headcount per station
+  const clinicalSt = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+  const mikeData = clinicalSt.map(st => (d.stations_detail[st]?.by_type?.['Medical']) || 0);
+  const alphaData = clinicalSt.map(st => (d.stations_detail[st]?.by_type?.['Ambulance']) || 0);
+  const romeoData = clinicalSt.map(st => (d.stations_detail[st]?.by_type?.['Foot-Runner']) || 0);
+  const headcountData = clinicalSt.map(st => (d.stations_detail[st]?.total_size) || 0);
+  const stationMixCanvas = document.getElementById('chart-station-mix');
+  if (stationMixCanvas && window.Chart) {
+    new Chart(stationMixCanvas, {
+      type: 'bar',
+      data: { labels: clinicalSt,
+        datasets: [
+          { label: 'Mike (Medical)', data: mikeData, backgroundColor: '#ef4444' },
+          { label: 'Alpha (Ambulance)', data: alphaData, backgroundColor: '#3b82f6' },
+          { label: 'Romeo (Foot-Runner)', data: romeoData, backgroundColor: '#10b981' },
+        ] },
+      options: { responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, font: {size: 10} } } },
+        scales: { x: { stacked: true, grid: { display: false } },
+                  y: { stacked: true, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true, ticks: { stepSize: 2 } } } }
+    });
+  }
+  const headcountCanvas = document.getElementById('chart-station-paras');
+  if (headcountCanvas && window.Chart) {
+    new Chart(headcountCanvas, {
+      type: 'bar',
+      data: { labels: clinicalSt,
+        datasets: [{ label: 'People', data: headcountData,
+          backgroundColor: clinicalSt.map(st => st.startsWith('ARF') ? '#F59E0BCC' : st.startsWith('MUZ') ? '#10B981CC' : '#8B5CF6CC'),
+          borderRadius: 3 }] },
+      options: { responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false } },
+                  y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true } } }
+    });
+  }
 }
 function renderTimeline(d) {
   document.getElementById('phase-count').textContent = d.movement_phases.length;
@@ -824,40 +868,59 @@ function renderCharts(d) {
   });
   new Chart(document.getElementById('chart-fleet'), {
     type: 'doughnut',
-    data: { labels: ['Essential (E)', 'Backup (B)', 'Roving (R)', 'Forward (F)', 'Depot (D)'],
-      datasets: [{ data: [9,9,4,2,1], backgroundColor: ['#DC2626','#F97316','#EAB308','#3B82F6','#6B7280'], borderColor: '#0F1729', borderWidth: 3 }] },
+    data: { labels: ['Essential (E) ALS', 'Backup (B) BLS', 'Roving (R) ALS'],
+      datasets: [{ data: [10,9,6], backgroundColor: ['#DC2626','#F97316','#EAB308'], borderColor: '#0F1729', borderWidth: 3 }] },
     options: { responsive: true, maintainAspectRatio: false, cutout: '60%',
       plugins: { legend: { position: 'bottom', labels: { padding: 10, usePointStyle: true, font: {size: 10} } }, tooltip: tooltipStyle } }
   });
   new Chart(document.getElementById('chart-crew'), {
     type: 'doughnut',
-    data: { labels: ['E-Amb (36)','B-Amb (36)','Roving (16)','Forward (8)','Depot (4)'],
-      datasets: [{ data: [36,36,16,8,4], backgroundColor: ['#DC2626','#F97316','#EAB308','#3B82F6','#6B7280'], borderColor: '#0F1729', borderWidth: 3 }] },
+    data: { labels: ['Day crews (Alpha-01..25)','Night crews (Alpha-26..50)'],
+      datasets: [{ data: [50,50], backgroundColor: ['#3B82F6','#8B5CF6'], borderColor: '#0F1729', borderWidth: 3 }] },
     options: { responsive: true, maintainAspectRatio: false, cutout: '60%',
       plugins: { legend: { position: 'bottom', labels: { padding: 10, usePointStyle: true, font: {size: 10} } }, tooltip: tooltipStyle } }
   });
-  new Chart(document.getElementById('chart-amb-mvt'), {
+  // Ambulances per station
+  const ambByStation = d.amb_by_station || {};
+  const ambStLabels = Object.keys(ambByStation).filter(k => ambByStation[k] > 0);
+  const ambStData = ambStLabels.map(k => ambByStation[k]);
+  new Chart(document.getElementById('chart-amb-station'), {
     type: 'bar',
-    data: { labels: d.movements.map(m => m.code),
-      datasets: [{ label: 'Vehicles', data: d.movements.map(m => m.amb), backgroundColor: d.movements.map(m => (mvtColors[m.code] || '#888') + 'CC'), borderRadius: 3 }] },
+    data: { labels: ambStLabels,
+      datasets: [{ label: 'Ambulances', data: ambStData,
+        backgroundColor: ambStLabels.map(l => {
+          if (l.startsWith('ARF')) return '#F59E0BCC';
+          if (l.startsWith('MUZ')) return '#10B981CC';
+          if (l.startsWith('MIN')) return '#8B5CF6CC';
+          return '#6B7280CC';
+        }), borderRadius: 3 }] },
     options: { responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: tooltipStyle },
-      scales: { y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }, x: { grid: { display: false } } } }
+      scales: { y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true, ticks: { stepSize: 1 } }, x: { grid: { display: false } } } }
   });
-  const opsHours = d.hourly.hours.filter(h => h.mvt !== 'PRE-B');
-  new Chart(document.getElementById('chart-amb-time'), {
-    type: 'line',
-    data: { labels: opsHours.map(h => h.label),
-      datasets: [
-        { label: 'Arafat', data: opsHours.map(h => h.arf_a), borderColor: '#F59E0B', backgroundColor: 'transparent', borderWidth: 2, tension: 0.3, pointRadius: 0 },
-        { label: 'Muzdalifah', data: opsHours.map(h => h.muz_a), borderColor: '#10B981', backgroundColor: 'transparent', borderWidth: 2, tension: 0.3, pointRadius: 0 },
-        { label: 'Mina', data: opsHours.map(h => h.min_a), borderColor: '#8B5CF6', backgroundColor: 'transparent', borderWidth: 2, tension: 0.3, pointRadius: 0 }
-      ] },
-    options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { padding: 14, usePointStyle: true } }, tooltip: tooltipStyle },
-      scales: { y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true, max: 12 },
-                x: { grid: { display: false }, ticks: { maxTicksLimit: 12, autoSkip: true } } } }
-  });
+  // Ambulance roster table
+  if (d.ambulance_roster && d.ambulance_roster.length) {
+    const typeColor = { 'Essential': '#DC2626', 'Backup': '#F97316', 'Roving': '#EAB308' };
+    const rosterEl = document.getElementById('ambulance-roster');
+    if (rosterEl) {
+      rosterEl.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Ambulance</th><th>Type</th><th>Class</th><th>Day Crew</th><th>Night Crew</th><th>Home</th><th>Status</th></tr></thead>
+            <tbody>${d.ambulance_roster.map(a => `
+              <tr>
+                <td class="mono"><strong>${a.id}</strong></td>
+                <td><span style="background:${typeColor[a.type]||'#6B7280'};color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">${a.type}</span></td>
+                <td class="mono">${a.cls||''}</td>
+                <td class="mono">${a.day_crew||'<span style="opacity:.4">—</span>'}</td>
+                <td class="mono">${a.night_crew||'<span style="opacity:.4">—</span>'}</td>
+                <td class="mono">${a.home||'<span style="opacity:.4">—</span>'}</td>
+                <td><span class="status-pill" data-s="${a.status}">${a.status||'—'}</span></td>
+              </tr>`).join('')}</tbody>
+          </table>
+        </div>`;
+    }
+  }
   new Chart(document.getElementById('chart-accom'), {
     type: 'bar',
     data: { labels: d.accommodation.map(a => a.location),
