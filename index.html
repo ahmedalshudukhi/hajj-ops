@@ -329,19 +329,19 @@
       </select>
       <span class="ctrl-label" style="margin-left:14px">Granularity</span>
       <div class="ctrl-toggle-group">
-        <button class="ctrl-toggle active" data-gran="zone">Zone (3)</button>
-        <button class="ctrl-toggle" data-gran="station">Station (9)</button>
+        <button class="ctrl-toggle" data-gran="zone">Zone (3)</button>
+        <button class="ctrl-toggle active" data-gran="station">Station (9)</button>
       </div>
       <span class="ctrl-label" style="margin-left:14px">View</span>
       <div class="ctrl-toggle-group">
-        <button class="ctrl-toggle active" data-view="line">Line</button>
-        <button class="ctrl-toggle" data-view="heatmap">Heatmap</button>
+        <button class="ctrl-toggle" data-view="line">Line</button>
+        <button class="ctrl-toggle active" data-view="heatmap">Heatmap</button>
       </div>
     </div>
     <div class="card-title" id="hourly-title">Zone staffing over time</div>
     <div class="card-subtitle" id="hourly-subtitle">Day shift: 127 para · Night: 124 · Ambulances: always 25</div>
-    <div id="hourly-line-wrap"><div class="chart-container tall"><canvas id="chart-hourly"></canvas></div></div>
-    <div id="hourly-heat-wrap" style="display:none"><div id="heatmap-grid" style="margin-top: 8px;"></div></div>
+    <div id="hourly-line-wrap" style="display:none"><div class="chart-container tall"><canvas id="chart-hourly"></canvas></div></div>
+    <div id="hourly-heat-wrap"><div id="heatmap-grid" style="margin-top: 8px;"></div></div>
   </div>
 </section>
 
@@ -411,11 +411,25 @@
     <p class="section-blurb">275 named slots awaiting assignment (251 paramedic + 20 GP + 4 leadership). Each tile = one person-slot.</p>
   </div>
   <div class="card">
-    <div class="card-title">Vacancy map · <span id="vacancy-count">272</span> slots</div>
-    <div class="card-subtitle">Confirmed assignments turn green</div>
-    <div class="slot-legend">
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+      <div>
+        <div class="card-title">Vacancy map · <span id="vacancy-count">275</span> <span id="vacancy-unit-label">slots</span></div>
+        <div class="card-subtitle">Confirmed assignments turn green</div>
+      </div>
+      <div style="display:flex; gap:6px; background: var(--bg-2); border-radius: 6px; padding: 3px;">
+        <button class="roster-toggle active" data-roster="humans" style="padding: 5px 11px; border-radius: 4px; border: 0; background: var(--accent, #d97706); color: #0a0e1a; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font-mono);">Humans</button>
+        <button class="roster-toggle" data-roster="units" style="padding: 5px 11px; border-radius: 4px; border: 0; background: transparent; color: var(--text-dim); font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font-mono);">Units</button>
+      </div>
+    </div>
+    <div class="slot-legend" style="margin-top: 10px;">
       <div class="slot-legend-item"><span class="slot-swatch" style="background:var(--filled);opacity:.85"></span>Filled</div>
       <div class="slot-legend-item"><span class="slot-swatch" style="background:var(--vacant);opacity:.65"></span>Vacant</div>
+      <div class="slot-legend-item" id="unit-color-legend" style="display:none">
+        <span class="slot-swatch" style="background:#ef4444"></span>Mike &nbsp;
+        <span class="slot-swatch" style="background:#3b82f6"></span>Alpha &nbsp;
+        <span class="slot-swatch" style="background:#10b981"></span>Romeo &nbsp;
+        <span class="slot-swatch" style="background:#a855f7"></span>Other
+      </div>
     </div>
     <div class="slot-grid" id="slot-grid"></div>
   </div>
@@ -428,8 +442,17 @@
     </div>
   </div>
   <div class="card" style="margin-top: 20px;">
-    <div class="card-title">Day vs Night paramedics per station</div><div class="card-subtitle">Total per-station paramedic count during peak hours</div>
-    <div class="chart-container"><canvas id="chart-day-night"></canvas></div>
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+      <div>
+        <div class="card-title">Day vs Night per station</div>
+        <div class="card-subtitle">Cumulative count across all 11 days (sum of person-shifts per shift type)</div>
+      </div>
+      <div style="display:flex; gap:6px; background: var(--bg-2); border-radius: 6px; padding: 3px;">
+        <button class="dn-toggle active" data-dn="paras" style="padding: 5px 11px; border-radius: 4px; border: 0; background: var(--accent, #d97706); color: #0a0e1a; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font-mono);">Paras</button>
+        <button class="dn-toggle" data-dn="units" style="padding: 5px 11px; border-radius: 4px; border: 0; background: transparent; color: var(--text-dim); font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font-mono);">Units</button>
+      </div>
+    </div>
+    <div class="chart-container" style="margin-top:8px;"><canvas id="chart-day-night"></canvas></div>
   </div>
 </section>
 
@@ -510,6 +533,32 @@
     <div class="card-title">Ambulance roster · 25 vehicles</div>
     <div class="card-subtitle">Each row shows Day + Night Alpha crew and home station</div>
     <div id="ambulance-roster" style="margin-top: 16px;"></div>
+  </div>
+
+  <!-- Four ambulance dashboards -->
+  <div class="two-col" style="margin-top: 20px;">
+    <div class="card">
+      <div class="card-title">Scheduled hours per ambulance</div>
+      <div class="card-subtitle">Total hours scheduled across the 11 days · sorted by load</div>
+      <div class="chart-container tall"><canvas id="chart-amb-hours"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Ambulance availability over time</div>
+      <div class="card-subtitle">Active ambulances per Dhul-Hijjah day, by type</div>
+      <div class="chart-container tall"><canvas id="chart-amb-availability"></canvas></div>
+    </div>
+  </div>
+  <div class="two-col" style="margin-top: 20px;">
+    <div class="card">
+      <div class="card-title">Day vs Night by zone</div>
+      <div class="card-subtitle">How ambulance presence shifts between day and night across zones</div>
+      <div class="chart-container"><canvas id="chart-amb-day-night"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Crew assignment Gantt</div>
+      <div class="card-subtitle">Each ambulance · day/night crew shifts plotted across 11 days (first 25 shown)</div>
+      <div id="amb-gantt-wrap" style="margin-top: 8px; max-height: 380px; overflow-y: auto;"></div>
+    </div>
   </div>
 </section>
 
@@ -606,7 +655,7 @@ if (typeof Chart !== 'undefined') {
 
 let DATA = null;
 let hourlyChart = null;
-let hourlyState = { mvt: 'all', gran: 'zone', view: 'line' };
+let hourlyState = { mvt: 'all', gran: 'station', view: 'heatmap' };
 
 function status(msg, kind) {
   const el = document.getElementById('boot-status');
@@ -673,17 +722,51 @@ function renderMovements(d) {
     </div>`).join('');
 }
 function renderRoster(d) {
-  document.getElementById('vacancy-count').textContent = d.roster.all_total;
-  let html = '';
-  for (let i = 0; i < d.roster.all_total; i++) {
-    const filled = i < d.roster.all_filled;
-    html += `<div class="slot ${filled ? 'filled' : ''}" title="Slot ${i+1} · ${filled ? 'Filled' : 'Vacant'}"></div>`;
+  const TYPE_COLORS = { 'Medical':'#ef4444','Ambulance':'#3b82f6','Foot-Runner':'#10b981' };
+  function renderHumans() {
+    document.getElementById('vacancy-count').textContent = d.roster.all_total;
+    document.getElementById('vacancy-unit-label').textContent = 'slots';
+    document.getElementById('unit-color-legend').style.display = 'none';
+    let html = '';
+    for (let i = 0; i < d.roster.all_total; i++) {
+      const filled = i < d.roster.all_filled;
+      html += `<div class="slot ${filled ? 'filled' : ''}" title="Slot ${i+1} · ${filled ? 'Filled' : 'Vacant'}"></div>`;
+    }
+    document.getElementById('slot-grid').innerHTML = html;
   }
-  document.getElementById('slot-grid').innerHTML = html;
+  function renderUnits() {
+    const units = d.units_detail || [];
+    document.getElementById('vacancy-count').textContent = units.length;
+    document.getElementById('vacancy-unit-label').textContent = 'units';
+    document.getElementById('unit-color-legend').style.display = 'inline-flex';
+    const html = units.map(u => {
+      const fillPct = u.total_count ? u.filled_count / u.total_count : 0;
+      const color = TYPE_COLORS[u.type] || '#a855f7';
+      const isFull = fillPct >= 0.99;
+      const opacity = isFull ? 1 : 0.25 + fillPct * 0.5;
+      return `<div class="slot" style="background:${color}; opacity:${opacity}; border:${isFull?'1px solid #0f0':'1px solid transparent'};" title="${u.id} · ${u.filled_count}/${u.total_count} filled · ${u.home||'no home'}"></div>`;
+    }).join('');
+    document.getElementById('slot-grid').innerHTML = html;
+  }
+  renderHumans();
   document.getElementById('gp-table').innerHTML = d.gp_coverage.map(g => `
     <tr><td><strong>${g.station}</strong></td><td class="mono">${g.gp_day}</td><td class="mono">${g.gp_night}</td></tr>`).join('');
+  document.querySelectorAll('.roster-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.roster-toggle').forEach(b => {
+        const isActive = b === btn;
+        b.classList.toggle('active', isActive);
+        b.style.background = isActive ? 'var(--accent, #d97706)' : 'transparent';
+        b.style.color = isActive ? '#0a0e1a' : 'var(--text-dim)';
+      });
+      const mode = btn.getAttribute('data-roster');
+      if (mode === 'humans') renderHumans();
+      else renderUnits();
+    });
+  });
 }
 function renderAccommodation(d) {
+  if (d.accommodation_live && d.accommodation_live.length) d = Object.assign({}, d, { accommodation: d.accommodation_live });
   const tbl = document.getElementById('org-detail-table');
   if (tbl && d.org_structure) {
     tbl.innerHTML = d.org_structure.map(o => `
@@ -1022,6 +1105,120 @@ function setupRoleView() {
   sel.addEventListener('change', e => applyView(e.target.value));
 }
 
+function renderAmbulanceDashboards(d) {
+  if (!d.amb_dashboards) return;
+  const ad = d.amb_dashboards;
+  const TYPE_COLORS = { 'Essential': '#DC2626', 'Backup': '#F97316', 'Roving': '#EAB308' };
+
+  // a) Scheduled hours per ambulance — horizontal bar
+  const hoursList = Object.entries(ad.amb_hours || {})
+    .map(([aid, dhMap]) => {
+      const total = Object.values(dhMap).reduce((s, x) => s + x, 0);
+      return { id: aid, total, type: ad.amb_meta?.[aid]?.type || '' };
+    })
+    .sort((a, b) => b.total - a.total);
+  const ambHoursCanvas = document.getElementById('chart-amb-hours');
+  if (ambHoursCanvas && window.Chart && hoursList.length) {
+    new Chart(ambHoursCanvas, {
+      type: 'bar',
+      data: {
+        labels: hoursList.map(x => x.id),
+        datasets: [{
+          label: 'Hours scheduled',
+          data: hoursList.map(x => x.total),
+          backgroundColor: hoursList.map(x => TYPE_COLORS[x.type] || '#6B7280'),
+          borderRadius: 2
+        }]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: tooltipStyle },
+        scales: { x: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }, y: { grid: { display: false }, ticks: { font: { size: 9 } } } }
+      }
+    });
+  }
+
+  // b) Availability over time — stacked bar by type
+  const days = Object.keys(ad.daily_by_type || {}).sort((a, b) => +a - +b);
+  const ambAvailCanvas = document.getElementById('chart-amb-availability');
+  if (ambAvailCanvas && window.Chart && days.length) {
+    new Chart(ambAvailCanvas, {
+      type: 'bar',
+      data: {
+        labels: days.map(d => d + ' DH'),
+        datasets: ['Essential','Backup','Roving'].map(t => ({
+          label: t,
+          data: days.map(d => ad.daily_by_type[d]?.[t] || 0),
+          backgroundColor: TYPE_COLORS[t]
+        }))
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, font: { size: 11 } } }, tooltip: tooltipStyle },
+        scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true } }
+      }
+    });
+  }
+
+  // c) Day vs Night by zone — grouped bar
+  const ambDnCanvas = document.getElementById('chart-amb-day-night');
+  if (ambDnCanvas && window.Chart && ad.day_by_zone) {
+    const zones = ['Arafat','Muzdalifah','Mina','Support'];
+    new Chart(ambDnCanvas, {
+      type: 'bar',
+      data: {
+        labels: zones,
+        datasets: [
+          { label: 'Day', data: zones.map(z => ad.day_by_zone[z] || 0), backgroundColor: '#F59E0BCC' },
+          { label: 'Night', data: zones.map(z => ad.night_by_zone[z] || 0), backgroundColor: '#3B82F6CC' }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, font: { size: 11 } } }, tooltip: tooltipStyle },
+        scales: { x: { grid: { display: false } }, y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true, ticks: { stepSize: 1 } } }
+      }
+    });
+  }
+
+  // d) Gantt: Each row = ambulance, columns = days 4 DH..14 DH, segments shaded by shift type
+  const wrap = document.getElementById('amb-gantt-wrap');
+  if (wrap && ad.gantt) {
+    const SHIFT_COLOR = { 'DAY': '#F59E0B', 'NIGHT': '#3B82F6', '': '#6B7280' };
+    const days = [4,5,6,7,8,9,10,11,12,13,14];
+    let html = '<table style="width:100%; border-collapse:collapse; font-size:10px; font-family: var(--font-mono);">';
+    html += '<thead><tr><th style="text-align:left; padding:5px 8px;">Amb</th><th style="text-align:left; padding:5px 6px;">Type</th>';
+    days.forEach(dh => { html += `<th style="text-align:center; padding:5px 4px; opacity:.7;">${dh}</th>`; });
+    html += '</tr></thead><tbody>';
+    ad.gantt.forEach(amb => {
+      const segByDh = {};
+      (amb.segments || []).forEach(seg => {
+        if (!segByDh[seg.dh]) segByDh[seg.dh] = [];
+        segByDh[seg.dh].push(seg);
+      });
+      html += `<tr style="border-bottom:1px solid var(--border, #2a3245);">`;
+      html += `<td style="padding:4px 8px; font-weight:600;">${amb.id}</td>`;
+      html += `<td style="padding:4px 6px;"><span style="background:${TYPE_COLORS[amb.type]||'#6B7280'};color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;">${amb.type||'?'}</span></td>`;
+      days.forEach(dh => {
+        const segs = segByDh[dh] || [];
+        if (segs.length === 0) {
+          html += `<td style="padding:3px; text-align:center; color: var(--text-dim, #888);">·</td>`;
+        } else {
+          // Up to 2 stripes (slot1, slot2)
+          const stripeHtml = segs.map(seg => {
+            const c = SHIFT_COLOR[(seg.type||'').toUpperCase()] || SHIFT_COLOR[''];
+            return `<div title="${seg.code} (${seg.role})" style="height:7px; background:${c}; border-radius:1px; margin: 1px 0;"></div>`;
+          }).join('');
+          html += `<td style="padding:2px 3px;">${stripeHtml}</td>`;
+        }
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    html += '<div style="font-size:10px; opacity:.6; margin-top:8px;">Each stripe = one shift. <span style="display:inline-block;width:10px;height:8px;background:#F59E0B;vertical-align:middle;border-radius:2px;"></span> Day · <span style="display:inline-block;width:10px;height:8px;background:#3B82F6;vertical-align:middle;border-radius:2px;"></span> Night</div>';
+    wrap.innerHTML = html;
+  }
+}
 function renderTimeline(d) {
   document.getElementById('phase-count').textContent = d.movement_phases.length;
   document.getElementById('mvt-timeline').innerHTML = d.movement_phases.map(p => `
@@ -1041,41 +1238,76 @@ function renderTimeline(d) {
 }
 
 function renderHeatmap() {
+  // v3.2-style: row per (DH, hour); cols = stations OR zones depending on gran
   const stations = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
-  const allMvts = ['GAP','B1A','B1B','B2A','B2B','C','D','E','MAINT'];
-  const mvts = hourlyState.mvt === 'all' ? allMvts : [hourlyState.mvt];
-  const peaks = {};
-  mvts.forEach(m => peaks[m] = {});
-  DATA.hourly.hours.forEach(h => {
-    if (!peaks[h.mvt]) return;
-    if (hourlyState.gran === 'zone') {
-      peaks[h.mvt].arf = Math.max(peaks[h.mvt].arf || 0, h.arf_s);
-      peaks[h.mvt].muz = Math.max(peaks[h.mvt].muz || 0, h.muz_s);
-      peaks[h.mvt].min = Math.max(peaks[h.mvt].min || 0, h.min_s);
+  const filterMvt = hourlyState.mvt;
+  const granZone = hourlyState.gran === 'zone';
+  // Filter hours: hide PRE-B unless explicitly selected
+  let rows = DATA.hourly.hours.filter(h => filterMvt === 'all' ? h.mvt !== 'PRE-B' : h.mvt === filterMvt);
+  if (rows.length === 0) {
+    document.getElementById('heatmap-grid').innerHTML = '<div style="text-align:center; padding: 30px; opacity:.5;">No hours match this filter</div>';
+    return;
+  }
+  // Compute max for color scaling
+  let maxVal = 0;
+  rows.forEach(r => {
+    if (granZone) {
+      maxVal = Math.max(maxVal, r.arf_s||0, r.muz_s||0, r.min_s||0);
     } else {
-      stations.forEach(st => { peaks[h.mvt][st] = Math.max(peaks[h.mvt][st] || 0, h.stations[st] || 0); });
+      stations.forEach(st => { maxVal = Math.max(maxVal, (r.stations||{})[st] || 0); });
     }
   });
-  const cols = hourlyState.gran === 'zone' ? ['arf','muz','min'] : stations;
-  const colLabels = hourlyState.gran === 'zone' ? ['Arafat','Muzdalifah','Mina'] : stations;
-  let maxAll = 0;
-  mvts.forEach(m => cols.forEach(c => { if (peaks[m][c] > maxAll) maxAll = peaks[m][c]; }));
-  function heatColor(v) {
-    if (!v) return 'rgba(255,255,255,0.03)';
-    const a = 0.15 + (v / Math.max(maxAll, 1)) * 0.7;
-    return `rgba(217, 119, 6, ${a.toFixed(2)})`;
+  function cellColor(v, isNight) {
+    if (!v) return 'rgba(255,255,255,0.02)';
+    const a = 0.15 + (v / Math.max(maxVal, 1)) * 0.7;
+    return isNight
+      ? `rgba(59, 130, 246, ${a.toFixed(2)})`
+      : `rgba(245, 158, 11, ${a.toFixed(2)})`;
   }
-  let html = `<div class="heatmap" style="grid-template-columns: 110px repeat(${cols.length}, 1fr);">`;
-  html += '<div class="heat-header">Movement</div>';
-  colLabels.forEach(c => html += `<div class="heat-header">${c}</div>`);
-  mvts.forEach(m => {
-    html += `<div class="heat-label" style="color: ${mvtColors[m]}">${m}</div>`;
-    cols.forEach(c => {
-      const v = peaks[m][c] || 0;
-      html += `<div class="heat-cell" style="background: ${heatColor(v)};">${v || '—'}</div>`;
-    });
+
+  let html = '<table style="width:100%; border-collapse:collapse; font-size:11px; font-family: var(--font-mono);">';
+  html += '<thead><tr><th style="text-align:left; padding:6px 8px; position:sticky; left:0; background:var(--bg, #0a0e1a); z-index:2; border-bottom:1px solid var(--border, #2a3245);">Hour</th>';
+  html += '<th style="text-align:left; padding:6px 8px; border-bottom:1px solid var(--border, #2a3245);">Mvt</th>';
+  html += '<th style="text-align:left; padding:6px 8px; border-bottom:1px solid var(--border, #2a3245);">Shift</th>';
+  if (granZone) {
+    ['Arafat','Muzdalifah','Mina','Support'].forEach(c =>
+      html += `<th style="text-align:center; padding:6px 8px; border-bottom:1px solid var(--border, #2a3245);">${c}</th>`);
+    html += '<th style="text-align:center; padding:6px 8px; border-bottom:1px solid var(--border, #2a3245); font-weight:700;">Total</th>';
+  } else {
+    stations.forEach(st =>
+      html += `<th style="text-align:center; padding:6px 6px; border-bottom:1px solid var(--border, #2a3245);">${st}</th>`);
+    html += '<th style="text-align:center; padding:6px 8px; border-bottom:1px solid var(--border, #2a3245); font-weight:700;">Total</th>';
+  }
+  html += '</tr></thead><tbody>';
+
+  let prevDh = null;
+  rows.forEach(r => {
+    const isNight = (r.shift || '').toUpperCase() === 'NIGHT';
+    const isCritical = (r.mvt === 'C' || r.mvt === 'B1A');
+    const dhChanged = (r.dh !== prevDh);
+    prevDh = r.dh;
+    const rowBg = dhChanged ? 'border-top:2px solid var(--border-strong, #3a4255);' : '';
+    html += `<tr style="${rowBg}">`;
+    html += `<td style="padding:4px 8px; position:sticky; left:0; background:var(--bg, #0a0e1a); border-bottom:1px solid var(--border, #2a3245); white-space:nowrap;"><span style="opacity:.6">${r.dh}</span> <strong>${r.hour}</strong></td>`;
+    html += `<td style="padding:4px 8px; border-bottom:1px solid var(--border, #2a3245); font-weight:600; color:${isCritical ? '#ef4444' : (window.mvtColors?.[r.mvt] || 'inherit')};">${r.mvt}</td>`;
+    html += `<td style="padding:4px 8px; border-bottom:1px solid var(--border, #2a3245); color:${isNight ? '#3b82f6' : '#f59e0b'}; font-size:10px;">${r.shift}</td>`;
+    if (granZone) {
+      [['arf_s','arf_a'],['muz_s','muz_a'],['min_s','min_a']].forEach(([sk, ak]) => {
+        const v = r[sk] || 0; const a = r[ak] || 0;
+        html += `<td style="text-align:center; padding:4px 8px; border-bottom:1px solid var(--border, #2a3245); background:${cellColor(v, isNight)};">${v}<span style="opacity:.4">/${a}</span></td>`;
+      });
+      html += `<td style="text-align:center; padding:4px 8px; border-bottom:1px solid var(--border, #2a3245); background:rgba(255,255,255,0.04); font-weight:600;">${r.support||0}</td>`;
+      html += `<td style="text-align:center; padding:4px 8px; border-bottom:1px solid var(--border, #2a3245); font-weight:700;">${r.grand_s || 0}</td>`;
+    } else {
+      stations.forEach(st => {
+        const v = (r.stations || {})[st] || 0;
+        html += `<td style="text-align:center; padding:4px 6px; border-bottom:1px solid var(--border, #2a3245); background:${cellColor(v, isNight)};">${v || '—'}</td>`;
+      });
+      html += `<td style="text-align:center; padding:4px 8px; border-bottom:1px solid var(--border, #2a3245); font-weight:700;">${r.grand_s || 0}</td>`;
+    }
+    html += '</tr>';
   });
-  html += '</div>';
+  html += '</tbody></table>';
   document.getElementById('heatmap-grid').innerHTML = html;
 }
 
@@ -1117,6 +1349,10 @@ function renderCharts(d) {
   if (typeof Chart === 'undefined') {
     status('Chart.js not loaded — text rendered, charts unavailable');
     return;
+  }
+  // Use live accommodation if computed (derived from Home Station)
+  if (d.accommodation_live && d.accommodation_live.length) {
+    d = Object.assign({}, d, { accommodation: d.accommodation_live });
   }
   new Chart(document.getElementById('chart-movement'), {
     type: 'bar',
@@ -1183,16 +1419,35 @@ function renderCharts(d) {
     });
   });
   const stns = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
-  new Chart(document.getElementById('chart-day-night'), {
-    type: 'bar',
-    data: { labels: stns,
-      datasets: [
-        { label: 'Day peak', data: stns.map(s => peakDay[s] || 0), backgroundColor: '#F59E0BCC', borderRadius: 3 },
-        { label: 'Night peak', data: stns.map(s => peakNight[s] || 0), backgroundColor: '#3B82F6CC', borderRadius: 3 }
+  let chartDayNight = null;
+  function buildDayNightChart(metric) {
+    const data = DATA.day_night_station || {};
+    const stations = Object.keys(data).filter(st => st && (data[st].day_paras || data[st].night_paras)).sort();
+    const dayKey = metric === 'units' ? 'day_units' : 'day_paras';
+    const nightKey = metric === 'units' ? 'night_units' : 'night_paras';
+    if (chartDayNight) chartDayNight.destroy();
+    chartDayNight = new Chart(document.getElementById('chart-day-night'), {
+      type: 'bar',
+      data: { labels: stations, datasets: [
+        { label: 'Day', data: stations.map(st => data[st][dayKey] || 0), backgroundColor: '#F59E0BCC', borderRadius: 3 },
+        { label: 'Night', data: stations.map(st => data[st][nightKey] || 0), backgroundColor: '#3B82F6CC', borderRadius: 3 }
       ] },
-    options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { padding: 14, usePointStyle: true } }, tooltip: tooltipStyle },
-      scales: { y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }, x: { grid: { display: false } } } }
+      options: { responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position:'bottom', labels: { padding: 12, usePointStyle: true, font:{size:11} } }, tooltip: tooltipStyle },
+        scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' } }, x: { grid: { display:false } } } }
+    });
+  }
+  buildDayNightChart('paras');
+  document.querySelectorAll('.dn-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.dn-toggle').forEach(b => {
+        b.classList.toggle('active', b === btn);
+        const isActive = b === btn;
+        b.style.background = isActive ? 'var(--accent, #d97706)' : 'transparent';
+        b.style.color = isActive ? '#0a0e1a' : 'var(--text-dim)';
+      });
+      buildDayNightChart(btn.getAttribute('data-dn'));
+    });
   });
   new Chart(document.getElementById('chart-aug-mvt'), {
     type: 'bar',
@@ -1374,12 +1629,13 @@ async function boot() {
   safeRender('units', () => renderUnits(DATA));
   safeRender('day-view', () => renderDayView(DATA));
   safeRender('schedule', () => renderSchedule(DATA));
+  safeRender('amb-dashboards', () => renderAmbulanceDashboards(DATA));
   safeRender('role-view', setupRoleView);
   safeRender('accommodation', () => renderAccommodation(DATA));
   safeRender('augmentations', () => renderAugmentations(DATA));
   safeRender('timeline', () => renderTimeline(DATA));
   safeRender('charts', () => renderCharts(DATA));
-  safeRender('hourly', buildHourlyChart);
+  safeRender('hourly', updateHourly);
   safeRender('hourly-controls', setupHourlyControls);
   safeRender('tabs', setupTabs);
 

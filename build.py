@@ -415,7 +415,12 @@ def compute_status_live(staff_rows, schedule_rows):
     }
 
 def compute_zone_movement(schedule_rows, units_rows, shifts_rows):
-    """Zone × Movement matrix using MOVEMENT_PHASES timing."""
+    """Zone × Movement matrix using MOVEMENT_PHASES timing.
+       Handles night shifts that wrap past midnight — a NIGHT shift assigned to
+       column NDH-S2 covers hours 18..23 on day N AND hours 00..05 on day N+1.
+       So when checking hour H on day D, we test:
+         - DDH-S1 / DDH-S2 (assignments scheduled on day D)
+         - if H < 12, also (D-1)DH-S2 (a night shift from previous day extends here)"""
     unit_size = {s(u.get("Unit ID")): int(num(u.get("Size", 1))) for u in units_rows}
     unit_home = {s(u.get("Unit ID")): s(u.get("Home Station")) for u in units_rows}
     shift_map = {s(r.get("Code")): (r.get("Start"), r.get("End")) for r in shifts_rows if s(r.get("Code"))}
@@ -424,28 +429,35 @@ def compute_zone_movement(schedule_rows, units_rows, shifts_rows):
         zones = {"Arafat":0,"Muzdalifah":0,"Mina":0,"Support":0}
         sd = int(ph["start_dh"].split()[0]); ed = int(ph["end_dh"].split()[0])
         sh_p = int(ph["start_hour"].split(":")[0]); eh_p = int(ph["end_hour"].split(":")[0])
-        # Check each unit's schedule for any shift overlapping with this phase
+        # Build absolute (dh,hour) list covering this phase
+        phase_slots = []
+        cur_dh, cur_h = sd, sh_p
+        end_dh_h = ed * 24 + eh_p
+        while cur_dh * 24 + cur_h <= end_dh_h:
+            phase_slots.append((cur_dh, cur_h))
+            cur_h += 1
+            if cur_h >= 24:
+                cur_h = 0; cur_dh += 1
+            if len(phase_slots) > 500: break  # safety
         for r in schedule_rows:
             uid = s(r.get("Unit ID"))
             if not uid: continue
             home = unit_home.get(uid, "")
             size = unit_size.get(uid, 1)
             unit_active = False
-            for dh in range(sd, ed+1):
+            for dh_p, h_p in phase_slots:
                 if unit_active: break
-                for slot in [1,2]:
-                    code = s(r.get(f"{dh}DH-S{slot}"))
-                    if not code: continue
-                    if code not in shift_map: continue
+                # Build candidate (col_dh, slot) pairs to test
+                candidates = [(dh_p, 1), (dh_p, 2)]
+                if h_p < 12:  # early-morning hour might belong to prior day's night shift
+                    candidates.append((dh_p - 1, 2))
+                for col_dh, slot in candidates:
+                    code = s(r.get(f"{col_dh}DH-S{slot}"))
+                    if not code or code not in shift_map: continue
                     start_t, end_t = shift_map[code]
-                    sh_s = parse_time_str(start_t); eh_s = parse_time_str(end_t)
-                    if sh_s is None: continue
-                    # Simple overlap: if shift covers any hour in the phase
-                    for h in range(sh_p, eh_p+1):
-                        if shift_covers_hour(start_t, end_t, h):
-                            unit_active = True
-                            break
-                    if unit_active: break
+                    if shift_covers_hour(start_t, end_t, h_p):
+                        unit_active = True
+                        break
             if unit_active:
                 if home.startswith("ARF"): zones["Arafat"] += size
                 elif home.startswith("MUZ"): zones["Muzdalifah"] += size
@@ -548,6 +560,173 @@ def compute_units_detail(units_rows, staff_rows):
         })
     return out
 
+
+def compute_accommodation_live(units_rows, ambulance_rows):
+    """Derive accommodation from Home Station column. Each person needs a bed."""
+    unit_size = {s(u.get("Unit ID")): int(num(u.get("Size", 1))) for u in units_rows}
+    unit_home = {s(u.get("Unit ID")): s(u.get("Home Station")) for u in units_rows}
+    by_home = defaultdict(lambda: {"sta_para":0,"amb_crew":0,"gps":0,"support":0})
+    # From Units
+    for u in units_rows:
+        uid = s(u.get("Unit ID"))
+        if not uid: continue
+        home = unit_home.get(uid, "")
+        size = unit_size.get(uid, 1)
+        utype = s(u.get("Unit Type"))
+        cat = s(u.get("Category"))
+        if not home: continue
+        if utype == "Ambulance":
+            by_home[home]["amb_crew"] += size
+        elif utype == "Medical":
+            # Mike units include 1 GP, 2 paras
+            by_home[home]["sta_para"] += max(0, size - 1)
+            by_home[home]["gps"] += 1
+        elif cat == "Operational":
+            by_home[home]["sta_para"] += size
+        else:
+            by_home[home]["support"] += size
+    # Build output rows
+    out = []
+    for home, d in sorted(by_home.items()):
+        total = d["sta_para"] + d["amb_crew"] + d["gps"] + d["support"]
+        out.append({
+            "location": home,
+            "sta_para": d["sta_para"],
+            "amb_crew": d["amb_crew"],
+            "gps": d["gps"],
+            "support": d["support"],
+            "rov_fwd": 0,
+            "total_beds": total,
+            "bunk_sets": (total + 1) // 2,
+        })
+    return out
+
+def compute_ambulance_dashboards(amb_rows, units_rows, schedule_rows, shifts_rows):
+    """Four ambulance analytics:
+       a) per-ambulance scheduled hours across 11 days
+       b) availability per day
+       c) day vs night ambulance distribution by zone
+       d) crew assignment Gantt rows
+    """
+    unit_home = {s(u.get("Unit ID")): s(u.get("Home Station")) for u in units_rows}
+    schedule_by_uid = {s(r.get("Unit ID")): r for r in schedule_rows if s(r.get("Unit ID"))}
+    shift_dur = {s(r.get("Code")): num(r.get("Duration (h)"), 0) for r in shifts_rows if s(r.get("Code"))}
+    shift_type = {s(r.get("Code")): s(r.get("Type")) for r in shifts_rows if s(r.get("Code"))}
+
+    DH_DAYS = list(range(4, 15))
+
+    # a) Per-ambulance scheduled hours: ambulance is scheduled when its day OR night Alpha unit is on shift
+    amb_hours = {}  # {amb_id: {dh: hours}}
+    amb_meta = {}
+    for r in amb_rows:
+        aid = s(r.get("Ambulance ID"))
+        if not aid: continue
+        day_alpha = s(r.get("Day Alpha Crew"))
+        night_alpha = s(r.get("Night Alpha Crew"))
+        atype = s(r.get("Type"))
+        home = s(r.get("Home Station")) or unit_home.get(day_alpha, "")
+        amb_meta[aid] = {"type": atype, "home": home}
+        amb_hours[aid] = {dh: 0 for dh in DH_DAYS}
+        for crew_unit in [day_alpha, night_alpha]:
+            if not crew_unit or crew_unit not in schedule_by_uid: continue
+            row = schedule_by_uid[crew_unit]
+            for dh in DH_DAYS:
+                for slot in [1, 2]:
+                    code = s(row.get(f"{dh}DH-S{slot}"))
+                    if code:
+                        amb_hours[aid][dh] += shift_dur.get(code, 0)
+
+    # b) Availability per day: count of ambulances active on any given day
+    daily_active = {dh: 0 for dh in DH_DAYS}
+    daily_by_type = {dh: {"Essential":0,"Backup":0,"Roving":0} for dh in DH_DAYS}
+    for aid, by_dh in amb_hours.items():
+        atype = amb_meta[aid]["type"]
+        for dh, hrs in by_dh.items():
+            if hrs > 0:
+                daily_active[dh] += 1
+                if atype in daily_by_type[dh]:
+                    daily_by_type[dh][atype] += 1
+
+    # c) Day vs Night distribution by zone
+    # For each ambulance, determine if its day_alpha is scheduled on a DAY shift, or night_alpha on NIGHT shift
+    day_by_zone = {"Arafat":0,"Muzdalifah":0,"Mina":0,"Support":0}
+    night_by_zone = {"Arafat":0,"Muzdalifah":0,"Mina":0,"Support":0}
+    for r in amb_rows:
+        aid = s(r.get("Ambulance ID"))
+        if not aid: continue
+        day_alpha = s(r.get("Day Alpha Crew"))
+        night_alpha = s(r.get("Night Alpha Crew"))
+        home = s(r.get("Home Station")) or unit_home.get(day_alpha, "")
+        zone = ("Arafat" if home.startswith("ARF") else
+                "Muzdalifah" if home.startswith("MUZ") else
+                "Mina" if home.startswith("MIN") else "Support")
+        # Day crew exists?
+        if day_alpha and day_alpha in schedule_by_uid:
+            day_by_zone[zone] += 1
+        if night_alpha and night_alpha in schedule_by_uid:
+            night_by_zone[zone] += 1
+
+    # d) Gantt-style: list per-ambulance shift segments
+    amb_to_crews = {}  # aid -> (day_crew, night_crew)
+    for r in amb_rows:
+        aid = s(r.get("Ambulance ID"))
+        if aid:
+            amb_to_crews[aid] = (s(r.get("Day Alpha Crew")), s(r.get("Night Alpha Crew")))
+    gantt = []
+    for aid in sorted(amb_hours.keys()):
+        meta = amb_meta[aid]
+        day_crew, night_crew = amb_to_crews.get(aid, ("", ""))
+        segments = []
+        for crew_role, crew_unit in [("Day", day_crew), ("Night", night_crew)]:
+            if not crew_unit or crew_unit not in schedule_by_uid: continue
+            row = schedule_by_uid[crew_unit]
+            for dh in DH_DAYS:
+                for slot in [1,2]:
+                    code = s(row.get(f"{dh}DH-S{slot}"))
+                    if code:
+                        segments.append({"dh": dh, "slot": slot, "code": code, "role": crew_role,
+                                         "duration": shift_dur.get(code, 0), "type": shift_type.get(code, "")})
+        gantt.append({"id": aid, "type": meta["type"], "home": meta["home"],
+                      "day_crew": day_crew, "night_crew": night_crew, "segments": segments})
+
+    return {
+        "amb_hours": amb_hours,
+        "amb_meta": amb_meta,
+        "daily_active": daily_active,
+        "daily_by_type": daily_by_type,
+        "day_by_zone": day_by_zone,
+        "night_by_zone": night_by_zone,
+        "gantt": gantt[:60],  # cap for size
+    }
+
+def compute_day_night_per_station(units_rows, schedule_rows, shifts_rows):
+    """For each station: day-shift paras/units count vs night-shift paras/units count."""
+    shift_type = {s(r.get("Code")): s(r.get("Type")) for r in shifts_rows if s(r.get("Code"))}
+    unit_size = {s(u.get("Unit ID")): int(num(u.get("Size", 1))) for u in units_rows}
+    unit_home = {s(u.get("Unit ID")): s(u.get("Home Station")) for u in units_rows}
+    out = defaultdict(lambda: {"day_paras": 0, "night_paras": 0, "day_units": set(), "night_units": set()})
+    for r in schedule_rows:
+        uid = s(r.get("Unit ID"))
+        if not uid: continue
+        home = unit_home.get(uid, "")
+        size = unit_size.get(uid, 1)
+        if not home: continue
+        for dh in range(4, 15):
+            for slot in [1,2]:
+                code = s(r.get(f"{dh}DH-S{slot}"))
+                if not code: continue
+                stype = shift_type.get(code, "").upper()
+                if "NIGHT" in stype:
+                    out[home]["night_paras"] += size
+                    out[home]["night_units"].add(uid)
+                else:
+                    out[home]["day_paras"] += size
+                    out[home]["day_units"].add(uid)
+    return {st: {"day_paras": d["day_paras"], "night_paras": d["night_paras"],
+                 "day_units": len(d["day_units"]), "night_units": len(d["night_units"])}
+            for st, d in out.items()}
+
+
 def compute_ambulance_data(amb_rows, units_rows):
     """Build ambulance roster table + per-station counts (total + by type).
        Home Station is computed from Day Alpha crew's home (mirrors xlsx formula)."""
@@ -645,6 +824,9 @@ def main():
     zone_movement = compute_zone_movement(schedule, units, shifts)
     zone_day = compute_zone_day(schedule, units)
     role_views = compute_role_views(units_detail, staff, ambulance_roster)
+    accommodation_live = compute_accommodation_live(units, ambulances)
+    amb_dashboards = compute_ambulance_dashboards(ambulances, units, schedule, shifts)
+    day_night_station = compute_day_night_per_station(units, schedule, shifts)
 
     data = {
         "refreshed_at": datetime.now(timezone.utc).strftime("%d %b %Y · %H:%M UTC"),
@@ -674,6 +856,9 @@ def main():
         "zone_movement": zone_movement,
         "zone_day": zone_day,
         "role_views": role_views,
+        "accommodation_live": accommodation_live,
+        "amb_dashboards": amb_dashboards,
+        "day_night_station": day_night_station,
     }
 
     with open("data.json", "w") as f:
