@@ -793,6 +793,130 @@ def compute_stations_detail(units_rows, staff_rows, unit_readiness_rows):
     return out
 
 # ─── Main ─────────────────────────────────────────────────────────
+def compute_org_tree(units_rows, staff_rows):
+    """Build hierarchical reporting tree.
+       PM → DPM/ADM/MDL → CHF → DCH → SUP-{A,Z,M} → ops units at each station."""
+    # Index units by id
+    by_id = {s(u.get("Unit ID")): u for u in units_rows}
+    home_groups = defaultdict(list)
+    for u in units_rows:
+        uid = s(u.get("Unit ID"))
+        home_groups[s(u.get("Home Station"))].append(uid)
+    # Index staff by unit
+    members = defaultdict(list)
+    for r in staff_rows:
+        unit = s(r.get("Unit"))
+        if unit:
+            members[unit].append({
+                "name": s(r.get("Name")), "role": s(r.get("Role")),
+                "status": s(r.get("Status")), "call_sign": s(r.get("Radio Call Sign")) or unit
+            })
+    def node(uid, label=None):
+        u = by_id.get(uid, {})
+        m = members.get(uid, [])
+        filled = sum(1 for x in m if x.get("status") == "Filled" and x.get("name"))
+        size = int(num(u.get("Size", 1)))
+        return {
+            "id": uid, "label": label or uid,
+            "type": s(u.get("Unit Type")), "category": s(u.get("Category")),
+            "home": s(u.get("Home Station")),
+            "size": size, "filled": filled,
+            "members": m,
+            "children": [],
+        }
+    # Build tree
+    root = node("PM", "Project Manager")
+    # Tier 1: leadership peer to PM
+    for uid in ["DPM", "ADM", "MDL"]:
+        if uid in by_id:
+            root["children"].append(node(uid))
+    # Tier 2: CHF under PM
+    chf = node("CHF") if "CHF" in by_id else None
+    if chf:
+        root["children"].append(chf)
+        # DCH under CHF
+        if "DCH" in by_id:
+            dch = node("DCH")
+            chf["children"].append(dch)
+            # Supervisors organized by zone
+            zone_groups = {
+                "Arafat": [u for u in ["SUP-A1", "SUP-A2"] if u in by_id],
+                "Muzdalifah": [u for u in ["SUP-Z1", "SUP-Z2"] if u in by_id],
+                "Mina": [u for u in ["SUP-M1", "SUP-M2"] if u in by_id],
+            }
+            for zone, sup_ids in zone_groups.items():
+                for sup_id in sup_ids:
+                    sup = node(sup_id)
+                    dch["children"].append(sup)
+                    # Units at this supervisor's home station
+                    sup_home = by_id.get(sup_id, {}).get("Home Station", "")
+                    sup_home = s(sup_home)
+                    for uid in home_groups.get(sup_home, []):
+                        u = by_id.get(uid, {})
+                        if s(u.get("Category")) == "Operational":
+                            sup["children"].append(node(uid))
+        # Support functions under CHF (separate branch)
+        for uid in ["LOG-1", "LOG-2", "LOG-3", "OCC-1", "OCC-2", "SRCA-1", "TRN-1"]:
+            if uid in by_id:
+                chf["children"].append(node(uid))
+    # Catch-all: any remaining units not yet placed (e.g. ARF3 ops not under any SUP)
+    placed = set()
+    def collect(n):
+        placed.add(n["id"])
+        for c in n["children"]: collect(c)
+    collect(root)
+    unplaced_branch = node("UNASSIGNED", "Other Units")
+    for u in units_rows:
+        uid = s(u.get("Unit ID"))
+        if uid and uid not in placed:
+            unplaced_branch["children"].append(node(uid))
+    if unplaced_branch["children"]:
+        root["children"].append(unplaced_branch)
+    return root
+
+def compute_insights(stations_detail, day_night_station, amb_by_station, hourly_data):
+    """Coverage Health + Stress Map."""
+    CLINICAL = ["ARF1","ARF2","ARF3","MUZ1","MUZ2","MUZ3","MIN1","MIN2","MIN3"]
+    # Coverage Health: para-to-ambulance ratio per station
+    coverage = []
+    for st in CLINICAL:
+        sd = stations_detail.get(st, {})
+        paras = sd.get("total_size", 0)
+        amb = amb_by_station.get(st, 0)
+        ratio = round(paras / amb, 1) if amb else None
+        # Health rating: lower ratio = better (more amb per para). Industry sweet spot ~5-8
+        if ratio is None:
+            health = "no-amb"
+        elif ratio <= 6: health = "good"
+        elif ratio <= 10: health = "fair"
+        else: health = "stretched"
+        coverage.append({
+            "station": st, "paras": paras, "ambulances": amb,
+            "ratio": ratio, "health": health,
+            "day_paras": day_night_station.get(st, {}).get("day_paras", 0),
+            "night_paras": day_night_station.get(st, {}).get("night_paras", 0),
+        })
+    # Stress Map: per station × movement, peak hourly load and capacity gap
+    movements = sorted(set(h.get("mvt") for h in hourly_data.get("hours", []) if h.get("mvt")))
+    stress = {}
+    for st in CLINICAL:
+        # Capacity = unique units assigned to this station (units_total)
+        capacity = stations_detail.get(st, {}).get("total_size", 0)
+        stress[st] = {"capacity": capacity, "by_mvt": {}}
+        for mvt in movements:
+            peak = 0
+            for h in hourly_data.get("hours", []):
+                if h.get("mvt") == mvt:
+                    val = (h.get("stations", {}) or {}).get(st, 0)
+                    if val > peak: peak = val
+            gap = peak - capacity
+            stress[st]["by_mvt"][mvt] = {"peak": peak, "gap": gap, "pct": round(peak/capacity*100) if capacity else 0}
+    return {
+        "coverage_health": coverage,
+        "stress_map": stress,
+        "movements": movements,
+    }
+
 def main():
     print("Hajj Ops Builder v5 (v11 schema)")
     xlsx_path = download_xlsx()
@@ -827,6 +951,8 @@ def main():
     accommodation_live = compute_accommodation_live(units, ambulances)
     amb_dashboards = compute_ambulance_dashboards(ambulances, units, schedule, shifts)
     day_night_station = compute_day_night_per_station(units, schedule, shifts)
+    org_tree = compute_org_tree(units, staff)
+    insights = compute_insights(stations_detail, day_night_station, amb_by_station, hourly)
 
     data = {
         "refreshed_at": datetime.now(timezone.utc).strftime("%d %b %Y · %H:%M UTC"),
@@ -859,6 +985,8 @@ def main():
         "accommodation_live": accommodation_live,
         "amb_dashboards": amb_dashboards,
         "day_night_station": day_night_station,
+        "org_tree": org_tree,
+        "insights": insights,
     }
 
     with open("data.json", "w") as f:

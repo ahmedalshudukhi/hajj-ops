@@ -280,6 +280,7 @@
     <button class="tab-btn" data-tab="assets"><span class="tab-btn-num">11</span> Org &amp; Assets</button>
     <button class="tab-btn" data-tab="timeline"><span class="tab-btn-num">12</span> Timeline</button>
     <button class="tab-btn" data-tab="staffing"><span class="tab-btn-num">13</span> Staffing</button>
+    <button class="tab-btn" data-tab="insights"><span class="tab-btn-num">14</span> Insights</button>
   </div>
 </header>
 
@@ -468,8 +469,18 @@
 
 <section id="tab-stations" class="tab-panel">
   <div class="section-head">
-    <div><div class="section-num">/07 — STATIONS</div><h2 class="section-title">Unit <span class="accent">assignments</span></h2></div>
-    <p class="section-blurb">Which units belong to each station. Operational units shown by type (Mike / Alpha / Romeo) plus any leadership and command units assigned to support locations.</p>
+    <div><div class="section-num">/07 — STATIONS</div><h2 class="section-title">Station <span class="accent">scorecards</span></h2></div>
+    <p class="section-blurb">Every station at a glance: day/night headcount, fill rate, ambulance count, coverage ratio, and the unit roster. Three zone summaries at the top.</p>
+  </div>
+  <div class="card" style="margin-bottom: 16px;">
+    <div class="card-title">Zone roll-up</div>
+    <div class="card-subtitle">Aggregate for Arafat, Muzdalifah, Mina</div>
+    <div id="zone-rollup" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-top: 14px;"></div>
+  </div>
+  <div class="card" style="margin-bottom: 20px;">
+    <div class="card-title">Station scorecards</div>
+    <div class="card-subtitle">Day vs night load, fill %, coverage health, top-3 unit types</div>
+    <div id="station-scorecards" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 14px;"></div>
   </div>
   <div class="two-col" style="margin-bottom: 20px;">
     <div class="card"><div class="card-title">Unit type per station</div><div class="card-subtitle">Mike + Alpha + Romeo stacked</div><div class="chart-container"><canvas id="chart-station-mix"></canvas></div></div>
@@ -590,8 +601,13 @@
 
 <section id="tab-assets" class="tab-panel">
   <div class="section-head">
-    <div><div class="section-num">/11 — ORG &amp; ASSETS</div><h2 class="section-title">Beds &amp; <span class="accent">support</span></h2></div>
-    <p class="section-blurb">Accommodation across operational sites and the depot. Org structure shows day vs night staffing by category.</p>
+    <div><div class="section-num">/11 — ORG &amp; ASSETS</div><h2 class="section-title">Org &amp; <span class="accent">assets</span></h2></div>
+    <p class="section-blurb">Hierarchical reporting tree, accommodation across sites, and the day/night staffing breakdown by category.</p>
+  </div>
+  <div class="card" style="margin-bottom: 16px;">
+    <div class="card-title">Reporting hierarchy</div>
+    <div class="card-subtitle">PM → Chief → Deputy → Supervisors → operational units. Click any node to expand or collapse.</div>
+    <div id="org-tree-wrap" style="margin-top: 14px;"></div>
   </div>
   <div class="two-col">
     <div class="card"><div class="card-title">Accommodation by location</div><div class="card-subtitle">Beds per site</div><div class="chart-container"><canvas id="chart-accom"></canvas></div></div>
@@ -657,6 +673,23 @@
         <tbody id="staffing-table-body"></tbody>
       </table>
     </div>
+  </div>
+</section>
+
+<section id="tab-insights" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/14 — INSIGHTS</div><h2 class="section-title">Operational <span class="accent">health</span></h2></div>
+    <p class="section-blurb">Two operational lenses: para-to-ambulance coverage ratio per station, and where peak movement load exceeds station capacity.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Coverage Health</div>
+    <div class="card-subtitle">Paramedic-to-ambulance ratio per station. Industry sweet spot ≤ 6:1 (good) · 6–10 (fair) · &gt;10 (stretched).</div>
+    <div id="coverage-cards" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 16px;"></div>
+  </div>
+  <div class="card" style="margin-top: 20px;">
+    <div class="card-title">Stress Map</div>
+    <div class="card-subtitle">Peak hourly load per station × movement. Cell shows peak/capacity. Color: green = under 70%, yellow = 70–100%, red = exceeds capacity.</div>
+    <div id="stress-grid" style="margin-top: 16px; overflow-x: auto;"></div>
   </div>
 </section>
 
@@ -1416,6 +1449,199 @@ function renderAmbulanceDashboards(d) {
     wrap.innerHTML = html;
   }
 }
+function renderInsights(d) {
+  const ins = d.insights || {};
+  // Coverage Health cards
+  const wrap = document.getElementById('coverage-cards');
+  if (wrap && ins.coverage_health) {
+    const HEALTH = {
+      'good':      { color: '#10b981', label: 'Good',       bg: 'rgba(16,185,129,0.12)' },
+      'fair':      { color: '#f59e0b', label: 'Fair',       bg: 'rgba(245,158,11,0.12)' },
+      'stretched': { color: '#ef4444', label: 'Stretched',  bg: 'rgba(239,68,68,0.12)' },
+      'no-amb':    { color: '#6b7280', label: 'No amb',     bg: 'rgba(107,114,128,0.10)' },
+    };
+    wrap.innerHTML = ins.coverage_health.map(c => {
+      const h = HEALTH[c.health] || HEALTH['no-amb'];
+      const ratio = c.ratio === null ? '—' : c.ratio + ':1';
+      return `<div class="card" style="background:${h.bg}; border-left: 4px solid ${h.color}; padding: 14px;">
+        <div style="display:flex; justify-content:space-between; align-items:baseline;">
+          <div style="font-size: 17px; font-weight: 700; letter-spacing: 0.04em;">${c.station}</div>
+          <span style="background:${h.color}; color:#fff; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; text-transform:uppercase;">${h.label}</span>
+        </div>
+        <div style="font-size: 28px; font-weight:700; padding: 6px 0; color:${h.color};">${ratio}</div>
+        <div style="font-size: 11px; opacity:.7;">${c.paras} paras · ${c.ambulances} ambulance${c.ambulances===1?'':'s'}</div>
+        <div style="font-size: 10px; opacity:.55; margin-top: 4px; font-family: var(--font-mono);">Day ${c.day_paras} · Night ${c.night_paras}</div>
+      </div>`;
+    }).join('');
+  }
+  // Stress Map
+  const grid = document.getElementById('stress-grid');
+  if (grid && ins.stress_map) {
+    const stations = Object.keys(ins.stress_map);
+    const movements = ins.movements || [];
+    let html = '<table style="width:100%; border-collapse:collapse; font-size:11px; font-family: var(--font-mono);">';
+    html += '<thead><tr><th style="text-align:left; padding:6px 10px; position:sticky; left:0; background:var(--bg, #0a0e1a); border-bottom:1px solid var(--border, #2a3245);">Station</th>';
+    html += '<th style="text-align:center; padding:6px 8px; opacity:.7; border-bottom:1px solid var(--border, #2a3245);">Capacity</th>';
+    movements.forEach(m => {
+      html += `<th style="text-align:center; padding:6px 8px; border-bottom:1px solid var(--border, #2a3245);">${m}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+    stations.forEach(st => {
+      const row = ins.stress_map[st];
+      html += `<tr style="border-bottom:1px solid var(--border, #2a3245);"><td style="padding:6px 10px; position:sticky; left:0; background:var(--bg, #0a0e1a); font-weight:600;">${st}</td>`;
+      html += `<td style="text-align:center; padding:6px 8px; opacity:.7;">${row.capacity}</td>`;
+      movements.forEach(m => {
+        const cell = row.by_mvt[m] || {peak:0, gap:0, pct:0};
+        let bg = 'transparent', fg = 'inherit';
+        if (cell.pct >= 100) { bg = 'rgba(239,68,68,0.30)'; fg = '#fca5a5'; }
+        else if (cell.pct >= 70) { bg = 'rgba(245,158,11,0.25)'; fg = '#fcd34d'; }
+        else if (cell.pct > 0) { bg = 'rgba(16,185,129,0.12)'; fg = '#86efac'; }
+        const title = `${st} during ${m}: peak ${cell.peak} of ${row.capacity} capacity (${cell.pct}%)`;
+        html += `<td title="${title}" style="text-align:center; padding:6px 8px; background:${bg}; color:${fg}; font-weight:600;">${cell.peak}<span style="opacity:.5; font-weight:400;">/${row.capacity}</span></td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    grid.innerHTML = html;
+  }
+}
+
+function renderOrgTree(d) {
+  const wrap = document.getElementById('org-tree-wrap');
+  if (!wrap || !d.org_tree) return;
+  const TYPE_COLOR = { 'Medical': '#ef4444', 'Ambulance': '#3b82f6', 'Foot-Runner': '#10b981' };
+  function nodeColor(n) {
+    if (n.category === 'Leadership') return '#a855f7';
+    if (n.category === 'Command') return '#06b6d4';
+    return TYPE_COLOR[n.type] || '#6b7280';
+  }
+  function renderNode(node, depth) {
+    const color = nodeColor(node);
+    const fillPct = node.size > 0 ? Math.round(node.filled / node.size * 100) : 0;
+    const fillColor = fillPct >= 80 ? '#10b981' : fillPct >= 40 ? '#f59e0b' : fillPct > 0 ? '#ef4444' : '#6b7280';
+    const hasChildren = node.children && node.children.length > 0;
+    const childIds = (node.children || []).map(c => c.id).join(',');
+    const childCount = hasChildren ? `<span style="opacity:.5; font-size:10px; margin-left:6px;">(${node.children.length})</span>` : '';
+    const homeBadge = node.home ? `<span style="background:rgba(255,255,255,0.06); padding:1px 6px; border-radius:3px; font-size:9px; opacity:.7; margin-left:6px;">${node.home}</span>` : '';
+    const fillBadge = node.size > 0 ? `<span style="color:${fillColor}; font-size:10px; font-weight:600; margin-left:8px;">${node.filled}/${node.size}</span>` : '';
+    const expandIcon = hasChildren ? `<span class="org-expand" style="display:inline-block; width:14px; cursor:pointer; user-select:none; opacity:.6;">▼</span>` : `<span style="display:inline-block; width:14px;"></span>`;
+    let html = `<div class="org-node" data-children-of="${node.id}" style="margin-left: ${depth * 22}px; padding: 4px 0; display:flex; align-items:center; gap:6px;">`;
+    html += expandIcon;
+    html += `<span class="mono" style="background:${color}; color:#fff; padding:2px 9px; border-radius:4px; font-weight:600; font-size:11px; min-width:60px; text-align:center; cursor:${hasChildren?'pointer':'default'};" onclick="${hasChildren ? `toggleOrgNode('${node.id}')` : ''}">${node.label || node.id}</span>`;
+    html += `<span style="font-size:11px; opacity:.85;">${node.type || node.category || ''}</span>`;
+    html += homeBadge + fillBadge + childCount;
+    html += '</div>';
+    if (hasChildren) {
+      html += `<div class="org-children" id="org-children-${node.id}">`;
+      node.children.forEach(c => { html += renderNode(c, depth + 1); });
+      html += '</div>';
+    }
+    return html;
+  }
+  wrap.innerHTML = renderNode(d.org_tree, 0);
+  // Toggle handler
+  window.toggleOrgNode = function(id) {
+    const child = document.getElementById('org-children-' + id);
+    if (!child) return;
+    child.style.display = child.style.display === 'none' ? '' : 'none';
+    // Flip arrow
+    const node = document.querySelector('.org-node[data-children-of="' + id + '"] .org-expand');
+    if (node) node.textContent = child.style.display === 'none' ? '▶' : '▼';
+  };
+}
+
+function renderStationScorecards(d) {
+  if (!d.stations_detail) return;
+  const wrap = document.getElementById('station-scorecards');
+  const zoneWrap = document.getElementById('zone-rollup');
+  if (!wrap) return;
+  const CLINICAL = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+  const TYPE_COLOR = { 'Medical': '#ef4444', 'Ambulance': '#3b82f6', 'Foot-Runner': '#10b981' };
+  const dn = d.day_night_station || {};
+  const ambByStation = d.amb_by_station || {};
+  const coverageMap = {};
+  (d.insights?.coverage_health || []).forEach(c => coverageMap[c.station] = c);
+
+  // Zone roll-ups
+  if (zoneWrap) {
+    const zones = {
+      'Arafat': ['ARF1','ARF2','ARF3'],
+      'Muzdalifah': ['MUZ1','MUZ2','MUZ3'],
+      'Mina': ['MIN1','MIN2','MIN3'],
+    };
+    zoneWrap.innerHTML = Object.entries(zones).map(([zone, sts]) => {
+      const totalPeople = sts.reduce((s,st) => s + (d.stations_detail[st]?.total_size || 0), 0);
+      const totalUnits = sts.reduce((s,st) => s + (d.stations_detail[st]?.total_units || 0), 0);
+      const totalAmb = sts.reduce((s,st) => s + (ambByStation[st] || 0), 0);
+      const totalDay = sts.reduce((s,st) => s + (dn[st]?.day_paras || 0), 0);
+      const totalNight = sts.reduce((s,st) => s + (dn[st]?.night_paras || 0), 0);
+      const ratio = totalAmb ? Math.round(totalPeople / totalAmb * 10) / 10 : '—';
+      const zColor = zone === 'Arafat' ? '#F59E0B' : zone === 'Muzdalifah' ? '#10B981' : '#8B5CF6';
+      return `<div class="card" style="background:var(--bg-2); border-left:4px solid ${zColor}; padding:14px;">
+        <div style="font-size:13px; font-weight:700; letter-spacing:0.05em; color:${zColor}; text-transform:uppercase;">${zone}</div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:8px;">
+          <div><div style="font-size:10px; opacity:.6;">Paras</div><div style="font-size:22px; font-weight:700;">${totalPeople}</div></div>
+          <div><div style="font-size:10px; opacity:.6;">Units</div><div style="font-size:22px; font-weight:700;">${totalUnits}</div></div>
+          <div><div style="font-size:10px; opacity:.6;">Ambulances</div><div style="font-size:22px; font-weight:700;">${totalAmb}</div></div>
+          <div><div style="font-size:10px; opacity:.6;">Para:Amb</div><div style="font-size:22px; font-weight:700; color:${zColor};">${ratio}:1</div></div>
+        </div>
+        <div style="font-size:10px; opacity:.6; margin-top:8px; font-family:var(--font-mono);">Day ${totalDay} · Night ${totalNight} (cum.)</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Per-station scorecards (clinical only)
+  wrap.innerHTML = CLINICAL.filter(st => d.stations_detail[st]).map(st => {
+    const sd = d.stations_detail[st];
+    const dnSt = dn[st] || {day_paras:0, night_paras:0, day_units:0, night_units:0};
+    const amb = ambByStation[st] || 0;
+    const cov = coverageMap[st] || {};
+    const fillPct = sd.total_size > 0 ? Math.round(sd.total_filled_paras / sd.total_size * 100) : 0;
+    const fillColor = fillPct >= 80 ? '#10b981' : fillPct >= 40 ? '#f59e0b' : fillPct > 0 ? '#ef4444' : '#6b7280';
+    const HEALTH = { 'good':'#10b981','fair':'#f59e0b','stretched':'#ef4444','no-amb':'#6b7280' };
+    const healthColor = HEALTH[cov.health] || '#6b7280';
+    const types = sd.by_type || {};
+    const topTypes = Object.entries(types).sort((a,b)=>b[1]-a[1]).slice(0,3);
+    const zone = st.startsWith('ARF') ? 'Arafat' : st.startsWith('MUZ') ? 'Muzdalifah' : 'Mina';
+    return `<div class="card" style="background: var(--bg-2); padding: 14px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 10px;">
+        <div>
+          <div style="font-size: 18px; font-weight: 700; letter-spacing: 0.04em;">${st}</div>
+          <div style="font-size: 10px; opacity: 0.6;">${zone}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size: 22px; font-weight: 700;">${sd.total_size}</div>
+          <div style="font-size: 10px; opacity: 0.6;">paras total</div>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 10px;">
+        <div style="background:rgba(245,158,11,0.10); padding: 6px; border-radius: 4px; text-align:center;">
+          <div style="font-size:9px; opacity:.7;">DAY</div>
+          <div style="font-size:16px; font-weight:700; color:#f59e0b;">${dnSt.day_paras}</div>
+          <div style="font-size:9px; opacity:.6;">${dnSt.day_units} units</div>
+        </div>
+        <div style="background:rgba(59,130,246,0.10); padding: 6px; border-radius: 4px; text-align:center;">
+          <div style="font-size:9px; opacity:.7;">NIGHT</div>
+          <div style="font-size:16px; font-weight:700; color:#3b82f6;">${dnSt.night_paras}</div>
+          <div style="font-size:9px; opacity:.6;">${dnSt.night_units} units</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.04); padding: 6px; border-radius: 4px; text-align:center;">
+          <div style="font-size:9px; opacity:.7;">AMB</div>
+          <div style="font-size:16px; font-weight:700;">${amb}</div>
+          <div style="font-size:9px; opacity:.6;">vehicles</div>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:space-between; padding: 6px 0; border-top: 1px solid var(--border, #2a3245); border-bottom: 1px solid var(--border, #2a3245); margin-bottom: 8px;">
+        <div><span style="font-size:10px; opacity:.6;">Fill</span> <span style="color:${fillColor}; font-weight:700; font-size:13px;">${sd.total_filled_paras}/${sd.total_size}</span> <span style="font-size:10px; color:${fillColor};">(${fillPct}%)</span></div>
+        <div><span style="font-size:10px; opacity:.6;">Health</span> <span style="color:${healthColor}; font-weight:700; font-size:13px;">${cov.ratio !== null && cov.ratio !== undefined ? cov.ratio + ':1' : '—'}</span></div>
+      </div>
+      <div style="display:flex; flex-wrap:wrap; gap: 4px;">
+        ${topTypes.map(([t, c]) => `<span style="background:${TYPE_COLOR[t] || '#a855f7'}; color:#fff; padding:2px 7px; border-radius:3px; font-size:10px; font-weight:600;">${c} ${t.split('-')[0]}</span>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function renderTimeline(d) {
   document.getElementById('phase-count').textContent = d.movement_phases.length;
   document.getElementById('mvt-timeline').innerHTML = d.movement_phases.map(p => `
@@ -1830,6 +2056,9 @@ async function boot() {
   safeRender('role-view', setupRoleView);
   safeRender('home', () => renderHome(DATA));
   safeRender('staffing', () => renderStaffing(DATA));
+  safeRender('insights', () => renderInsights(DATA));
+  safeRender('org-tree', () => renderOrgTree(DATA));
+  safeRender('station-scorecards', () => renderStationScorecards(DATA));
   safeRender('accommodation', () => renderAccommodation(DATA));
   safeRender('augmentations', () => renderAugmentations(DATA));
   safeRender('timeline', () => renderTimeline(DATA));
