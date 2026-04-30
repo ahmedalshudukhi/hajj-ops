@@ -225,13 +225,21 @@
 <nav class="nav">
   <div class="container nav-inner">
     <div class="nav-brand">
-      <img src="./hmg-logo.png" alt="HMG" style="height: 36px; width: auto; background: #fff; padding: 4px 10px; border-radius: 6px; box-shadow: 0 0 0 1px rgba(255,255,255,0.06);">
+      <img src="./hmg-logo.png?v=2" alt="HMG" style="height: 38px; width: auto; background: #ffffff; padding: 5px 12px; border-radius: 7px; box-shadow: 0 0 0 1px rgba(255,255,255,0.08);">
       <div>
         <span class="nav-brand-text">Hajj Operations</span>
         <span class="nav-brand-sub">// 1447 AH</span>
       </div>
     </div>
     <div class="nav-status">
+      <select id="role-view-selector" style="background: var(--bg-2, #1a1f2e); border: 1px solid var(--border, #2a3245); color: var(--text, #e2e8f0); padding: 5px 10px; border-radius: 5px; font-size: 11px; font-family: var(--font-mono); margin-right: 10px;">
+        <option value="all">▣ All views</option>
+        <option value="executive">⌘ Executive</option>
+        <option value="pm">◇ PM</option>
+        <option value="chief">◆ Chief</option>
+        <option value="supervisor">▲ Supervisor</option>
+        <option value="paramedic">● Paramedic</option>
+      </select>
       <span class="nav-status-dot"></span>
       <span id="nav-time">LOADING…</span>
     </div>
@@ -261,13 +269,15 @@
     <button class="tab-btn active" data-tab="calendar"><span class="tab-btn-num">01</span> Calendar</button>
     <button class="tab-btn" data-tab="mobilization"><span class="tab-btn-num">02</span> Mobilization</button>
     <button class="tab-btn" data-tab="hourly"><span class="tab-btn-num">03</span> Hourly</button>
-    <button class="tab-btn" data-tab="roster"><span class="tab-btn-num">04</span> Roster</button>
-    <button class="tab-btn" data-tab="stations"><span class="tab-btn-num">05</span> Stations</button>
-    <button class="tab-btn" data-tab="units"><span class="tab-btn-num">06</span> Units</button>
-    <button class="tab-btn" data-tab="ambulances"><span class="tab-btn-num">07</span> Ambulances</button>
-    <button class="tab-btn" data-tab="augmentations"><span class="tab-btn-num">08</span> Augmentations</button>
-    <button class="tab-btn" data-tab="assets"><span class="tab-btn-num">09</span> Assets</button>
-    <button class="tab-btn" data-tab="timeline"><span class="tab-btn-num">10</span> Timeline</button>
+    <button class="tab-btn" data-tab="day-view"><span class="tab-btn-num">04</span> Day View</button>
+    <button class="tab-btn" data-tab="schedule"><span class="tab-btn-num">05</span> Schedule</button>
+    <button class="tab-btn" data-tab="roster"><span class="tab-btn-num">06</span> Roster</button>
+    <button class="tab-btn" data-tab="stations"><span class="tab-btn-num">07</span> Stations</button>
+    <button class="tab-btn" data-tab="units"><span class="tab-btn-num">08</span> Units</button>
+    <button class="tab-btn" data-tab="ambulances"><span class="tab-btn-num">09</span> Ambulances</button>
+    <button class="tab-btn" data-tab="augmentations"><span class="tab-btn-num">10</span> Augmentations</button>
+    <button class="tab-btn" data-tab="assets"><span class="tab-btn-num">11</span> Org &amp; Assets</button>
+    <button class="tab-btn" data-tab="timeline"><span class="tab-btn-num">12</span> Timeline</button>
   </div>
 </header>
 
@@ -289,7 +299,7 @@
   <div class="movement-grid" id="movement-grid"></div>
   <div class="two-col" style="margin-top: 24px;">
     <div class="card"><div class="card-title">Staff distribution by movement</div><div class="card-subtitle">SUM(Total Staff) per movement</div><div class="chart-container"><canvas id="chart-movement"></canvas></div></div>
-    <div class="card"><div class="card-title">Status mix</div><div class="card-subtitle">SURGE / ACTIVE / STANDBY / SUPPORT</div><div class="chart-container"><canvas id="chart-status"></canvas></div></div>
+    <div class="card"><div class="card-title">Roster status mix</div><div class="card-subtitle">Filled / Vacant / Backup / On-Leave from Staff sheet</div><div class="chart-container"><canvas id="chart-status"></canvas></div></div>
   </div>
   <div class="card" style="margin-top: 20px;">
     <div class="card-title">Zone × Movement</div><div class="card-subtitle">Total staff per zone, by movement (excludes pre-ops setup)</div>
@@ -335,10 +345,70 @@
   </div>
 </section>
 
+<section id="tab-day-view" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/04 — DAY VIEW</div><h2 class="section-title">Daily <span class="accent">summary</span></h2></div>
+    <p class="section-blurb">One day at a time. Pick a Dhul-Hijjah day and see who's on duty, where, and on which shifts.</p>
+  </div>
+  <div class="card">
+    <div style="display:flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px;">
+      <label style="font-size: 12px; color: var(--text-dim);">Day:</label>
+      <select id="day-view-selector" style="background: var(--bg-2); border: 1px solid var(--border); padding: 8px 14px; border-radius: 6px; color: var(--text); font-family: var(--font-mono); font-size: 12px;"></select>
+      <span id="day-view-headline" style="margin-left: auto; font-size: 12px; color: var(--text-dim);"></span>
+    </div>
+    <div id="day-view-summary" class="three-col" style="margin-bottom: 14px;"></div>
+    <div class="three-col">
+      <div class="card" style="background: var(--bg-2);">
+        <div class="card-title">Zones</div>
+        <div class="chart-container"><canvas id="chart-day-zones"></canvas></div>
+      </div>
+      <div class="card" style="background: var(--bg-2);">
+        <div class="card-title">Unit types</div>
+        <div class="chart-container"><canvas id="chart-day-types"></canvas></div>
+      </div>
+      <div class="card" style="background: var(--bg-2);">
+        <div class="card-title">Shifts in use</div>
+        <div id="day-shifts-list" style="font-size: 11px; padding-top: 8px;"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="tab-schedule" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/05 — SCHEDULE</div><h2 class="section-title">Schedule <span class="accent">grid</span></h2></div>
+    <p class="section-blurb">Per-station schedule across all 11 days. Each cell shows units on duty during that day's slot 1 (day) and slot 2 (night/late). Color intensity scales with headcount.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Station × Day grid</div>
+    <div class="card-subtitle">Top number = day shift units · Bottom number = night/late shift units</div>
+    <div id="schedule-grid-wrap" style="margin-top: 14px; overflow-x: auto;"></div>
+  </div>
+  <div class="card" style="margin-top: 20px;">
+    <div class="card-title">Schedule by unit</div>
+    <div class="card-subtitle">All 130 units · their shifts across the 11 days</div>
+    <div style="margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap;">
+      <input id="schedule-search" placeholder="Filter unit ID..." style="background: var(--bg-2); border: 1px solid var(--border); padding: 7px 11px; border-radius: 5px; color: var(--text); font-size: 12px; min-width: 200px;">
+      <select id="schedule-type" style="background: var(--bg-2); border: 1px solid var(--border); padding: 7px 11px; border-radius: 5px; color: var(--text); font-size: 12px;">
+        <option value="">All types</option>
+        <option value="Medical">Mike (Medical)</option>
+        <option value="Ambulance">Alpha (Ambulance)</option>
+        <option value="Foot-Runner">Romeo (Foot-Runner)</option>
+        <option value="Supervisor">Supervisor</option>
+        <option value="Logistics">Logistics</option>
+        <option value="Dispatch OCC">Dispatch</option>
+        <option value="SRCA Dispatch">SRCA</option>
+        <option value="Training">Training</option>
+      </select>
+    </div>
+    <div id="schedule-unit-table-wrap" style="margin-top: 14px; overflow-x: auto;"></div>
+  </div>
+</section>
+
 <section id="tab-roster" class="tab-panel">
   <div class="section-head">
-    <div><div class="section-num">/04 — ROSTER</div><h2 class="section-title">Staff <span class="accent">assignment</span></h2></div>
-    <p class="section-blurb">272 named slots awaiting assignment (252 paramedic + 20 GP). Each tile = one person-slot.</p>
+    <div><div class="section-num">/06 — ROSTER</div><h2 class="section-title">Personnel <span class="accent">roster</span></h2></div>
+    <p class="section-blurb">275 named slots awaiting assignment (251 paramedic + 20 GP + 4 leadership). Each tile = one person-slot.</p>
   </div>
   <div class="card">
     <div class="card-title">Vacancy map · <span id="vacancy-count">272</span> slots</div>
@@ -365,7 +435,7 @@
 
 <section id="tab-stations" class="tab-panel">
   <div class="section-head">
-    <div><div class="section-num">/05 — STATIONS</div><h2 class="section-title">Unit <span class="accent">assignments</span></h2></div>
+    <div><div class="section-num">/07 — STATIONS</div><h2 class="section-title">Unit <span class="accent">assignments</span></h2></div>
     <p class="section-blurb">Which units belong to each station. Operational units shown by type (Mike / Alpha / Romeo) plus any leadership and command units assigned to support locations.</p>
   </div>
   <div class="two-col" style="margin-bottom: 20px;">
@@ -387,7 +457,7 @@
 
 <section id="tab-units" class="tab-panel">
   <div class="section-head">
-    <div><div class="section-num">/06 — UNITS</div><h2 class="section-title">Unit <span class="accent">breakdown &amp; call signs</span></h2></div>
+    <div><div class="section-num">/08 — UNITS</div><h2 class="section-title">Unit <span class="accent">breakdown &amp; call signs</span></h2></div>
     <p class="section-blurb">All 130 units with home station, members, and radio call signs. Filter by category or type. Click a unit to see member detail.</p>
   </div>
   <div class="card">
@@ -428,7 +498,7 @@
 
 <section id="tab-ambulances" class="tab-panel">
   <div class="section-head">
-    <div><div class="section-num">/07 — AMBULANCES</div><h2 class="section-title">Fleet <span class="accent">deployment</span></h2></div>
+    <div><div class="section-num">/09 — AMBULANCES</div><h2 class="section-title">Fleet <span class="accent">deployment</span></h2></div>
     <p class="section-blurb">25 ambulances always manned. 10 Essential ALS · 9 Backup BLS · 6 Roving ALS. Each ambulance has a Day and Night Alpha crew.</p>
   </div>
   <div class="three-col">
@@ -445,7 +515,7 @@
 
 <section id="tab-augmentations" class="tab-panel">
   <div class="section-head">
-    <div><div class="section-num">/08 — AUGMENTATIONS</div><h2 class="section-title">Inter-station <span class="accent">flow</span></h2></div>
+    <div><div class="section-num">/10 — AUGMENTATIONS</div><h2 class="section-title">Inter-station <span class="accent">flow</span></h2></div>
     <p class="section-blurb">Planned redeployments during operations. Move paramedics from low-pressure to surge stations.</p>
   </div>
   <div class="two-col">
@@ -461,7 +531,7 @@
 
 <section id="tab-assets" class="tab-panel">
   <div class="section-head">
-    <div><div class="section-num">/09 — ASSETS &amp; LOGISTICS</div><h2 class="section-title">Beds &amp; <span class="accent">support</span></h2></div>
+    <div><div class="section-num">/11 — ORG &amp; ASSETS</div><h2 class="section-title">Beds &amp; <span class="accent">support</span></h2></div>
     <p class="section-blurb">Accommodation across operational sites and the depot. Org structure shows day vs night staffing by category.</p>
   </div>
   <div class="two-col">
@@ -482,7 +552,7 @@
 
 <section id="tab-timeline" class="tab-panel">
   <div class="section-head">
-    <div><div class="section-num">/10 — MOVEMENT PHASES</div><h2 class="section-title">Operational <span class="accent">timeline</span></h2></div>
+    <div><div class="section-num">/12 — MOVEMENT PHASES</div><h2 class="section-title">Operational <span class="accent">timeline</span></h2></div>
     <p class="section-blurb">Hour-by-hour movement transitions across 6 operational days.</p>
   </div>
   <div class="card">
@@ -783,6 +853,175 @@ function renderUnits(d) {
   filterType.addEventListener('change', render);
   render();
 }
+function renderDayView(d) {
+  if (!d.daily_view || !d.daily_view.length) return;
+  const sel = document.getElementById('day-view-selector');
+  const summary = document.getElementById('day-view-summary');
+  const headline = document.getElementById('day-view-headline');
+  const shiftsList = document.getElementById('day-shifts-list');
+  if (!sel) return;
+  sel.innerHTML = d.daily_view.map(dv =>
+    `<option value="${dv.dh}">${dv.label} · ${dv.active_units} units · ${dv.active_paras} paras</option>`).join('');
+  let zoneChart = null, typeChart = null;
+  function pickColor(zone) {
+    return zone === 'Arafat' ? '#F59E0B' : zone === 'Muzdalifah' ? '#10B981' : zone === 'Mina' ? '#8B5CF6' : '#6B7280';
+  }
+  function paint() {
+    const dh = parseInt(sel.value);
+    const day = d.daily_view.find(x => x.dh === dh) || d.daily_view[0];
+    const calendarEntry = (d.calendar || []).find(c => c.dh === dh);
+    headline.textContent = calendarEntry ? `${calendarEntry.greg} · ${calendarEntry.phase} · ${calendarEntry.events || ''}` : '';
+    const totalParas = day.active_paras || 1;
+    summary.innerHTML = `
+      <div class="card" style="background: var(--bg-2);"><div class="card-title">Active units</div><div style="font-size: 36px; font-weight: 700; padding: 8px 0;">${day.active_units}<span style="font-size: 14px; opacity: .6;"> / 130</span></div></div>
+      <div class="card" style="background: var(--bg-2);"><div class="card-title">People on duty</div><div style="font-size: 36px; font-weight: 700; padding: 8px 0; color: ${day.active_paras >= 200 ? '#10B981' : '#F59E0B'};">${day.active_paras}<span style="font-size: 14px; opacity: .6;"> / 275</span></div></div>
+      <div class="card" style="background: var(--bg-2);"><div class="card-title">Total person-hours</div><div style="font-size: 36px; font-weight: 700; padding: 8px 0;">${day.total_hours.toLocaleString()}<span style="font-size: 14px; opacity: .6;"> hrs</span></div></div>`;
+    if (zoneChart) zoneChart.destroy();
+    if (typeChart) typeChart.destroy();
+    const zoneCanvas = document.getElementById('chart-day-zones');
+    const typeCanvas = document.getElementById('chart-day-types');
+    if (zoneCanvas && window.Chart) {
+      zoneChart = new Chart(zoneCanvas, {
+        type: 'doughnut',
+        data: { labels: Object.keys(day.zones), datasets: [{ data: Object.values(day.zones),
+          backgroundColor: Object.keys(day.zones).map(pickColor), borderColor: '#0F1729', borderWidth: 3 }] },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '60%',
+          plugins: { legend: { position: 'bottom', labels: { padding: 8, usePointStyle: true, font: {size: 10} } } } }
+      });
+    }
+    if (typeCanvas && window.Chart) {
+      typeChart = new Chart(typeCanvas, {
+        type: 'doughnut',
+        data: { labels: Object.keys(day.types), datasets: [{ data: Object.values(day.types),
+          backgroundColor: ['#ef4444','#3b82f6','#10b981','#a855f7'], borderColor: '#0F1729', borderWidth: 3 }] },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '60%',
+          plugins: { legend: { position: 'bottom', labels: { padding: 8, usePointStyle: true, font: {size: 10} } } } }
+      });
+    }
+    shiftsList.innerHTML = Object.entries(day.shifts || {}).map(([code, count]) =>
+      `<div style="display:flex; justify-content:space-between; padding: 4px 0; border-bottom: 1px solid var(--border, #2a3245);"><span class="mono" style="opacity:.8;">${code}</span><span class="mono" style="font-weight:600;">${count} paras</span></div>`).join('') || '<div style="opacity:.5;">No shifts assigned this day</div>';
+  }
+  sel.addEventListener('change', paint);
+  paint();
+}
+
+function renderSchedule(d) {
+  if (!d.schedule_grid) return;
+  const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3','OCC','Depot','SRCA','Logistics','Training','Mobile'];
+  const DAYS = ['4','5','6','7','8','9','10','11','12','13','14'];
+  const wrap = document.getElementById('schedule-grid-wrap');
+  if (!wrap) return;
+  let maxParas = 0;
+  STATIONS.forEach(st => DAYS.forEach(dh => {
+    const s1 = (d.schedule_grid[dh]?.slot1?.[st]?.paras) || 0;
+    const s2 = (d.schedule_grid[dh]?.slot2?.[st]?.paras) || 0;
+    if (s1 > maxParas) maxParas = s1;
+    if (s2 > maxParas) maxParas = s2;
+  }));
+  function intensity(n) {
+    if (!n || maxParas === 0) return 0;
+    return Math.min(1, n / maxParas);
+  }
+  let html = '<table class="schedule-grid-table" style="border-collapse: collapse; font-size: 11px; min-width: 100%;">';
+  html += '<thead><tr><th style="text-align:left; padding: 8px; border-bottom: 1px solid var(--border, #2a3245); position: sticky; left: 0; background: var(--bg, #0a0e1a);">Station</th>';
+  DAYS.forEach(dh => { html += `<th style="padding: 6px 8px; text-align: center; border-bottom: 1px solid var(--border, #2a3245); font-family: var(--font-mono); opacity: .8;">${dh} DH</th>`; });
+  html += '</tr></thead><tbody>';
+  STATIONS.forEach(st => {
+    const hasAny = DAYS.some(dh => (d.schedule_grid[dh]?.slot1?.[st]?.units || d.schedule_grid[dh]?.slot2?.[st]?.units));
+    if (!hasAny) return;
+    html += `<tr><td class="mono" style="padding: 8px; font-weight: 600; border-bottom: 1px solid var(--border, #2a3245); position: sticky; left: 0; background: var(--bg, #0a0e1a);">${st}</td>`;
+    DAYS.forEach(dh => {
+      const s1 = d.schedule_grid[dh]?.slot1?.[st] || {units:0, paras:0};
+      const s2 = d.schedule_grid[dh]?.slot2?.[st] || {units:0, paras:0};
+      const i1 = intensity(s1.paras);
+      const i2 = intensity(s2.paras);
+      html += `<td style="padding: 4px 6px; text-align: center; border-bottom: 1px solid var(--border, #2a3245);">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div title="Day shift: ${s1.units} units, ${s1.paras} paras" style="background: rgba(245, 158, 11, ${i1}); padding: 4px 6px; border-radius: 3px; font-family: var(--font-mono); font-weight: 600;">${s1.units || '—'}</div>
+          <div title="Night/late shift: ${s2.units} units, ${s2.paras} paras" style="background: rgba(139, 92, 246, ${i2}); padding: 4px 6px; border-radius: 3px; font-family: var(--font-mono); font-weight: 600;">${s2.units || '—'}</div>
+        </div>
+      </td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+
+  // Per-unit schedule table
+  const unitWrap = document.getElementById('schedule-unit-table-wrap');
+  const search = document.getElementById('schedule-search');
+  const typeFilter = document.getElementById('schedule-type');
+  if (!unitWrap || !d.units_detail) return;
+  function renderUnitTable() {
+    const q = (search.value || '').toLowerCase().trim();
+    const tf = typeFilter.value;
+    let html = '<table style="border-collapse: collapse; font-size: 11px; min-width: 100%;">';
+    html += '<thead><tr><th style="padding: 6px 10px; text-align: left; position: sticky; left: 0; background: var(--bg, #0a0e1a);">Unit</th><th style="padding: 6px 8px; text-align: left;">Type</th><th style="padding: 6px 8px;">Home</th>';
+    for (let dh = 4; dh <= 14; dh++) {
+      html += `<th style="padding: 6px 6px; text-align: center; font-family: var(--font-mono); opacity: .7;">${dh}</th>`;
+    }
+    html += '</tr></thead><tbody>';
+    const filtered = d.units_detail.filter(u =>
+      (!q || u.id.toLowerCase().includes(q)) && (!tf || u.type === tf)
+    );
+    filtered.forEach(u => {
+      const TYPE_COLOR = { 'Medical': '#ef4444', 'Ambulance': '#3b82f6', 'Foot-Runner': '#10b981' };
+      const color = TYPE_COLOR[u.type] || '#a855f7';
+      html += `<tr style="border-bottom: 1px solid var(--border, #2a3245);"><td style="padding: 5px 10px; position: sticky; left: 0; background: var(--bg, #0a0e1a);"><span class="mono" style="background:${color};color:#fff;padding:1px 6px;border-radius:3px;font-weight:600;font-size:10px">${u.id}</span></td><td style="padding: 5px 8px; opacity: .7;">${u.type}</td><td style="padding: 5px 8px; opacity: .7;" class="mono">${u.home || '—'}</td>`;
+      // Schedule cells: We don't have per-unit per-day shift codes in units_detail, so show generic dot if active in schedule_grid
+      // Since the grid is by station, use a placeholder
+      for (let dh = 4; dh <= 14; dh++) {
+        // Look up via grid: is this unit's home active that day?
+        const s1 = d.schedule_grid[dh]?.slot1?.[u.home];
+        const s2 = d.schedule_grid[dh]?.slot2?.[u.home];
+        const hasD = s1 && s1.units > 0;
+        const hasN = s2 && s2.units > 0;
+        html += `<td style="padding: 4px; text-align: center;">
+          <span title="Day" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${hasD?'#F59E0B':'#1f2937'}; margin-right: 2px;"></span>
+          <span title="Night" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${hasN?'#8B5CF6':'#1f2937'};"></span>
+        </td>`;
+      }
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    unitWrap.innerHTML = html;
+  }
+  search.addEventListener('input', renderUnitTable);
+  typeFilter.addEventListener('change', renderUnitTable);
+  renderUnitTable();
+}
+
+function setupRoleView() {
+  const sel = document.getElementById('role-view-selector');
+  if (!sel) return;
+  const ROLE_TABS = {
+    'all': null,  // show all
+    'executive': ['calendar','mobilization','day-view','schedule'],  // high-level only
+    'pm': ['calendar','mobilization','hourly','day-view','schedule','roster','units','ambulances','augmentations','timeline'],  // everything
+    'chief': ['mobilization','hourly','day-view','schedule','roster','stations','ambulances','augmentations'],
+    'supervisor': ['day-view','schedule','roster','stations','units'],
+    'paramedic': ['calendar','day-view','schedule','units','ambulances'],
+  };
+  function applyView(role) {
+    const tabs = ROLE_TABS[role];
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      const tab = btn.getAttribute('data-tab');
+      if (tabs === null) {
+        btn.style.display = '';
+      } else {
+        btn.style.display = tabs.includes(tab) ? '' : 'none';
+      }
+    });
+    // If currently active tab is hidden, switch to first visible
+    const activeBtn = document.querySelector('.tab-btn.active');
+    if (activeBtn && activeBtn.style.display === 'none') {
+      const firstVisible = document.querySelector('.tab-btn:not([style*="display: none"])');
+      if (firstVisible) firstVisible.click();
+    }
+  }
+  sel.addEventListener('change', e => applyView(e.target.value));
+}
+
 function renderTimeline(d) {
   document.getElementById('phase-count').textContent = d.movement_phases.length;
   document.getElementById('mvt-timeline').innerHTML = d.movement_phases.map(p => `
@@ -892,25 +1131,39 @@ function renderCharts(d) {
   });
   new Chart(document.getElementById('chart-status'), {
     type: 'doughnut',
-    data: { labels: Object.keys(d.status_counts), datasets: [{ data: Object.values(d.status_counts),
-      backgroundColor: ['#DC2626','#F97316','#EAB308','#3B82F6'], borderColor: '#0F1729', borderWidth: 3 }] },
+    data: { labels: Object.keys(d.status_live?.by_status || d.status_counts || {}),
+      datasets: [{ data: Object.values(d.status_live?.by_status || d.status_counts || {}),
+      backgroundColor: ['#10B981','#EF4444','#3B82F6','#F59E0B'], borderColor: '#0F1729', borderWidth: 3 }] },
     options: { responsive: true, maintainAspectRatio: false, cutout: '65%',
       plugins: { legend: { position: 'right', labels: { padding: 12, usePointStyle: true } }, tooltip: tooltipStyle } }
   });
+  // Zone × Movement — use live zone_movement if available, fallback to old zone_by_mvt
+  const zmData = d.zone_movement || d.zone_by_mvt || {};
+  const zmLabels = Object.keys(zmData);
+  const zoneNames = ['Arafat','Muzdalifah','Mina','Support'];
   new Chart(document.getElementById('chart-zone'), {
     type: 'bar',
-    data: { labels: Object.keys(d.zone_by_mvt),
-      datasets: [
-        { label: 'Arafat', data: Object.values(d.zone_by_mvt).map(z => z.Arafat), backgroundColor: '#F59E0BCC', borderRadius: 2 },
-        { label: 'Muzdalifah', data: Object.values(d.zone_by_mvt).map(z => z.Muzdalifah), backgroundColor: '#10B981CC', borderRadius: 2 },
-        { label: 'Mina', data: Object.values(d.zone_by_mvt).map(z => z.Mina), backgroundColor: '#8B5CF6CC', borderRadius: 2 },
-        { label: 'Support', data: Object.values(d.zone_by_mvt).map(z => z.Support), backgroundColor: '#6B7280CC', borderRadius: 2 }
-      ] },
+    data: { labels: zmLabels,
+      datasets: zoneNames.map((zone, i) => ({
+        label: zone,
+        data: zmLabels.map(mvt => zmData[mvt]?.[zone] || 0),
+        backgroundColor: ['#F59E0B','#10B981','#8B5CF6','#6B7280'][i],
+      }))
+    },
     options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { padding: 14, usePointStyle: true } }, tooltip: tooltipStyle },
-      scales: { y: { stacked: true, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true },
-                x: { stacked: true, grid: { display: false } } } }
+      plugins: { legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, font: {size: 10} } } },
+      scales: { x: { stacked: true, grid: { display: false } },
+                y: { stacked: true, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true } } }
   });
+  // Skip the duplicate chart-zone block below by guarding
+  if (false) {
+      const _z = {datasets: [
+        { label: 'Arafat', data: [], backgroundColor: '#F59E0BCC', borderRadius: 2 },
+        { label: 'Muzdalifah', data: [], backgroundColor: '#10B981CC', borderRadius: 2 },
+        { label: 'Mina', data: [], backgroundColor: '#8B5CF6CC', borderRadius: 2 },
+        { label: 'Support', data: [], backgroundColor: '#6B7280CC', borderRadius: 2 }
+      ]};
+  }
   new Chart(document.getElementById('chart-subrole'), {
     type: 'bar',
     data: { labels: Object.keys(d.roster.by_subrole),
@@ -1119,6 +1372,9 @@ async function boot() {
   safeRender('roster', () => renderRoster(DATA));
   safeRender('stations', () => renderStations(DATA));
   safeRender('units', () => renderUnits(DATA));
+  safeRender('day-view', () => renderDayView(DATA));
+  safeRender('schedule', () => renderSchedule(DATA));
+  safeRender('role-view', setupRoleView);
   safeRender('accommodation', () => renderAccommodation(DATA));
   safeRender('augmentations', () => renderAugmentations(DATA));
   safeRender('timeline', () => renderTimeline(DATA));

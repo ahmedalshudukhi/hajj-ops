@@ -305,8 +305,215 @@ def compute_augmentations(aug_rows):
 def compute_status_counts(units_rows):
     return {"SUPPORT":98,"SURGE":52,"ACTIVE":38,"STANDBY":36}
 
+def compute_schedule_grid(schedule_rows, units_rows, shifts_rows):
+    """Per-station per-day-slot summary: how many units & paras on each shift."""
+    shift_dur = {s(r.get("Code")): num(r.get("Duration (h)"), 0) for r in shifts_rows if s(r.get("Code"))}
+    unit_size = {s(u.get("Unit ID")): int(num(u.get("Size", 1))) for u in units_rows}
+    unit_home = {s(u.get("Unit ID")): s(u.get("Home Station")) for u in units_rows}
+    unit_type = {s(u.get("Unit ID")): s(u.get("Unit Type")) for u in units_rows}
+    DH_DAYS = list(range(4, 15))
+    grid = {}
+    for dh in DH_DAYS:
+        grid[dh] = {"slot1": defaultdict(lambda: {"units":0,"paras":0,"by_type":Counter()}),
+                    "slot2": defaultdict(lambda: {"units":0,"paras":0,"by_type":Counter()})}
+    for r in schedule_rows:
+        uid = s(r.get("Unit ID"))
+        if not uid: continue
+        size = unit_size.get(uid, 1)
+        home = unit_home.get(uid, "")
+        utype = unit_type.get(uid, "")
+        for dh in DH_DAYS:
+            for slot_num, slot_key in [(1,"slot1"),(2,"slot2")]:
+                code = s(r.get(f"{dh}DH-S{slot_num}"))
+                if code:
+                    cell = grid[dh][slot_key][home]
+                    cell["units"] += 1
+                    cell["paras"] += size
+                    cell["by_type"][utype] += 1
+    out = {}
+    for dh in DH_DAYS:
+        out[str(dh)] = {
+            "slot1": {st: {"units": d["units"], "paras": d["paras"], "by_type": dict(d["by_type"])} for st, d in grid[dh]["slot1"].items()},
+            "slot2": {st: {"units": d["units"], "paras": d["paras"], "by_type": dict(d["by_type"])} for st, d in grid[dh]["slot2"].items()},
+        }
+    return out
+
+def compute_daily_view(schedule_rows, units_rows, shifts_rows):
+    """One row per (DH day, slot) with totals. For day-by-day overview."""
+    shift_dur = {s(r.get("Code")): num(r.get("Duration (h)"), 0) for r in shifts_rows if s(r.get("Code"))}
+    shift_type = {s(r.get("Code")): s(r.get("Type")) for r in shifts_rows if s(r.get("Code"))}
+    unit_size = {s(u.get("Unit ID")): int(num(u.get("Size", 1))) for u in units_rows}
+    unit_home = {s(u.get("Unit ID")): s(u.get("Home Station")) for u in units_rows}
+    unit_type = {s(u.get("Unit ID")): s(u.get("Unit Type")) for u in units_rows}
+    DH_DAYS = list(range(4, 15))
+    out = []
+    for dh in DH_DAYS:
+        day_units = set()
+        day_paras = 0
+        zones = {"Arafat":0,"Muzdalifah":0,"Mina":0,"Support":0}
+        types = {"Medical":0,"Ambulance":0,"Foot-Runner":0,"Other":0}
+        shift_breakdown = Counter()
+        day_total_hours = 0
+        for r in schedule_rows:
+            uid = s(r.get("Unit ID"))
+            if not uid: continue
+            size = unit_size.get(uid, 1)
+            home = unit_home.get(uid, "")
+            utype = unit_type.get(uid, "")
+            unit_active_today = False
+            for slot in [1,2]:
+                code = s(r.get(f"{dh}DH-S{slot}"))
+                if code:
+                    unit_active_today = True
+                    shift_breakdown[code] += size
+                    day_total_hours += size * shift_dur.get(code, 0)
+            if unit_active_today:
+                day_units.add(uid)
+                day_paras += size
+                if home.startswith("ARF"): zones["Arafat"] += size
+                elif home.startswith("MUZ"): zones["Muzdalifah"] += size
+                elif home.startswith("MIN"): zones["Mina"] += size
+                else: zones["Support"] += size
+                if utype in types: types[utype] += size
+                else: types["Other"] += size
+        out.append({
+            "dh": dh,
+            "label": f"{dh} DH",
+            "active_units": len(day_units),
+            "active_paras": day_paras,
+            "zones": zones,
+            "types": types,
+            "shifts": dict(shift_breakdown.most_common()),
+            "total_hours": int(day_total_hours),
+        })
+    return out
+
+def compute_status_live(staff_rows, schedule_rows):
+    """Real status mix from filled/vacant/scheduled data."""
+    by_status = Counter()
+    by_role_status = defaultdict(lambda: Counter())
+    for r in staff_rows:
+        status = s(r.get("Status")) or "Vacant"
+        role = s(r.get("Role"))
+        if not role: continue
+        by_status[status] += 1
+        by_role_status[role][status] += 1
+    # Also schedule-based: which units have any shift assigned
+    units_with_schedule = set()
+    for r in schedule_rows:
+        uid = s(r.get("Unit ID"))
+        if not uid: continue
+        for dh in range(4,15):
+            for slot in [1,2]:
+                if s(r.get(f"{dh}DH-S{slot}")):
+                    units_with_schedule.add(uid)
+                    break
+    return {
+        "by_status": dict(by_status),
+        "by_role_status": {k: dict(v) for k, v in by_role_status.items()},
+        "units_scheduled": len(units_with_schedule),
+    }
+
+def compute_zone_movement(schedule_rows, units_rows, shifts_rows):
+    """Zone × Movement matrix using MOVEMENT_PHASES timing."""
+    unit_size = {s(u.get("Unit ID")): int(num(u.get("Size", 1))) for u in units_rows}
+    unit_home = {s(u.get("Unit ID")): s(u.get("Home Station")) for u in units_rows}
+    shift_map = {s(r.get("Code")): (r.get("Start"), r.get("End")) for r in shifts_rows if s(r.get("Code"))}
+    out = {}
+    for ph in MOVEMENT_PHASES:
+        zones = {"Arafat":0,"Muzdalifah":0,"Mina":0,"Support":0}
+        sd = int(ph["start_dh"].split()[0]); ed = int(ph["end_dh"].split()[0])
+        sh_p = int(ph["start_hour"].split(":")[0]); eh_p = int(ph["end_hour"].split(":")[0])
+        # Check each unit's schedule for any shift overlapping with this phase
+        for r in schedule_rows:
+            uid = s(r.get("Unit ID"))
+            if not uid: continue
+            home = unit_home.get(uid, "")
+            size = unit_size.get(uid, 1)
+            unit_active = False
+            for dh in range(sd, ed+1):
+                if unit_active: break
+                for slot in [1,2]:
+                    code = s(r.get(f"{dh}DH-S{slot}"))
+                    if not code: continue
+                    if code not in shift_map: continue
+                    start_t, end_t = shift_map[code]
+                    sh_s = parse_time_str(start_t); eh_s = parse_time_str(end_t)
+                    if sh_s is None: continue
+                    # Simple overlap: if shift covers any hour in the phase
+                    for h in range(sh_p, eh_p+1):
+                        if shift_covers_hour(start_t, end_t, h):
+                            unit_active = True
+                            break
+                    if unit_active: break
+            if unit_active:
+                if home.startswith("ARF"): zones["Arafat"] += size
+                elif home.startswith("MUZ"): zones["Muzdalifah"] += size
+                elif home.startswith("MIN"): zones["Mina"] += size
+                else: zones["Support"] += size
+        out[ph["mvt"]] = zones
+    return out
+
+def compute_zone_day(schedule_rows, units_rows):
+    """Zone × Day matrix (paras per zone per DH day)."""
+    unit_size = {s(u.get("Unit ID")): int(num(u.get("Size", 1))) for u in units_rows}
+    unit_home = {s(u.get("Unit ID")): s(u.get("Home Station")) for u in units_rows}
+    out = {}
+    for dh in range(4, 15):
+        zones = {"Arafat":0,"Muzdalifah":0,"Mina":0,"Support":0}
+        for r in schedule_rows:
+            uid = s(r.get("Unit ID"))
+            if not uid: continue
+            active = False
+            for slot in [1,2]:
+                if s(r.get(f"{dh}DH-S{slot}")):
+                    active = True; break
+            if not active: continue
+            size = unit_size.get(uid, 1)
+            home = unit_home.get(uid, "")
+            if home.startswith("ARF"): zones["Arafat"] += size
+            elif home.startswith("MUZ"): zones["Muzdalifah"] += size
+            elif home.startswith("MIN"): zones["Mina"] += size
+            else: zones["Support"] += size
+        out[str(dh)] = zones
+    return out
+
+def compute_role_views(units_detail, staff_rows, ambulance_roster):
+    """Pre-computed summaries for each role view."""
+    pm_view = {
+        "total_units": len(units_detail),
+        "total_paras": sum(int(num(r.get("Slot")) if isinstance(r.get("Slot"),(int,float)) else 1) for r in staff_rows if s(r.get("Role")) not in ("PM","Deputy PM","Admin Lead","Med Direction Lead","GP")),
+        "filled_pct": 0,
+    }
+    chief_view = {
+        "command_units": [u for u in units_detail if u["category"] == "Command"],
+        "leadership": [u for u in units_detail if u["category"] == "Leadership"],
+    }
+    supervisor_view = {
+        "stations": {st: [u for u in units_detail if u["home"] == st] for st in
+                     ["ARF1","ARF2","ARF3","MUZ1","MUZ2","MUZ3","MIN1","MIN2","MIN3"]},
+    }
+    paramedic_view = {
+        "operational_units": [u for u in units_detail if u["category"] == "Operational"],
+        "ambulances": ambulance_roster,
+    }
+    executive_view = {
+        "headlines": {
+            "people": sum(u["size"] for u in units_detail),
+            "units": len(units_detail),
+            "stations": 9,
+            "ambulances": len(ambulance_roster),
+        },
+    }
+    return {
+        "pm": pm_view,
+        "chief": chief_view,
+        "supervisor": supervisor_view,
+        "paramedic": paramedic_view,
+        "executive": executive_view,
+    }
+
 def compute_units_detail(units_rows, staff_rows):
-    """Per-unit detail with members & their radio call signs."""
     members_by_unit = defaultdict(list)
     for r in staff_rows:
         unit = s(r.get("Unit"))
@@ -432,6 +639,12 @@ def main():
     stations_detail = compute_stations_detail(units, staff, unit_readiness)
     ambulance_roster, amb_by_station, amb_by_station_type = compute_ambulance_data(ambulances, units)
     units_detail = compute_units_detail(units, staff)
+    schedule_grid = compute_schedule_grid(schedule, units, shifts)
+    daily_view = compute_daily_view(schedule, units, shifts)
+    status_live = compute_status_live(staff, schedule)
+    zone_movement = compute_zone_movement(schedule, units, shifts)
+    zone_day = compute_zone_day(schedule, units)
+    role_views = compute_role_views(units_detail, staff, ambulance_roster)
 
     data = {
         "refreshed_at": datetime.now(timezone.utc).strftime("%d %b %Y · %H:%M UTC"),
@@ -455,6 +668,12 @@ def main():
         "amb_by_station": amb_by_station,
         "amb_by_station_type": amb_by_station_type,
         "units_detail": units_detail,
+        "schedule_grid": schedule_grid,
+        "daily_view": daily_view,
+        "status_live": status_live,
+        "zone_movement": zone_movement,
+        "zone_day": zone_day,
+        "role_views": role_views,
     }
 
     with open("data.json", "w") as f:
