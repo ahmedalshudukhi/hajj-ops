@@ -266,7 +266,8 @@
   <div class="kpi-grid" id="kpi-grid"></div>
 
   <div class="tabbar" id="tabbar">
-    <button class="tab-btn active" data-tab="calendar"><span class="tab-btn-num">01</span> Calendar</button>
+    <button class="tab-btn active" data-tab="home"><span class="tab-btn-num">00</span> Home</button>
+    <button class="tab-btn" data-tab="calendar"><span class="tab-btn-num">01</span> Calendar</button>
     <button class="tab-btn" data-tab="mobilization"><span class="tab-btn-num">02</span> Mobilization</button>
     <button class="tab-btn" data-tab="hourly"><span class="tab-btn-num">03</span> Hourly</button>
     <button class="tab-btn" data-tab="day-view"><span class="tab-btn-num">04</span> Day View</button>
@@ -278,12 +279,21 @@
     <button class="tab-btn" data-tab="augmentations"><span class="tab-btn-num">10</span> Augmentations</button>
     <button class="tab-btn" data-tab="assets"><span class="tab-btn-num">11</span> Org &amp; Assets</button>
     <button class="tab-btn" data-tab="timeline"><span class="tab-btn-num">12</span> Timeline</button>
+    <button class="tab-btn" data-tab="staffing"><span class="tab-btn-num">13</span> Staffing</button>
   </div>
 </header>
 
 <main class="container">
 
-<section id="tab-calendar" class="tab-panel active">
+<section id="tab-home" class="tab-panel active">
+  <div class="section-head">
+    <div><div class="section-num">/00 — HOME</div><h2 class="section-title" id="home-title">Operations <span class="accent">overview</span></h2></div>
+    <p class="section-blurb" id="home-blurb">Quick KPIs and shortcuts. Use the role selector top-right to switch perspectives.</p>
+  </div>
+  <div id="home-content"></div>
+</section>
+
+<section id="tab-calendar" class="tab-panel">
   <div class="section-head">
     <div><div class="section-num">/01 — CALENDAR</div><h2 class="section-title">Operations <span class="accent">timeline</span></h2></div>
     <p class="section-blurb">Day-by-day phase progression from Site Prep through Demob. 15 days · 4 phases.</p>
@@ -613,6 +623,39 @@
     <div class="card-title">Phase activities</div><div class="card-subtitle">High-level project timeline · Phase × Activity × Owner</div>
     <div class="table-wrap" style="margin-top: 16px;">
       <table><thead><tr><th>Phase</th><th>Activity</th><th>Date DH</th><th>Greg</th><th>Owner</th></tr></thead><tbody id="timeline-table"></tbody></table>
+    </div>
+  </div>
+</section>
+
+<section id="tab-staffing" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/13 — STAFFING</div><h2 class="section-title">Whole <span class="accent">staffing view</span></h2></div>
+    <p class="section-blurb">All 275 person-slots in one place. Search, filter, see who's filled and who isn't, what unit and station they belong to.</p>
+  </div>
+  <div class="card">
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom: 14px;">
+      <input id="staffing-search" placeholder="Search name, unit, role, station..." style="flex:1; min-width:240px; background: var(--bg-2); border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px; color: var(--text); font-size: 13px;">
+      <select id="staffing-status" style="background: var(--bg-2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 6px; color: var(--text); font-size: 12px;">
+        <option value="">All status</option>
+        <option value="Filled">Filled only</option>
+        <option value="Vacant">Vacant only</option>
+        <option value="Backup">Backup</option>
+        <option value="On-Leave">On-Leave</option>
+      </select>
+      <select id="staffing-station" style="background: var(--bg-2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 6px; color: var(--text); font-size: 12px;">
+        <option value="">All stations</option>
+      </select>
+      <select id="staffing-role" style="background: var(--bg-2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 6px; color: var(--text); font-size: 12px;">
+        <option value="">All roles</option>
+      </select>
+      <span id="staffing-count" style="font-size: 12px; color: var(--text-dim); margin-left: auto;"></span>
+    </div>
+    <div id="staffing-summary" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 10px; margin-bottom: 16px;"></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Status</th><th>Name</th><th>Role</th><th>Unit</th><th>Station</th><th>Call Sign</th><th>Contact</th></tr></thead>
+        <tbody id="staffing-table-body"></tbody>
+      </table>
     </div>
   </div>
 </section>
@@ -1074,35 +1117,189 @@ function renderSchedule(d) {
   renderUnitTable();
 }
 
+const ROLE_TABS = {
+  'all': null,
+  'executive': ['home','calendar','day-view','mobilization'],
+  'pm': null,
+  'chief': ['home','mobilization','hourly','day-view','schedule','roster','stations','ambulances','augmentations','staffing'],
+  'supervisor': ['home','day-view','schedule','roster','stations','units','staffing'],
+  'paramedic': ['home','calendar','day-view','schedule','units','ambulances'],
+};
+let currentRole = 'all';
+
 function setupRoleView() {
   const sel = document.getElementById('role-view-selector');
   if (!sel) return;
-  const ROLE_TABS = {
-    'all': null,  // show all
-    'executive': ['calendar','mobilization','day-view','schedule'],  // high-level only
-    'pm': ['calendar','mobilization','hourly','day-view','schedule','roster','units','ambulances','augmentations','timeline'],  // everything
-    'chief': ['mobilization','hourly','day-view','schedule','roster','stations','ambulances','augmentations'],
-    'supervisor': ['day-view','schedule','roster','stations','units'],
-    'paramedic': ['calendar','day-view','schedule','units','ambulances'],
-  };
   function applyView(role) {
+    currentRole = role;
     const tabs = ROLE_TABS[role];
     document.querySelectorAll('.tab-btn').forEach(btn => {
       const tab = btn.getAttribute('data-tab');
-      if (tabs === null) {
-        btn.style.display = '';
-      } else {
-        btn.style.display = tabs.includes(tab) ? '' : 'none';
-      }
+      btn.style.display = (tabs === null || tabs.includes(tab)) ? '' : 'none';
     });
-    // If currently active tab is hidden, switch to first visible
     const activeBtn = document.querySelector('.tab-btn.active');
     if (activeBtn && activeBtn.style.display === 'none') {
       const firstVisible = document.querySelector('.tab-btn:not([style*="display: none"])');
       if (firstVisible) firstVisible.click();
     }
+    renderHome(DATA);
   }
   sel.addEventListener('change', e => applyView(e.target.value));
+}
+
+function renderHome(d) {
+  const wrap = document.getElementById('home-content');
+  const titleEl = document.getElementById('home-title');
+  const blurbEl = document.getElementById('home-blurb');
+  if (!wrap) return;
+  const role = currentRole;
+  const totalPpl = (d.units_detail || []).reduce((s,u) => s + u.size, 0);
+  const totalUnits = (d.units_detail || []).length;
+  const ambCount = (d.ambulance_roster || []).length;
+  const filledCount = (d.status_live?.by_status?.Filled) || 0;
+  const fillPct = totalPpl ? Math.round(filledCount/totalPpl*100) : 0;
+  const todayDH = (d.calendar || []).find(c => c.is_today)?.dh || 8;
+  const todayData = (d.daily_view || []).find(x => x.dh === todayDH) || (d.daily_view||[])[0] || {active_units:0,active_paras:0,total_hours:0};
+
+  function kpi(label, value, sub, color) {
+    return `<div class="card" style="background: var(--bg-2); padding: 18px;">
+      <div style="font-size: 10px; opacity:.6; text-transform: uppercase; letter-spacing:.08em; font-family:var(--font-mono);">${label}</div>
+      <div style="font-size: 32px; font-weight: 700; padding: 6px 0; color: ${color||'inherit'};">${value}</div>
+      <div style="font-size: 11px; opacity:.6;">${sub||''}</div>
+    </div>`;
+  }
+  function quickLinks(tabs) {
+    const NAMES = {home:'Home',calendar:'Calendar',mobilization:'Mobilization',hourly:'Hourly',
+      'day-view':'Day View',schedule:'Schedule',roster:'Roster',stations:'Stations',units:'Units',
+      ambulances:'Ambulances',augmentations:'Augmentations',assets:'Org & Assets',timeline:'Timeline',staffing:'Staffing'};
+    return tabs.map(t => `<button onclick="document.querySelector('.tab-btn[data-tab=\"'+'${t}'+'\"]').click()" style="background:var(--bg-2); border:1px solid var(--border); padding:10px 16px; border-radius:6px; color:var(--text); cursor:pointer; font-family:var(--font-mono); font-size:12px;">${NAMES[t]||t} →</button>`).join(' ');
+  }
+
+  let html = '';
+  const greeting = role==='executive'?'Executive view':
+                   role==='pm'?'Project manager view':
+                   role==='chief'?'Chief paramedic view':
+                   role==='supervisor'?'Station supervisor view':
+                   role==='paramedic'?'Paramedic view':'All views';
+  titleEl.innerHTML = `${greeting} · <span class="accent">overview</span>`;
+
+  if (role === 'executive') {
+    blurbEl.textContent = 'High-level metrics for leadership briefings. No operational detail.';
+    html += '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 14px; margin-bottom: 20px;">';
+    html += kpi('TOTAL PEOPLE', totalPpl, `${totalUnits} units · ${ambCount} ambulances`);
+    html += kpi('STAFFING FILL', fillPct + '%', `${filledCount} of ${totalPpl} confirmed`, fillPct>=80?'#10b981':fillPct>=40?'#f59e0b':'#ef4444');
+    html += kpi('OPERATIONAL DAYS', '11', '4 DH → 14 DH (Hajj 2026)');
+    html += kpi('STATIONS', '9', 'Arafat · Muzdalifah · Mina');
+    html += '</div>';
+    html += `<div class="card"><div class="card-title">What to look at</div><div class="card-subtitle">Tabs available in this view</div><div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">${quickLinks(['calendar','day-view','mobilization'])}</div></div>`;
+  } else if (role === 'paramedic') {
+    blurbEl.textContent = 'Personal view: see your unit, your schedule, your station.';
+    html += '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 14px; margin-bottom: 20px;">';
+    html += kpi('YOUR DEPLOYMENT', '11 days', '25-30 May 2026');
+    html += kpi('ROUTE BRIEFING', 'Calendar', 'Phase progression');
+    html += kpi('YOUR UNIT', 'Units tab', 'Find your call sign');
+    html += '</div>';
+    html += `<div class="card"><div class="card-title">Where to start</div><div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">${quickLinks(['calendar','day-view','units','schedule','ambulances'])}</div></div>`;
+  } else if (role === 'supervisor') {
+    blurbEl.textContent = 'Station-level view: who reports to you, what units are at your station, fill status.';
+    html += '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 14px; margin-bottom: 20px;">';
+    html += kpi('TODAY · ' + todayDH + ' DH', todayData.active_units, `${todayData.active_paras} paras on duty`);
+    html += kpi('YOUR STATIONS', '9 ops sites', 'See Stations tab for detail');
+    html += kpi('TOTAL UNITS', totalUnits, 'Mike · Alpha · Romeo');
+    html += '</div>';
+    html += `<div class="card"><div class="card-title">Supervisor workflow</div><div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">${quickLinks(['stations','units','day-view','schedule','roster','staffing'])}</div></div>`;
+  } else if (role === 'chief') {
+    blurbEl.textContent = 'Operations-wide command view. Look at staffing fill, hourly load, augmentations, ambulance readiness.';
+    html += '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 14px; margin-bottom: 20px;">';
+    html += kpi('FILL STATUS', `${filledCount}/${totalPpl}`, fillPct + '% confirmed', fillPct>=80?'#10b981':fillPct>=40?'#f59e0b':'#ef4444');
+    html += kpi('TODAY · ' + todayDH + ' DH', todayData.active_units, `${todayData.active_paras} paras · ${todayData.total_hours.toLocaleString()} hrs`);
+    html += kpi('AMBULANCES', ambCount, '25 vehicles');
+    html += kpi('UNITS DEPLOYED', totalUnits, '20 Mike · 48 Alpha · 46 Romeo');
+    html += '</div>';
+    html += `<div class="card"><div class="card-title">Command shortcuts</div><div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">${quickLinks(['hourly','day-view','schedule','roster','stations','ambulances','augmentations','staffing'])}</div></div>`;
+  } else {
+    // PM and 'all' — full view
+    blurbEl.textContent = 'Master view: everything. Use the role selector to filter to a specific stakeholder perspective.';
+    html += '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 14px; margin-bottom: 20px;">';
+    html += kpi('PEOPLE', totalPpl, `${filledCount} filled (${fillPct}%)`);
+    html += kpi('UNITS', totalUnits, '20 M · 48 A · 46 R + 19 cmd');
+    html += kpi('STATIONS', '9', 'plus support sites');
+    html += kpi('AMBULANCES', ambCount, '10 E · 9 B · 6 R');
+    html += kpi('TODAY', todayDH + ' DH', `${todayData.active_units} units active`);
+    html += '</div>';
+    html += `<div class="card"><div class="card-title">All tabs</div><div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">${quickLinks(['calendar','mobilization','hourly','day-view','schedule','roster','stations','units','ambulances','augmentations','assets','timeline','staffing'])}</div></div>`;
+  }
+  wrap.innerHTML = html;
+}
+
+function renderStaffing(d) {
+  const tbody = document.getElementById('staffing-table-body');
+  if (!tbody) return;
+  // Build the staffing list from units_detail (which has members per unit)
+  const rows = [];
+  (d.units_detail || []).forEach(u => {
+    (u.members || []).forEach(m => {
+      rows.push({
+        status: m.status || 'Vacant',
+        name: m.name || '',
+        role: m.role || '',
+        unit: u.id,
+        station: u.home || '',
+        call_sign: m.call_sign || u.id,
+        phone: m.phone || '',
+        email: m.email || '',
+        unit_type: u.type,
+      });
+    });
+  });
+  // Populate filter dropdowns
+  const stations = Array.from(new Set(rows.map(r=>r.station).filter(Boolean))).sort();
+  const roles = Array.from(new Set(rows.map(r=>r.role).filter(Boolean))).sort();
+  const stSel = document.getElementById('staffing-station');
+  const roleSel = document.getElementById('staffing-role');
+  if (stSel.options.length <= 1) stations.forEach(s => stSel.add(new Option(s,s)));
+  if (roleSel.options.length <= 1) roles.forEach(r => roleSel.add(new Option(r,r)));
+  const search = document.getElementById('staffing-search');
+  const statusSel = document.getElementById('staffing-status');
+  const summary = document.getElementById('staffing-summary');
+  const countEl = document.getElementById('staffing-count');
+
+  function statusColor(s) {
+    return s === 'Filled' ? '#10b981' : s === 'Backup' ? '#3b82f6' : s === 'On-Leave' ? '#f59e0b' : '#6b7280';
+  }
+  function render() {
+    const q = (search.value||'').toLowerCase().trim();
+    const fStatus = statusSel.value;
+    const fStation = stSel.value;
+    const fRole = roleSel.value;
+    const filtered = rows.filter(r => {
+      if (fStatus && r.status !== fStatus) return false;
+      if (fStation && r.station !== fStation) return false;
+      if (fRole && r.role !== fRole) return false;
+      if (!q) return true;
+      const blob = [r.name,r.role,r.unit,r.station,r.call_sign].join(' ').toLowerCase();
+      return blob.includes(q);
+    });
+    countEl.textContent = `${filtered.length} of ${rows.length}`;
+    // summary cards
+    const counts = filtered.reduce((acc,r) => { acc[r.status]=(acc[r.status]||0)+1; return acc; }, {});
+    summary.innerHTML = ['Filled','Vacant','Backup','On-Leave'].map(st => {
+      const n = counts[st] || 0;
+      const pct = filtered.length ? Math.round(n/filtered.length*100) : 0;
+      return `<div class="card" style="background: var(--bg-2); padding: 12px;"><div style="font-size:10px; opacity:.6; text-transform:uppercase; font-family:var(--font-mono);">${st}</div><div style="font-size:24px; font-weight:700; color:${statusColor(st)}; padding: 4px 0;">${n}</div><div style="font-size:10px; opacity:.5;">${pct}%</div></div>`;
+    }).join('');
+    tbody.innerHTML = filtered.slice(0, 500).map(r => {
+      const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${statusColor(r.status)};margin-right:6px;"></span>`;
+      const name = r.name || '<span style="opacity:.4">— vacant —</span>';
+      const contact = [r.phone, r.email].filter(Boolean).join(' · ') || '<span style="opacity:.3">—</span>';
+      return `<tr><td>${dot}<span style="font-size:10px; opacity:.7;">${r.status}</span></td><td>${name}</td><td style="font-size:11px;opacity:.8;">${r.role}</td><td><span class="mono" style="font-size:10px; background: var(--bg-2); padding:2px 6px; border-radius:3px;">${r.unit}</span></td><td class="mono" style="font-size:11px;opacity:.8;">${r.station}</td><td class="mono" style="font-size:11px;opacity:.7;">${r.call_sign}</td><td style="font-size:10px;opacity:.6;">${contact}</td></tr>`;
+    }).join('') + (filtered.length > 500 ? `<tr><td colspan="7" style="text-align:center; padding:14px; opacity:.5; font-size:11px;">Showing first 500 of ${filtered.length}. Use filters to narrow.</td></tr>` : '');
+  }
+  search.addEventListener('input', render);
+  statusSel.addEventListener('change', render);
+  stSel.addEventListener('change', render);
+  roleSel.addEventListener('change', render);
+  render();
 }
 
 function renderAmbulanceDashboards(d) {
@@ -1631,6 +1828,8 @@ async function boot() {
   safeRender('schedule', () => renderSchedule(DATA));
   safeRender('amb-dashboards', () => renderAmbulanceDashboards(DATA));
   safeRender('role-view', setupRoleView);
+  safeRender('home', () => renderHome(DATA));
+  safeRender('staffing', () => renderStaffing(DATA));
   safeRender('accommodation', () => renderAccommodation(DATA));
   safeRender('augmentations', () => renderAugmentations(DATA));
   safeRender('timeline', () => renderTimeline(DATA));
