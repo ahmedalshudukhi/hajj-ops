@@ -216,6 +216,48 @@
     .slot-grid { grid-template-columns: repeat(12, 1fr); }
     .day-grid { grid-template-columns: repeat(2, 1fr); }
   }
+
+  /* ===== PRINT STYLESHEET ===== */
+  @media print {
+    body { background:#fff !important; color:#000 !important; }
+    nav, .tabs-strip, .nav-status-dot, #nav-time, .countdown-strip, footer { display:none !important; }
+    .tab-panel { display:block !important; page-break-after:always; padding:20px 0; }
+    .tab-panel:last-child { page-break-after:auto; }
+    .card { border:1px solid #ccc !important; background:#fff !important; box-shadow:none !important; break-inside:avoid; }
+    .hero { padding:20px 0 !important; }
+    .hero-title, .section-title { color:#000 !important; }
+    .accent { color:#c01f2d !important; }
+    .chart-container, canvas { max-height:280px !important; page-break-inside:avoid; }
+    .container { max-width:none !important; padding:0 20px !important; }
+    a { color:#000 !important; text-decoration:underline; }
+    button, select, input { display:none !important; }
+    th, td { color:#000 !important; }
+    .accent, [style*="color:#"]:not([style*="#000"]) { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  }
+
+  /* ===== MOBILE RESPONSIVE ===== */
+  @media (max-width: 768px) {
+    .container { padding:0 16px; }
+    .hero-title { font-size:32px !important; line-height:1.1; }
+    .hero-subtitle { font-size:13px !important; }
+    .countdown-strip { flex-direction:column; gap:12px; align-items:flex-start; }
+    .tabs-strip { overflow-x:auto; padding-bottom:8px; -webkit-overflow-scrolling:touch; }
+    .two-col, .three-col { grid-template-columns:1fr !important; }
+    .footer-grid { grid-template-columns:1fr; gap:16px; }
+    .chart-container { height:240px !important; }
+    .chart-container.tall { height:300px !important; }
+    .movement-grid { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)) !important; }
+    table { font-size:11px !important; }
+    .section-title { font-size:24px !important; }
+    .card { padding:14px !important; }
+  }
+
+  @media (max-width: 480px) {
+    .hero-title { font-size:26px !important; }
+    .tab-btn { font-size:12px !important; padding:6px 8px !important; }
+    .tab-btn-num { display:none; }
+    h2.section-title { font-size:20px !important; }
+  }
 </style>
 </head>
 <body>
@@ -249,7 +291,7 @@
 <header class="hero container">
   <div class="hero-eyebrow">SAR · MMMP-SL · Operations Dashboard</div>
   <h1 class="hero-title">Hajj 1447 <span class="accent">medical</span> mobilization.</h1>
-  <p class="hero-subtitle">SAR Mecca Mass-transit Medical Plan · Sub-Lead operations. 276 medical personnel · 25 ALS ambulances · 9 stations across Arafat, Muzdalifah, Mina · 18 clinics · 7 movements over 6 days.</p>
+  <p class="hero-subtitle">SAR Mecca Mass-transit Medical Plan · Sub-Lead operations. <strong>276 medical personnel</strong> · <strong>138 units</strong> · <strong>25 ALS ambulances</strong> · <strong>11 sites</strong> (9 clinical platforms across Arafat, Muzdalifah, Mina + OCC + SRCA) · 12 movement phases over 6 ops days · ~294K pilgrims served.</p>
 
   <div class="countdown-strip">
     <div>
@@ -281,6 +323,7 @@
     <button class="tab-btn" data-tab="timeline"><span class="tab-btn-num">12</span> Timeline</button>
     <button class="tab-btn" data-tab="staffing"><span class="tab-btn-num">13</span> Staffing</button>
     <button class="tab-btn" data-tab="insights"><span class="tab-btn-num">14</span> Insights</button>
+    <button class="tab-btn" data-tab="tasks"><span class="tab-btn-num">15</span> Tasks</button>
   </div>
 </header>
 
@@ -305,7 +348,7 @@
 <section id="tab-mobilization" class="tab-panel">
   <div class="section-head">
     <div><div class="section-num">/02 — MOBILIZATION</div><h2 class="section-title">Movement <span class="accent">plan</span></h2></div>
-    <p class="section-blurb">Per-movement staffing across stations. 7 active operational movements over Hajj week.</p>
+    <p class="section-blurb">Per-movement staffing across stations. 12 movement phases over Hajj week.</p>
   </div>
   <div class="movement-grid" id="movement-grid"></div>
   <div class="two-col" style="margin-top: 24px;">
@@ -315,6 +358,12 @@
   <div class="card" style="margin-top: 20px;">
     <div class="card-title">Zone × Movement</div><div class="card-subtitle">Total staff per zone, by movement (excludes pre-ops setup)</div>
     <div class="chart-container tall"><canvas id="chart-zone"></canvas></div>
+  </div>
+
+  <div class="card" style="margin-top: 20px;">
+    <div class="card-title">Wave plan · 5 deployment waves</div>
+    <div class="card-subtitle">How the 276-person team rotates across Hajj week. Mike units stay at home stations throughout. Alpha + Romeo + TRN-1 redeploy via 85 augmentation movements.</div>
+    <div id="wave-plan" style="margin-top:18px; display:grid; gap:10px;"></div>
   </div>
 </section>
 
@@ -547,7 +596,7 @@
   </div>
   <div class="three-col">
     <div class="card"><div class="card-title">Fleet composition</div><div class="card-subtitle">25 vehicles by type</div><div class="chart-container"><canvas id="chart-fleet"></canvas></div></div>
-    <div class="card"><div class="card-title">Crew headcount</div><div class="card-subtitle">100 paramedics · 50 Alpha units (Day + Night)</div><div class="chart-container"><canvas id="chart-crew"></canvas></div></div>
+    <div class="card"><div class="card-title">Crew headcount</div><div class="card-subtitle">96 paramedics · 48 Alpha units · 25 ambulances (10 ALS · 9 BLS · 6 Roving)</div><div class="chart-container"><canvas id="chart-crew"></canvas></div></div>
     <div class="card"><div class="card-title">Ambulances per station</div><div class="card-subtitle">Where each vehicle is based</div><div class="chart-container"><canvas id="chart-amb-station"></canvas></div></div>
   </div>
   <div class="card" style="margin-top: 20px;">
@@ -592,6 +641,17 @@
     <div class="card"><div class="card-title">By movement</div><div class="card-subtitle">Where flexibility is concentrated</div><div class="chart-container"><canvas id="chart-aug-mvt"></canvas></div></div>
     <div class="card"><div class="card-title">Donor stations</div><div class="card-subtitle">Para count contributed FROM each station</div><div class="chart-container"><canvas id="chart-aug-from"></canvas></div></div>
   </div>
+  <div class="card" style="margin-top: 20px;">
+    <div class="card-title">Donor → Recipient matrix</div>
+    <div class="card-subtitle">Paramedics moved from each donor station (rows) to each recipient station (columns), per movement. Cell values are para counts.</div>
+    <div style="margin-top:14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <label style="font-size:11px; opacity:.7;">MOVEMENT FILTER</label>
+      <select id="aug-matrix-mvt" class="role-select" style="min-width:140px;"><option value="">All movements</option></select>
+      <span id="aug-matrix-summary" style="font-size:12px; opacity:.6; margin-left:auto;"></span>
+    </div>
+    <div id="aug-matrix" style="margin-top:16px; overflow-x:auto;"></div>
+  </div>
+
   <div class="card" style="margin-top: 20px;">
     <div class="card-title">Sample flow · 24 of <span id="aug-total">114</span> augmentations</div>
     <div class="card-subtitle">From → To · Para Moved</div>
@@ -693,14 +753,61 @@
   </div>
 </section>
 
+<section id="tab-tasks" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/15 — TASKS</div><h2 class="section-title">Master <span class="accent">tasks</span></h2></div>
+    <p class="section-blurb">Live tracker. 9 phases · pre-deployment readiness through demobilization. Filter by phase, status, or owner. Auto-refreshed from Smartsheet.</p>
+  </div>
+
+  <!-- KPI strip -->
+  <div id="tasks-kpis" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 12px; margin-bottom: 20px;"></div>
+
+  <!-- Filters -->
+  <div class="card" style="margin-bottom:20px;">
+    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+      <div>
+        <label style="font-size:11px; opacity:.7; display:block; margin-bottom:4px;">PHASE</label>
+        <select id="tasks-filter-phase" class="role-select"><option value="">All phases</option></select>
+      </div>
+      <div>
+        <label style="font-size:11px; opacity:.7; display:block; margin-bottom:4px;">STATUS</label>
+        <select id="tasks-filter-status" class="role-select"><option value="">All statuses</option></select>
+      </div>
+      <div>
+        <label style="font-size:11px; opacity:.7; display:block; margin-bottom:4px;">OWNER</label>
+        <select id="tasks-filter-owner" class="role-select"><option value="">All owners</option></select>
+      </div>
+      <div>
+        <label style="font-size:11px; opacity:.7; display:block; margin-bottom:4px;">VIEW</label>
+        <select id="tasks-filter-view" class="role-select">
+          <option value="all">All tasks</option>
+          <option value="sar">SAR-visible only</option>
+          <option value="hmg">HMG-internal only</option>
+          <option value="overdue">Overdue only</option>
+          <option value="urgent">Due ≤ 5 days</option>
+        </select>
+      </div>
+      <div style="flex:1;"></div>
+      <div style="font-size:12px; opacity:.7;" id="tasks-meta">—</div>
+    </div>
+  </div>
+
+  <!-- Phase-grouped task list -->
+  <div id="tasks-list"></div>
+</section>
+
 <footer class="container">
   <div class="footer-grid">
     <div class="footer-meta">
       <div>Data source · <strong id="footer-source">Google Drive · Mobilization_Plan.xlsx</strong></div>
       <div>Last refresh · <strong id="footer-refresh">—</strong></div>
-      <div>Auto-refresh every 30 minutes via GitHub Actions</div>
+      <div>Build · <strong id="footer-build">v11.6 schema · 138 units · 276 staff · 11 sites</strong></div>
+      <div>Auto-refresh every 30 minutes via GitHub Actions · <a href="https://github.com/ahmedalshudukhi/hajj-ops" style="color: var(--text-dim); text-decoration:underline;">view source</a></div>
     </div>
-    <div class="footer-brand">hajj.shuki.tech</div>
+    <div class="footer-brand">
+      hajj.shuki.tech
+      <div style="font-size:10px; opacity:.5; margin-top:4px; font-weight:400;">Hajj 1447 · MMMP-SL</div>
+    </div>
   </div>
 </footer>
 
@@ -796,6 +903,40 @@ function renderMovements(d) {
         <div><div class="movement-stat-label">Day</div><div class="movement-stat-value-mono">${m.dh}</div></div>
       </div>
     </div>`).join('');
+  renderWavePlan(d);
+}
+
+function renderWavePlan(d) {
+  const wrap = document.getElementById('wave-plan');
+  if (!wrap) return;
+  const waves = [
+    {id:'W1', name:'Wave 1 — Pre-Boarding', dh:'4-7 DH', greg:'21-24 May', staff:248, focus:'Site occupation, training drills, equipment check, all 11 sites manned',
+     color:'#3b82f6', actions:'Full team mobilizes to home stations · 4 days familiarization · MMMP final test'},
+    {id:'W2A', name:'Wave 2A — Boarding (B1A → B2B)', dh:'8-9 DH', greg:'25-26 May', staff:248, focus:'Pilgrim arrival flow · 4 boarding waves over 14 hrs (20:00 → 10:00 next day)',
+     color:'#22c55e', actions:'All Mike + Alpha + Romeo on standby at home · Alpha roving begins'},
+    {id:'W2B', name:'Wave 2B — Arafat day (GAP → C)', dh:'9 DH', greg:'26 May', staff:248, focus:'Day of Arafat · ~294K pilgrims served · Nafra at 22:00 (movement C)',
+     color:'#ef4444', actions:'CRITICAL · Pre-C reinforcement at 13:00 GAP · C movement = 38 augmentations cascading'},
+    {id:'W3', name:'Wave 3 — Muz→Mina (D + E1)', dh:'10 DH', greg:'27 May Eid', staff:248, focus:'D movement (00:00-08:00) · E1 evacuation (09:00-12:00) · 47 augmentations',
+     color:'#f59e0b', actions:'After E1: ARF1/ARF2/MUZ1/MUZ2 reduced to 2 Mike + 1 Alpha + LOG/SUP only'},
+    {id:'W4', name:'Wave 4 — Jamarat sustain (E2 → E3)', dh:'10-13 DH', greg:'27-30 May', staff:160, focus:'Mina ops sustain · 88 staff demobilized · 3 days of Jamarat coverage',
+     color:'#a855f7', actions:'Footprint shrinks to MIN1/MIN2/MIN3 + OCC + SRCA · Roving fleet supports'},
+  ];
+  wrap.innerHTML = waves.map(w => `
+    <div style="display:grid; grid-template-columns: 64px 1fr auto; gap:14px; align-items:center; padding:14px; background:rgba(255,255,255,0.02); border-radius:8px; border-left:4px solid ${w.color};">
+      <div style="text-align:center;">
+        <div style="font-size:11px; opacity:.6; letter-spacing:1px;">${w.dh}</div>
+        <div style="font-size:24px; font-weight:700; color:${w.color}; line-height:1.1;">${w.id}</div>
+      </div>
+      <div>
+        <div style="font-weight:600; font-size:14px;">${w.name}</div>
+        <div style="font-size:12px; opacity:.7; margin-top:3px; line-height:1.4;">${w.focus}</div>
+        <div style="font-size:11px; opacity:.55; margin-top:4px; font-style:italic;">${w.actions}</div>
+      </div>
+      <div style="text-align:right; min-width:80px;">
+        <div style="font-size:11px; opacity:.6;">${w.greg}</div>
+        <div style="font-size:18px; font-weight:700; color:${w.color};">${w.staff}<span style="font-size:11px; opacity:.6; font-weight:400;"> staff</span></div>
+      </div>
+    </div>`).join('');
 }
 function renderRoster(d) {
   const TYPE_COLORS = { 'Medical':'#ef4444','Ambulance':'#3b82f6','Foot-Runner':'#10b981' };
@@ -860,20 +1001,91 @@ function renderAugmentations(d) {
   document.getElementById('aug-total').textContent = d.augmentations.total;
   document.getElementById('aug-flow-list').innerHTML = d.augmentations.sample.map(a => `
     <div class="aug-flow">
-      <div class="aug-mvt">${a.mvt}</div>
+      <div class="aug-mvt">${a.mvt || a.Movement || ''}</div>
       <div class="aug-arrow">
-        <span class="aug-from">${a.from}</span>
+        <span class="aug-from">${a.from || a['From Unit'] || a['From Station'] || ''}</span>
         <span class="aug-arrow-line"></span>
-        <span class="aug-to">${a.to}</span>
+        <span class="aug-to">${a.to || a['To Station'] || ''}</span>
       </div>
-      <div class="aug-count">${a.para}</div>
-      <div><span class="status-pill" data-s="${a.status}">${a.status}</span></div>
+      <div class="aug-count">${a.para || a.Paras || 1}</div>
+      <div><span class="status-pill" data-s="${a.status || a.Status || ''}">${a.status || a.Status || ''}</span></div>
     </div>`).join('');
+  renderAugMatrix(d);
+}
+
+function renderAugMatrix(d) {
+  const matrix = (d.augmentations || {}).matrix;
+  const sel = document.getElementById('aug-matrix-mvt');
+  const wrap = document.getElementById('aug-matrix');
+  const summary = document.getElementById('aug-matrix-summary');
+  if (!matrix || !sel || !wrap) return;
+
+  // Populate movement filter from movements list
+  if (sel.options.length <= 1) {
+    Object.keys(matrix).filter(k => k !== 'all').sort().forEach(m => {
+      sel.insertAdjacentHTML('beforeend', `<option value="${m}">${m}</option>`);
+    });
+    sel.addEventListener('change', () => paintMatrix());
+  }
+
+  function paintMatrix() {
+    const mvt = sel.value || 'all';
+    const m = matrix[mvt];
+    if (!m || Object.keys(m).length === 0) {
+      wrap.innerHTML = `<div style="opacity:.5; padding:20px; text-align:center;">No augmentation data for ${mvt === 'all' ? 'any movement' : mvt}.</div>`;
+      summary.textContent = '';
+      return;
+    }
+    // Collect all donors and recipients
+    const donors = Object.keys(m).sort();
+    const recipientSet = new Set();
+    donors.forEach(d => Object.keys(m[d]).forEach(r => recipientSet.add(r)));
+    const recipients = [...recipientSet].sort();
+    // Find max for color scaling
+    let maxVal = 0;
+    donors.forEach(d => recipients.forEach(r => {
+      const v = m[d][r] || 0; if (v > maxVal) maxVal = v;
+    }));
+    // Compute totals
+    let total = 0;
+    donors.forEach(d => recipients.forEach(r => total += (m[d][r] || 0)));
+
+    let html = '<table style="border-collapse:collapse; font-size:12px; min-width:100%;">';
+    html += '<thead><tr><th style="text-align:left; padding:6px 10px; font-weight:600; opacity:.7; border-bottom:1px solid var(--border,#2a3245);">FROM ↓ / TO →</th>';
+    recipients.forEach(r => {
+      html += `<th style="text-align:center; padding:6px 8px; font-weight:600; opacity:.7; border-bottom:1px solid var(--border,#2a3245); white-space:nowrap;">${r}</th>`;
+    });
+    html += `<th style="text-align:center; padding:6px 8px; font-weight:600; opacity:.7; border-bottom:1px solid var(--border,#2a3245); border-left:1px solid var(--border,#2a3245);">Σ</th></tr></thead><tbody>`;
+    donors.forEach(d => {
+      let rowSum = 0;
+      html += `<tr><th style="text-align:left; padding:6px 10px; font-weight:600;">${d}</th>`;
+      recipients.forEach(r => {
+        const v = m[d][r] || 0; rowSum += v;
+        const intensity = maxVal > 0 ? v / maxVal : 0;
+        const bg = v > 0 ? `rgba(59,130,246,${0.15 + intensity * 0.55})` : 'transparent';
+        const color = v > 0 ? (intensity > 0.5 ? '#fff' : 'inherit') : 'rgba(255,255,255,0.15)';
+        html += `<td style="text-align:center; padding:6px 8px; background:${bg}; color:${color}; font-variant-numeric:tabular-nums;">${v || '·'}</td>`;
+      });
+      html += `<td style="text-align:center; padding:6px 8px; font-weight:600; border-left:1px solid var(--border,#2a3245); opacity:.8;">${rowSum}</td></tr>`;
+    });
+    // Column totals
+    html += `<tr style="border-top:1px solid var(--border,#2a3245);"><th style="text-align:left; padding:6px 10px; opacity:.6;">Σ</th>`;
+    recipients.forEach(r => {
+      let colSum = 0;
+      donors.forEach(d => colSum += (m[d][r] || 0));
+      html += `<td style="text-align:center; padding:6px 8px; font-weight:600; opacity:.8;">${colSum}</td>`;
+    });
+    html += `<td style="text-align:center; padding:6px 8px; font-weight:700; border-left:1px solid var(--border,#2a3245);">${total}</td></tr>`;
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+    summary.textContent = `${total} para movements · ${donors.length} donors → ${recipients.length} recipients`;
+  }
+  paintMatrix();
 }
 function renderStations(d) {
   if (!d.stations_detail) return;
   const order = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3',
-                 'OCC','Depot','SRCA','Logistics','Training','Mobile'];
+                 'OCC','SRCA','Logistics','Training','Mobile'];
   const TYPE_COLOR = {
     'Medical': '#ef4444', 'Ambulance': '#3b82f6', 'Foot-Runner': '#10b981',
   };
@@ -1066,7 +1278,7 @@ function renderDayView(d) {
 
 function renderSchedule(d) {
   if (!d.schedule_grid) return;
-  const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3','OCC','Depot','SRCA','Logistics','Training','Mobile'];
+  const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3','OCC','SRCA','Logistics','Training','Mobile'];
   const DAYS = ['4','5','6','7','8','9','10','11','12','13','14'];
   const wrap = document.getElementById('schedule-grid-wrap');
   if (!wrap) return;
@@ -1222,7 +1434,7 @@ function renderHome(d) {
     html += kpi('TOTAL PEOPLE', totalPpl, `${totalUnits} units · ${ambCount} ambulances`);
     html += kpi('STAFFING FILL', fillPct + '%', `${filledCount} of ${totalPpl} confirmed`, fillPct>=80?'#10b981':fillPct>=40?'#f59e0b':'#ef4444');
     html += kpi('OPERATIONAL DAYS', '11', '4 DH → 14 DH (Hajj 2026)');
-    html += kpi('STATIONS', '9', 'Arafat · Muzdalifah · Mina');
+    html += kpi('SITES', '11', '9 clinical + OCC + SRCA');
     html += '</div>';
     html += `<div class="card"><div class="card-title">What to look at</div><div class="card-subtitle">Tabs available in this view</div><div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">${quickLinks(['calendar','day-view','mobilization'])}</div></div>`;
   } else if (role === 'paramedic') {
@@ -1237,7 +1449,7 @@ function renderHome(d) {
     blurbEl.textContent = 'Station-level view: who reports to you, what units are at your station, fill status.';
     html += '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 14px; margin-bottom: 20px;">';
     html += kpi('TODAY · ' + todayDH + ' DH', todayData.active_units, `${todayData.active_paras} paras on duty`);
-    html += kpi('YOUR STATIONS', '9 ops sites', 'See Stations tab for detail');
+    html += kpi('YOUR SITES', '11 sites (9 clinical + OCC + SRCA)', 'See Stations tab for detail');
     html += kpi('TOTAL UNITS', totalUnits, 'Mike · Alpha · Romeo');
     html += '</div>';
     html += `<div class="card"><div class="card-title">Supervisor workflow</div><div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">${quickLinks(['stations','units','day-view','schedule','roster','staffing'])}</div></div>`;
@@ -1256,7 +1468,7 @@ function renderHome(d) {
     html += '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 14px; margin-bottom: 20px;">';
     html += kpi('PEOPLE', totalPpl, `${filledCount} filled (${fillPct}%)`);
     html += kpi('UNITS', totalUnits, '20 M · 48 A · 46 R + 19 cmd');
-    html += kpi('STATIONS', '9', 'plus support sites');
+    html += kpi('SITES', '11', '9 clinical + OCC + SRCA');
     html += kpi('AMBULANCES', ambCount, '10 E · 9 B · 6 R');
     html += kpi('TODAY', todayDH + ' DH', `${todayData.active_units} units active`);
     html += '</div>';
@@ -2057,6 +2269,7 @@ async function boot() {
   safeRender('home', () => renderHome(DATA));
   safeRender('staffing', () => renderStaffing(DATA));
   safeRender('insights', () => renderInsights(DATA));
+  safeRender('tasks', () => loadAndRenderTasks());
   safeRender('org-tree', () => renderOrgTree(DATA));
   safeRender('station-scorecards', () => renderStationScorecards(DATA));
   safeRender('accommodation', () => renderAccommodation(DATA));
@@ -2072,6 +2285,186 @@ async function boot() {
   document.getElementById('footer-source').textContent = DATA.source;
   status('ready', 'success');
 }
+
+// ===== TASKS TAB =====
+let TASKS_DATA = null;
+async function loadAndRenderTasks() {
+  try {
+    const r = await fetch('./tasks.json?t=' + Date.now());
+    if (!r.ok) throw new Error('tasks.json not found');
+    TASKS_DATA = await r.json();
+    renderTasks();
+    setupTasksFilters();
+  } catch (e) {
+    const list = document.getElementById('tasks-list');
+    if (list) list.innerHTML = `<div class="card" style="text-align:center; padding:40px 20px; opacity:.6;">tasks.json not yet generated. Run <code>build_tasks.py</code> in the repo, then push.<br><span style="font-size:11px;">${e.message}</span></div>`;
+  }
+}
+
+function setupTasksFilters() {
+  const t = TASKS_DATA; if (!t) return;
+  const phaseSel = document.getElementById('tasks-filter-phase');
+  const statusSel = document.getElementById('tasks-filter-status');
+  const ownerSel = document.getElementById('tasks-filter-owner');
+  const viewSel = document.getElementById('tasks-filter-view');
+  const phases = [...new Set(t.tasks.map(x => x.phase))].sort();
+  const statuses = [...new Set(t.tasks.map(x => x.status).filter(Boolean))];
+  const owners = [...new Set(t.tasks.map(x => x.owner).filter(Boolean))].sort();
+  phases.forEach(p => phaseSel.insertAdjacentHTML('beforeend', `<option value="${p}">${p}</option>`));
+  statuses.forEach(s => statusSel.insertAdjacentHTML('beforeend', `<option value="${s}">${s}</option>`));
+  owners.forEach(o => ownerSel.insertAdjacentHTML('beforeend', `<option value="${o}">${o}</option>`));
+  [phaseSel, statusSel, ownerSel, viewSel].forEach(el => el.addEventListener('change', renderTasks));
+}
+
+function renderTasks() {
+  const t = TASKS_DATA; if (!t) return;
+  const phaseFilter = document.getElementById('tasks-filter-phase')?.value || '';
+  const statusFilter = document.getElementById('tasks-filter-status')?.value || '';
+  const ownerFilter = document.getElementById('tasks-filter-owner')?.value || '';
+  const viewFilter = document.getElementById('tasks-filter-view')?.value || 'all';
+
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  // Filter
+  let filtered = t.tasks.filter(x => {
+    if (phaseFilter && x.phase !== phaseFilter) return false;
+    if (statusFilter && x.status !== statusFilter) return false;
+    if (ownerFilter && x.owner !== ownerFilter) return false;
+    if (viewFilter === 'sar' && !x.sar_visible) return false;
+    if (viewFilter === 'hmg' && x.sar_visible) return false;
+    if (viewFilter === 'overdue') {
+      if (!x.due) return false;
+      if (['Done','Later','Closed'].includes(x.status)) return false;
+      const due = new Date(x.due); due.setHours(0,0,0,0);
+      if (due >= today) return false;
+    }
+    if (viewFilter === 'urgent') {
+      if (!x.due) return false;
+      if (['Done','Later','Closed'].includes(x.status)) return false;
+      const due = new Date(x.due); due.setHours(0,0,0,0);
+      const days = Math.floor((due - today) / 86400000);
+      if (days < 0 || days > 5) return false;
+    }
+    return x.is_header !== true;
+  });
+
+  // KPIs (always over full set, not filtered)
+  const all = t.tasks.filter(x => !x.is_header);
+  const byStatus = {};
+  all.forEach(x => { if (x.status) byStatus[x.status] = (byStatus[x.status]||0) + 1; });
+  const overdue = all.filter(x => {
+    if (!x.due || ['Done','Later','Closed'].includes(x.status)) return false;
+    const due = new Date(x.due); due.setHours(0,0,0,0);
+    return due < today;
+  }).length;
+  const urgent = all.filter(x => {
+    if (!x.due || ['Done','Later','Closed'].includes(x.status)) return false;
+    const due = new Date(x.due); due.setHours(0,0,0,0);
+    const days = Math.floor((due - today) / 86400000);
+    return days >= 0 && days <= 5;
+  }).length;
+  const sar = all.filter(x => x.sar_visible).length;
+
+  const kpiHtml = [
+    {label:'TOTAL', value: all.length, sub:`${t.tasks.length - all.length} phase headers`},
+    {label:'IN PROCESS', value: byStatus['In Process']||0, sub:'actively worked'},
+    {label:'OPEN', value: byStatus['Open']||0, sub:'not started', color:'#f59e0b'},
+    {label:'DONE', value: byStatus['Done']||0, sub:'complete', color:'#10b981'},
+    {label:'OVERDUE', value: overdue, sub:'past due', color: overdue>0?'#ef4444':null},
+    {label:'≤5 DAYS', value: urgent, sub:'urgent', color: urgent>0?'#f59e0b':null},
+    {label:'SAR-VIS', value: sar, sub:`${all.length-sar} HMG-internal`},
+  ].map(k => `<div class="card" style="text-align:center; padding:14px 12px;">
+    <div style="font-size:10px; opacity:.6; letter-spacing:.5px;">${k.label}</div>
+    <div style="font-size:28px; font-weight:700; line-height:1.2; color:${k.color || 'var(--text)'};">${k.value}</div>
+    <div style="font-size:11px; opacity:.6;">${k.sub}</div>
+  </div>`).join('');
+  document.getElementById('tasks-kpis').innerHTML = kpiHtml;
+
+  // Group by phase
+  const byPhase = {};
+  filtered.forEach(x => { (byPhase[x.phase] = byPhase[x.phase] || []).push(x); });
+  const phaseOrder = Object.keys(byPhase).sort();
+
+  const PHASE_LABELS = {
+    'Phase 0':'Governance & Contractual','Phase 1':'Permits & Administration','Phase 2':'Logistics & Facilities',
+    'Phase 3':'Equipment & Procurement','Phase 4':'Staffing & Recruitment','Phase 5':'Plans & Documentation',
+    'Phase 6':'Testing & Readiness','Phase 7':'Operations (DH 8–13)','Phase 8':'Demobilization',
+  };
+  const PHASE_COLORS = {
+    'Phase 0':'#ef4444','Phase 1':'#f59e0b','Phase 2':'#f97316','Phase 3':'#eab308',
+    'Phase 4':'#22c55e','Phase 5':'#3b82f6','Phase 6':'#6366f1','Phase 7':'#a855f7','Phase 8':'#ec4899',
+  };
+  const STATUS_STYLE = {
+    'Done':'background:#064e3b;color:#6ee7b7;', 'In Process':'background:#1e3a8a;color:#93c5fd;',
+    'Open':'background:#78350f;color:#fcd34d;', 'Later':'background:#374151;color:#9ca3af;',
+    'Closed':'background:#1f2937;color:#6b7280;',
+  };
+
+  let html = '';
+  phaseOrder.forEach(p => {
+    const tasks = byPhase[p];
+    const color = PHASE_COLORS[p] || '#6b7280';
+    const label = PHASE_LABELS[p] || p;
+    html += `<div class="card" style="margin-bottom:16px; border-left:4px solid ${color};">
+      <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px;">
+        <div>
+          <div style="font-size:11px; opacity:.5; letter-spacing:.5px;">${p.toUpperCase()}</div>
+          <div style="font-size:18px; font-weight:600;">${label}</div>
+        </div>
+        <div style="font-size:13px; opacity:.6;">${tasks.length} task${tasks.length===1?'':'s'}</div>
+      </div>
+      <div style="display:grid; gap:6px;">`;
+    tasks.sort((a,b) => (a.num||999) - (b.num||999)).forEach(x => {
+      let dueBadge = '';
+      if (x.due && !['Done','Later','Closed'].includes(x.status)) {
+        const due = new Date(x.due); due.setHours(0,0,0,0);
+        const days = Math.floor((due - today) / 86400000);
+        let txt, col;
+        if (days < 0) { txt = `${Math.abs(days)}d overdue`; col = '#ef4444'; }
+        else if (days === 0) { txt = 'due today'; col = '#f59e0b'; }
+        else if (days <= 5) { txt = `${days}d left`; col = '#f59e0b'; }
+        else { txt = `${days}d`; col = '#10b981'; }
+        dueBadge = `<span style="font-size:11px; color:${col}; font-weight:600; white-space:nowrap;">${txt}</span>`;
+      }
+      const sarPill = x.sar_visible
+        ? `<span style="font-size:10px; padding:2px 6px; background:#1e3a8a; color:#93c5fd; border-radius:3px;">SAR</span>`
+        : `<span style="font-size:10px; padding:2px 6px; background:#374151; color:#9ca3af; border-radius:3px;">HMG</span>`;
+      const priPill = x.priority
+        ? `<span style="font-size:10px; padding:2px 6px; background:${x.priority==='P1'?'#7f1d1d':'#78350f'}; color:${x.priority==='P1'?'#fca5a5':'#fcd34d'}; border-radius:3px; font-weight:600;">${x.priority}</span>`
+        : '';
+      html += `<div style="display:grid; grid-template-columns: 36px 1fr auto; gap:10px; padding:10px; background:rgba(255,255,255,0.02); border-radius:6px; align-items:center;">
+        <div style="font-family:var(--mono); font-size:12px; opacity:.5; text-align:center;">${x.num != null ? '#'+x.num : '—'}</div>
+        <div>
+          <div style="font-weight:500; line-height:1.3;">${escapeHtml(x.task)}</div>
+          ${x.notes ? `<div style="font-size:11px; opacity:.55; margin-top:2px; line-height:1.3;">${escapeHtml(x.notes)}</div>` : ''}
+          <div style="display:flex; gap:8px; align-items:center; margin-top:4px; flex-wrap:wrap;">
+            ${x.owner ? `<span style="font-size:11px; opacity:.7;">👤 ${escapeHtml(x.owner)}</span>` : ''}
+            ${x.category ? `<span style="font-size:11px; opacity:.5;">· ${escapeHtml(x.category)}</span>` : ''}
+            ${priPill}${sarPill}
+          </div>
+        </div>
+        <div style="text-align:right;">
+          ${x.status ? `<span style="font-size:11px; padding:3px 8px; border-radius:3px; font-weight:600; ${STATUS_STYLE[x.status]||''}">${x.status}</span>` : ''}
+          ${dueBadge ? `<div style="margin-top:4px;">${dueBadge}</div>` : ''}
+        </div>
+      </div>`;
+    });
+    html += `</div></div>`;
+  });
+
+  if (filtered.length === 0) {
+    html = `<div class="card" style="text-align:center; padding:40px; opacity:.5;">No tasks match the current filters.</div>`;
+  }
+  document.getElementById('tasks-list').innerHTML = html;
+  document.getElementById('tasks-meta').textContent = `${filtered.length} of ${all.length} shown · refreshed ${t.refreshed_at || '—'}`;
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ===== END TASKS =====
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', boot);

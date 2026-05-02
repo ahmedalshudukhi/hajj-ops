@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Hajj Ops Dashboard — Data Builder v5 (v11 schema)
+Hajj Ops Dashboard — Data Builder v6 (v11.6 schema)
 
-Three-type unit model: Leadership (4) + Command (14) + Operational (112).
-Operational split: Mike Medical (20) + Alpha Ambulance (50) + Romeo Foot-runner (42).
-Scheduling at unit level. Hours per person via VLOOKUP to Schedule.
+Three-type unit model: Leadership (4) + Command (24) + Operational (110).
+Operational split: Mike Medical (20) + Alpha Ambulance (48) + Romeo Foot-runner (46).
+11 fixed sites: 9 clinical + OCC + SRCA. 3 floating functions (Logistics, Training, Mobile).
+12 movement phases. 85 augmentation movements. 276 staff.
 """
 import os, sys, json, urllib.request, tempfile
 from datetime import datetime, timezone, time as dtime
@@ -16,6 +17,8 @@ FILE_ID = os.environ.get("GDRIVE_FILE_ID", DEFAULT_FILE_ID)
 DOWNLOAD_URL = f"https://docs.google.com/uc?export=download&id={FILE_ID}"
 
 STATIONS = ["ARF1","ARF2","ARF3","MUZ1","MUZ2","MUZ3","MIN1","MIN2","MIN3"]
+SITES_ALL = STATIONS + ["OCC","SRCA"]            # 11 fixed sites
+SITES_FLOATING = ["Logistics","Training","Mobile"]  # 3 floating functions (no fixed home)
 
 # ─── Static project data ──────────────────────────────────────────
 CALENDAR = [
@@ -47,38 +50,57 @@ TIMELINE = [
     {"phase":"5","activity":"Final report","date_dh":"30 days post","greg":"","owner":"PM"},
 ]
 MOVEMENTS = [
-    {"code":"PRE-B","shift":"DAY","dh":"7 DH","label":"Pre-Boarding setup","staff":245,"para":125,"amb":12},
-    {"code":"GAP","shift":"MIXED","dh":"8-9 DH","label":"Inter-movement Gap","staff":245,"para":125,"amb":25},
-    {"code":"B1A","shift":"NIGHT","dh":"8/9 DH","label":"Boarding 1A","staff":121,"para":61,"amb":18},
-    {"code":"B1B","shift":"NIGHT","dh":"9 DH","label":"Boarding 1B","staff":121,"para":61,"amb":18},
-    {"code":"B2A","shift":"DAY","dh":"9 DH","label":"Boarding 2A","staff":124,"para":64,"amb":18},
-    {"code":"B2B","shift":"DAY","dh":"9 DH","label":"Boarding 2B","staff":124,"para":64,"amb":18},
-    {"code":"C","shift":"NIGHT","dh":"10 DH","label":"Day of Arafat","staff":121,"para":61,"amb":25},
-    {"code":"D","shift":"MIXED","dh":"10/11 DH","label":"Muz → Mina","staff":245,"para":125,"amb":25},
-    {"code":"E","shift":"MIXED","dh":"11-13 DH","label":"Mina operations","staff":245,"para":125,"amb":25},
-    {"code":"MAINT","shift":"DAY","dh":"13 DH","label":"Maintenance / Demob","staff":121,"para":61,"amb":18},
+    {"code":"PRE-B","shift":"DAY","dh":"4-7 DH","label":"Pre-Boarding setup","staff":248,"para":248,"amb":12},
+    {"code":"B1A","shift":"NIGHT","dh":"8/9 DH 20:00-01:00","label":"Boarding 1A","staff":248,"para":248,"amb":18},
+    {"code":"B1B","shift":"NIGHT","dh":"9 DH 02:00-04:00","label":"Boarding 1B","staff":248,"para":248,"amb":18},
+    {"code":"B2A","shift":"DAY","dh":"9 DH 05:00-07:00","label":"Boarding 2A","staff":248,"para":248,"amb":18},
+    {"code":"B2B","shift":"DAY","dh":"9 DH 08:00-10:00","label":"Boarding 2B","staff":248,"para":248,"amb":18},
+    {"code":"GAP","shift":"DAY","dh":"9 DH 13:00-19:00","label":"Inter-movement Gap","staff":248,"para":248,"amb":25},
+    {"code":"C","shift":"NIGHT","dh":"9/10 DH","label":"Day of Arafat / Nafra","staff":248,"para":248,"amb":25},
+    {"code":"D","shift":"NIGHT","dh":"10 DH 00:00-08:00","label":"Muz → Mina","staff":248,"para":248,"amb":25},
+    {"code":"E1","shift":"DAY","dh":"10 DH 09:00-12:00","label":"Mina ops — E1 evac","staff":248,"para":248,"amb":25},
+    {"code":"E2","shift":"DAY","dh":"10 DH 13:00-17:00","label":"Mina ops — E2","staff":160,"para":160,"amb":18},
+    {"code":"E3","shift":"MIXED","dh":"11-13 DH","label":"Mina ops — E3 sustain","staff":160,"para":160,"amb":18},
+    {"code":"DEMOB","shift":"DAY","dh":"14+ DH","label":"Demobilization","staff":160,"para":160,"amb":12},
 ]
 MOVEMENT_PHASES = [
     {"mvt":"PRE-B","start_dh":"4 DH","start_hour":"06:00","end_dh":"8 DH","end_hour":"17:00","shift":"DAY","duration_hrs":60},
-    {"mvt":"GAP","start_dh":"8 DH","start_hour":"18:00","end_dh":"8 DH","end_hour":"19:00","shift":"NIGHT","duration_hrs":2},
     {"mvt":"B1A","start_dh":"8 DH","start_hour":"20:00","end_dh":"9 DH","end_hour":"01:00","shift":"NIGHT","duration_hrs":6},
     {"mvt":"B1B","start_dh":"9 DH","start_hour":"02:00","end_dh":"9 DH","end_hour":"04:00","shift":"NIGHT","duration_hrs":3},
     {"mvt":"B2A","start_dh":"9 DH","start_hour":"05:00","end_dh":"9 DH","end_hour":"07:00","shift":"DAY","duration_hrs":3},
     {"mvt":"B2B","start_dh":"9 DH","start_hour":"08:00","end_dh":"9 DH","end_hour":"10:00","shift":"DAY","duration_hrs":3},
-    {"mvt":"C","start_dh":"9 DH","start_hour":"19:00","end_dh":"10 DH","end_hour":"00:00","shift":"NIGHT","duration_hrs":6},
-    {"mvt":"D","start_dh":"10 DH","start_hour":"01:00","end_dh":"10 DH","end_hour":"08:00","shift":"NIGHT","duration_hrs":8},
-    {"mvt":"E","start_dh":"10 DH","start_hour":"09:00","end_dh":"13 DH","end_hour":"17:00","shift":"MIXED","duration_hrs":80},
-    {"mvt":"MAINT","start_dh":"13 DH","start_hour":"18:00","end_dh":"14 DH","end_hour":"06:00","shift":"NIGHT","duration_hrs":12},
+    {"mvt":"GAP","start_dh":"9 DH","start_hour":"13:00","end_dh":"9 DH","end_hour":"19:00","shift":"DAY","duration_hrs":7},
+    {"mvt":"C","start_dh":"9 DH","start_hour":"22:00","end_dh":"10 DH","end_hour":"00:00","shift":"NIGHT","duration_hrs":3},
+    {"mvt":"D","start_dh":"10 DH","start_hour":"00:00","end_dh":"10 DH","end_hour":"08:00","shift":"NIGHT","duration_hrs":9},
+    {"mvt":"E1","start_dh":"10 DH","start_hour":"09:00","end_dh":"10 DH","end_hour":"12:00","shift":"DAY","duration_hrs":4},
+    {"mvt":"E2","start_dh":"10 DH","start_hour":"13:00","end_dh":"10 DH","end_hour":"17:00","shift":"DAY","duration_hrs":5},
+    {"mvt":"E3","start_dh":"10 DH","start_hour":"18:00","end_dh":"13 DH","end_hour":"23:00","shift":"MIXED","duration_hrs":78},
+    {"mvt":"DEMOB","start_dh":"14 DH","start_hour":"00:00","end_dh":"14 DH","end_hour":"23:00","shift":"DAY","duration_hrs":24},
 ]
 GP_COVERAGE = [
-    {"station":n,"gp_day":f"GP-{i:02d}","gp_night":f"GP-{i+10:02d}","covers":"Clinic-N + Clinic-S","notes":""}
-    for i, n in enumerate(["Arafat-1","Arafat-2","Arafat-3","Muzdalifah-1","Muzdalifah-2","Muzdalifah-3",
-                            "Mina-1","Mina-2","Mina-3 Jamarat","Depot"], 1)
+    {"station":"ARF1","gp_day":"GP-01","gp_night":"GP-11","covers":"Mike-1, Mike-2","notes":""},
+    {"station":"ARF2","gp_day":"GP-02","gp_night":"GP-12","covers":"Mike-3, Mike-4","notes":""},
+    {"station":"ARF3","gp_day":"GP-03","gp_night":"GP-13","covers":"Mike-5, Mike-6","notes":""},
+    {"station":"MUZ1","gp_day":"GP-04","gp_night":"GP-14","covers":"Mike-7, Mike-8","notes":""},
+    {"station":"MUZ2","gp_day":"GP-05","gp_night":"GP-15","covers":"Mike-9, Mike-10","notes":""},
+    {"station":"MUZ3","gp_day":"GP-06","gp_night":"GP-16","covers":"Mike-11, Mike-12","notes":""},
+    {"station":"MIN1","gp_day":"GP-07","gp_night":"GP-17","covers":"Mike-13, Mike-14","notes":""},
+    {"station":"MIN2","gp_day":"GP-08","gp_night":"GP-18","covers":"Mike-15, Mike-16","notes":""},
+    {"station":"MIN3","gp_day":"GP-09","gp_night":"GP-19","covers":"Mike-17, Mike-18 (Jamarat)","notes":""},
+    {"station":"OCC","gp_day":"GP-10","gp_night":"GP-20","covers":"Mike-19, Mike-20 (OCC ops)","notes":""},
 ]
 ACCOMMODATION = [
-    {"location":n,"sta_para":12,"amb_crew":8,"rov_fwd":2,"gps":2,"support":0,"total_beds":24,"bunk_sets":12}
-    for n in ["Arafat-1","Arafat-2","Arafat-3","Muzdalifah-1","Muzdalifah-2","Muzdalifah-3",
-              "Mina-1","Mina-2","Mina-3 Jamarat","Depot"]
+    {"location":"ARF1","sta_para":12,"amb_crew":8,"rov_fwd":2,"gps":2,"support":2,"total_beds":26,"bunk_sets":13},
+    {"location":"ARF2","sta_para":12,"amb_crew":8,"rov_fwd":2,"gps":2,"support":1,"total_beds":25,"bunk_sets":13},
+    {"location":"ARF3","sta_para":12,"amb_crew":8,"rov_fwd":2,"gps":2,"support":1,"total_beds":25,"bunk_sets":13},
+    {"location":"MUZ1","sta_para":12,"amb_crew":8,"rov_fwd":2,"gps":2,"support":2,"total_beds":26,"bunk_sets":13},
+    {"location":"MUZ2","sta_para":12,"amb_crew":8,"rov_fwd":2,"gps":2,"support":1,"total_beds":25,"bunk_sets":13},
+    {"location":"MUZ3","sta_para":12,"amb_crew":8,"rov_fwd":2,"gps":2,"support":1,"total_beds":25,"bunk_sets":13},
+    {"location":"MIN1","sta_para":12,"amb_crew":8,"rov_fwd":2,"gps":2,"support":2,"total_beds":26,"bunk_sets":13},
+    {"location":"MIN2","sta_para":12,"amb_crew":8,"rov_fwd":2,"gps":2,"support":1,"total_beds":25,"bunk_sets":13},
+    {"location":"MIN3","sta_para":12,"amb_crew":8,"rov_fwd":2,"gps":2,"support":1,"total_beds":25,"bunk_sets":13},
+    {"location":"OCC","sta_para":4,"amb_crew":0,"rov_fwd":0,"gps":2,"support":4,"total_beds":10,"bunk_sets":5},
+    {"location":"SRCA","sta_para":2,"amb_crew":0,"rov_fwd":0,"gps":0,"support":2,"total_beds":4,"bunk_sets":2},
 ]
 
 # ─── Helpers ──────────────────────────────────────────────────────
@@ -142,8 +164,24 @@ def compute_personnel(roles_rows):
     return {
         "total": leadership + paras + gps,
         "paramedics": paras, "gps": gps, "leadership_admin": leadership,
-        "day_para": 127, "night_para": 124, "ambulances": 25, "stations": 9, "clinics": 18,
+        "day_para": 127, "night_para": 124, "ambulances": 25,
+        "sites": 11, "clinical_platforms": 9, "floating_functions": 3,
+        "stations": 9, "clinics": 18,  # legacy keys kept for back-compat
     }
+
+def _count_allocated_shifts(schedule_rows, units_rows):
+    """Count total staff-shifts allocated across all DH days × shift slots."""
+    unit_size = {s(u.get("Unit ID")): int(num(u.get("Size", 2))) for u in units_rows}
+    total = 0
+    for r in schedule_rows:
+        uid = s(r.get("Unit ID"))
+        if not uid: continue
+        size = unit_size.get(uid, 2)
+        for dh in range(4, 15):
+            for slot in [1, 2]:
+                code = s(r.get(f"{dh}DH-S{slot}"))
+                if code: total += size
+    return total
 
 def compute_roster(staff_rows):
     LEADERSHIP_ROLES = ("PM","Deputy PM","Admin Lead","Med Direction Lead")
@@ -288,8 +326,27 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows):
 def compute_augmentations(aug_rows):
     if not aug_rows:
         return {"total":0,"active":0,"planned":0,"returned":0,"cancelled":0,"total_para_moved":0,
-                "dominant_status":"None","by_movement":{},"by_donor":{},"by_recipient":{},"sample":[]}
+                "dominant_status":"None","by_movement":{},"by_donor":{},"by_recipient":{},
+                "matrix":{},"sample":[]}
     by_status = Counter(s(r.get("Status")) for r in aug_rows)
+    # Build donor → recipient matrix, total + per-movement
+    matrix = {"all": defaultdict(lambda: defaultdict(int))}
+    for r in aug_rows:
+        donor_unit = s(r.get("From Unit"))
+        # Extract station from unit ID (e.g. "Alpha-25" → look up home, but for sheet we have raw station codes too)
+        donor_st = s(r.get("From Station") or r.get("From"))
+        if not donor_st:
+            # Best-effort: parse from unit prefix or fallback to unit name
+            donor_st = donor_unit
+        recipient = s(r.get("To Station") or r.get("To"))
+        mvt = s(r.get("Movement"))
+        paras = int(num(r.get("Paras", 1)))
+        if not donor_st or not recipient: continue
+        matrix["all"][donor_st][recipient] += paras
+        matrix.setdefault(mvt, defaultdict(lambda: defaultdict(int)))
+        matrix[mvt][donor_st][recipient] += paras
+    # Convert defaultdicts to plain dicts for JSON
+    matrix_json = {k: {d: dict(rs) for d, rs in v.items()} for k, v in matrix.items()}
     return {
         "total":len(aug_rows),
         "active":by_status.get("Active",0),"planned":by_status.get("Planned",0),
@@ -299,6 +356,7 @@ def compute_augmentations(aug_rows):
         "by_movement":dict(Counter(s(r.get("Movement")) for r in aug_rows)),
         "by_donor":dict(Counter(s(r.get("From Unit")) for r in aug_rows)),
         "by_recipient":dict(Counter(s(r.get("To Station")) for r in aug_rows)),
+        "matrix": matrix_json,
         "sample":aug_rows[:24],
     }
 
@@ -513,7 +571,9 @@ def compute_role_views(units_detail, staff_rows, ambulance_roster):
         "headlines": {
             "people": sum(u["size"] for u in units_detail),
             "units": len(units_detail),
-            "stations": 9,
+            "sites": 11,
+            "clinical_platforms": 9,
+            "stations": 9,  # legacy back-compat
             "ambulances": len(ambulance_roster),
         },
     }
@@ -918,7 +978,7 @@ def compute_insights(stations_detail, day_night_station, amb_by_station, hourly_
     }
 
 def main():
-    print("Hajj Ops Builder v5 (v11 schema)")
+    print("Hajj Ops Builder v6 (v11.6 schema)")
     xlsx_path = download_xlsx()
     wb = openpyxl.load_workbook(xlsx_path, data_only=True)
     print(f"  Sheets: {wb.sheetnames}")
@@ -956,9 +1016,9 @@ def main():
 
     data = {
         "refreshed_at": datetime.now(timezone.utc).strftime("%d %b %Y · %H:%M UTC"),
-        "source": "Google Drive · Mobilization_Plan.xlsx (v11)",
+        "source": "Google Drive · Mobilization_Plan.xlsx (v11.6)",
         "personnel": personnel,
-        "totals": {"allocated_staff_shifts": 0, "movements": len(MOVEMENTS)},
+        "totals": {"allocated_staff_shifts": _count_allocated_shifts(schedule, units), "movements": len(MOVEMENTS)},
         "calendar": CALENDAR,
         "timeline": TIMELINE,
         "gp_coverage": GP_COVERAGE,
