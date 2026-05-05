@@ -5,7 +5,7 @@ Hajj Ops Dashboard — Data Builder v6 (v11.6 schema)
 Three-type unit model: Leadership (4) + Command (24) + Operational (110).
 Operational split: Mike Medical (20) + Alpha Ambulance (48) + Romeo Foot-runner (46).
 11 fixed sites: 9 clinical + OCC + SRCA. 3 floating functions (Logistics, Training, Mobile).
-12 movement phases. 85 augmentation movements. 276 staff.
+v11.7: SRCA dropped (10 sites). Supervisors 8 → 6 (Jamarat M3a/M3b removed). Romeo 46 → 47 + Romeo-48 (single-para). Total units 138 → 136.
 """
 import os, sys, json, urllib.request, tempfile
 from datetime import datetime, timezone, time as dtime
@@ -17,7 +17,7 @@ FILE_ID = os.environ.get("GDRIVE_FILE_ID", DEFAULT_FILE_ID)
 DOWNLOAD_URL = f"https://docs.google.com/uc?export=download&id={FILE_ID}"
 
 STATIONS = ["ARF1","ARF2","ARF3","MUZ1","MUZ2","MUZ3","MIN1","MIN2","MIN3"]
-SITES_ALL = STATIONS + ["OCC","SRCA"]            # 11 fixed sites
+SITES_ALL = STATIONS + ["OCC"]                    # 10 fixed sites (SRCA dropped v11.7)
 SITES_FLOATING = ["Logistics","Training","Mobile"]  # 3 floating functions (no fixed home)
 
 # ─── Static project data ──────────────────────────────────────────
@@ -100,7 +100,6 @@ ACCOMMODATION = [
     {"location":"MIN2","sta_para":12,"amb_crew":8,"rov_fwd":2,"gps":2,"support":1,"total_beds":25,"bunk_sets":13},
     {"location":"MIN3","sta_para":12,"amb_crew":8,"rov_fwd":2,"gps":2,"support":1,"total_beds":25,"bunk_sets":13},
     {"location":"OCC","sta_para":4,"amb_crew":0,"rov_fwd":0,"gps":2,"support":4,"total_beds":10,"bunk_sets":5},
-    {"location":"SRCA","sta_para":2,"amb_crew":0,"rov_fwd":0,"gps":0,"support":2,"total_beds":4,"bunk_sets":2},
 ]
 
 # ─── Helpers ──────────────────────────────────────────────────────
@@ -165,7 +164,7 @@ def compute_personnel(roles_rows):
         "total": leadership + paras + gps,
         "paramedics": paras, "gps": gps, "leadership_admin": leadership,
         "day_para": 127, "night_para": 124, "ambulances": 25,
-        "sites": 11, "clinical_platforms": 9, "floating_functions": 3,
+        "sites": 10, "clinical_platforms": 9, "floating_functions": 3,
         "stations": 9, "clinics": 18,  # legacy keys kept for back-compat
     }
 
@@ -231,7 +230,6 @@ def compute_org_structure(units_rows):
     out.append({"category":"Para — CMD","role":"Chief Paramedic","day":1,"night":0,"total":1,"notes":""})
     out.append({"category":"Para — CMD","role":"Deputy Chief Paramedic","day":0,"night":1,"total":1,"notes":""})
     out.append({"category":"Para — Dispatch","role":"Dispatchers","day":2,"night":2,"total":4,"notes":""})
-    out.append({"category":"Para — Dispatch","role":"SRCA Liaison","day":1,"night":1,"total":2,"notes":""})
     out.append({"category":"Para — Depot","role":"Depot Clinic","day":2,"night":2,"total":4,"notes":""})
     out.append({"category":"Para — Logistics","role":"Logistics","day":4,"night":3,"total":7,"notes":"3 units sized [3,3,1]"})
     out.append({"category":"Para — Training","role":"Training","day":1,"night":1,"total":2,"notes":""})
@@ -571,7 +569,7 @@ def compute_role_views(units_detail, staff_rows, ambulance_roster):
         "headlines": {
             "people": sum(u["size"] for u in units_detail),
             "units": len(units_detail),
-            "sites": 11,
+            "sites": 10,
             "clinical_platforms": 9,
             "stations": 9,  # legacy back-compat
             "ambulances": len(ambulance_roster),
@@ -978,13 +976,13 @@ def compute_insights(stations_detail, day_night_station, amb_by_station, hourly_
     }
 
 def main():
-    print("Hajj Ops Builder v6 (v11.6 schema)")
+    print("Hajj Ops Builder v7 (v11.7 schema)")
     xlsx_path = download_xlsx()
     wb = openpyxl.load_workbook(xlsx_path, data_only=True)
     print(f"  Sheets: {wb.sheetnames}")
 
     roles = read_sheet(wb, "Roles")
-    units = read_sheet(wb, "Units", r"^(PM|DPM|ADM|MDL|CHF|DCH|LOG|OCC|SRCA|DPT|TRN|SUP|Mike|Alpha|Romeo)")
+    units = read_sheet(wb, "Units", r"^(PM|DPM|ADM|MDL|CHF|DCH|LOG|OCC|DPT|TRN|SUP|Mike|Alpha|Romeo)")
     staff = read_sheet(wb, "Staff")
     shifts = read_sheet(wb, "Shifts")
     schedule = read_sheet(wb, "Schedule")
@@ -1016,7 +1014,7 @@ def main():
 
     data = {
         "refreshed_at": datetime.now(timezone.utc).strftime("%d %b %Y · %H:%M UTC"),
-        "source": "Google Drive · Mobilization_Plan.xlsx (v11.6)",
+        "source": "Google Drive · Mobilization_Plan.xlsx (v11.7)",
         "personnel": personnel,
         "totals": {"allocated_staff_shifts": _count_allocated_shifts(schedule, units), "movements": len(MOVEMENTS)},
         "calendar": CALENDAR,

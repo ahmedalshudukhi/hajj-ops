@@ -291,7 +291,7 @@
 <header class="hero container">
   <div class="hero-eyebrow">SAR · MMMP-SL · Operations Dashboard</div>
   <h1 class="hero-title">Hajj 1447 <span class="accent">medical</span> mobilization.</h1>
-  <p class="hero-subtitle">SAR Mecca Mass-transit Medical Plan · Sub-Lead operations. <strong>276 medical personnel</strong> · <strong>138 units</strong> · <strong>25 ALS ambulances</strong> · <strong>11 sites</strong> (9 clinical platforms across Arafat, Muzdalifah, Mina + OCC + SRCA) · 12 movement phases over 6 ops days · ~294K pilgrims served.</p>
+  <p class="hero-subtitle">SAR Mecca Mass-transit Medical Plan · Sub-Lead operations. <strong>276 medical personnel</strong> · <strong>136 units</strong> · <strong>25 ALS ambulances</strong> · <strong>10 sites</strong> (9 clinical platforms across Arafat, Muzdalifah, Mina + OCC) · 12 movement phases over 6 ops days · ~294K pilgrims served.</p>
 
   <div class="countdown-strip">
     <div>
@@ -801,7 +801,7 @@
     <div class="footer-meta">
       <div>Data source · <strong id="footer-source">Google Drive · Mobilization_Plan.xlsx</strong></div>
       <div>Last refresh · <strong id="footer-refresh">—</strong></div>
-      <div>Build · <strong id="footer-build">v11.6 schema · 138 units · 276 staff · 11 sites</strong></div>
+      <div>Build · <strong id="footer-build">v11.7 schema · 136 units · 276 staff · 10 sites</strong></div>
       <div>Auto-refresh every 30 minutes via GitHub Actions · <a href="https://github.com/ahmedalshudukhi/hajj-ops" style="color: var(--text-dim); text-decoration:underline;">view source</a></div>
     </div>
     <div class="footer-brand">
@@ -910,7 +910,7 @@ function renderWavePlan(d) {
   const wrap = document.getElementById('wave-plan');
   if (!wrap) return;
   const waves = [
-    {id:'W1', name:'Wave 1 — Pre-Boarding', dh:'4-7 DH', greg:'21-24 May', staff:248, focus:'Site occupation, training drills, equipment check, all 11 sites manned',
+    {id:'W1', name:'Wave 1 — Pre-Boarding', dh:'4-7 DH', greg:'21-24 May', staff:248, focus:'Site occupation, training drills, equipment check, all 10 sites manned',
      color:'#3b82f6', actions:'Full team mobilizes to home stations · 4 days familiarization · MMMP final test'},
     {id:'W2A', name:'Wave 2A — Boarding (B1A → B2B)', dh:'8-9 DH', greg:'25-26 May', staff:248, focus:'Pilgrim arrival flow · 4 boarding waves over 14 hrs (20:00 → 10:00 next day)',
      color:'#22c55e', actions:'All Mike + Alpha + Romeo on standby at home · Alpha roving begins'},
@@ -919,7 +919,7 @@ function renderWavePlan(d) {
     {id:'W3', name:'Wave 3 — Muz→Mina (D + E1)', dh:'10 DH', greg:'27 May Eid', staff:248, focus:'D movement (00:00-08:00) · E1 evacuation (09:00-12:00) · 47 augmentations',
      color:'#f59e0b', actions:'After E1: ARF1/ARF2/MUZ1/MUZ2 reduced to 2 Mike + 1 Alpha + LOG/SUP only'},
     {id:'W4', name:'Wave 4 — Jamarat sustain (E2 → E3)', dh:'10-13 DH', greg:'27-30 May', staff:160, focus:'Mina ops sustain · 88 staff demobilized · 3 days of Jamarat coverage',
-     color:'#a855f7', actions:'Footprint shrinks to MIN1/MIN2/MIN3 + OCC + SRCA · Roving fleet supports'},
+     color:'#a855f7', actions:'Footprint shrinks to MIN1/MIN2/MIN3 + OCC · Roving fleet supports'},
   ];
   wrap.innerHTML = waves.map(w => `
     <div style="display:grid; grid-template-columns: 64px 1fr auto; gap:14px; align-items:center; padding:14px; background:rgba(255,255,255,0.02); border-radius:8px; border-left:4px solid ${w.color};">
@@ -1085,7 +1085,7 @@ function renderAugMatrix(d) {
 function renderStations(d) {
   if (!d.stations_detail) return;
   const order = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3',
-                 'OCC','SRCA','Logistics','Training','Mobile'];
+                 'OCC','Logistics','Training','Mobile'];
   const TYPE_COLOR = {
     'Medical': '#ef4444', 'Ambulance': '#3b82f6', 'Foot-Runner': '#10b981',
   };
@@ -1278,7 +1278,7 @@ function renderDayView(d) {
 
 function renderSchedule(d) {
   if (!d.schedule_grid) return;
-  const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3','OCC','SRCA','Logistics','Training','Mobile'];
+  const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3','OCC','Logistics','Training','Mobile'];
   const DAYS = ['4','5','6','7','8','9','10','11','12','13','14'];
   const wrap = document.getElementById('schedule-grid-wrap');
   if (!wrap) return;
@@ -1434,7 +1434,7 @@ function renderHome(d) {
     html += kpi('TOTAL PEOPLE', totalPpl, `${totalUnits} units · ${ambCount} ambulances`);
     html += kpi('STAFFING FILL', fillPct + '%', `${filledCount} of ${totalPpl} confirmed`, fillPct>=80?'#10b981':fillPct>=40?'#f59e0b':'#ef4444');
     html += kpi('OPERATIONAL DAYS', '11', '4 DH → 14 DH (Hajj 2026)');
-    html += kpi('SITES', '11', '9 clinical + OCC + SRCA');
+    html += kpi('SITES', '10', '9 clinical + OCC');
     html += '</div>';
     html += `<div class="card"><div class="card-title">What to look at</div><div class="card-subtitle">Tabs available in this view</div><div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">${quickLinks(['calendar','day-view','mobilization'])}</div></div>`;
   } else if (role === 'paramedic') {
@@ -1449,7 +1449,7 @@ function renderHome(d) {
     blurbEl.textContent = 'Station-level view: who reports to you, what units are at your station, fill status.';
     html += '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 14px; margin-bottom: 20px;">';
     html += kpi('TODAY · ' + todayDH + ' DH', todayData.active_units, `${todayData.active_paras} paras on duty`);
-    html += kpi('YOUR SITES', '11 sites (9 clinical + OCC + SRCA)', 'See Stations tab for detail');
+    html += kpi('YOUR SITES', '10 sites (9 clinical + OCC)', 'See Stations tab for detail');
     html += kpi('TOTAL UNITS', totalUnits, 'Mike · Alpha · Romeo');
     html += '</div>';
     html += `<div class="card"><div class="card-title">Supervisor workflow</div><div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">${quickLinks(['stations','units','day-view','schedule','roster','staffing'])}</div></div>`;
@@ -1459,7 +1459,7 @@ function renderHome(d) {
     html += kpi('FILL STATUS', `${filledCount}/${totalPpl}`, fillPct + '% confirmed', fillPct>=80?'#10b981':fillPct>=40?'#f59e0b':'#ef4444');
     html += kpi('TODAY · ' + todayDH + ' DH', todayData.active_units, `${todayData.active_paras} paras · ${todayData.total_hours.toLocaleString()} hrs`);
     html += kpi('AMBULANCES', ambCount, '25 vehicles');
-    html += kpi('UNITS DEPLOYED', totalUnits, '20 Mike · 48 Alpha · 46 Romeo');
+    html += kpi('UNITS DEPLOYED', totalUnits, '20 Mike · 48 Alpha · 48 Romeo');
     html += '</div>';
     html += `<div class="card"><div class="card-title">Command shortcuts</div><div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">${quickLinks(['hourly','day-view','schedule','roster','stations','ambulances','augmentations','staffing'])}</div></div>`;
   } else {
@@ -1467,8 +1467,8 @@ function renderHome(d) {
     blurbEl.textContent = 'Master view: everything. Use the role selector to filter to a specific stakeholder perspective.';
     html += '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 14px; margin-bottom: 20px;">';
     html += kpi('PEOPLE', totalPpl, `${filledCount} filled (${fillPct}%)`);
-    html += kpi('UNITS', totalUnits, '20 M · 48 A · 46 R + 19 cmd');
-    html += kpi('SITES', '11', '9 clinical + OCC + SRCA');
+    html += kpi('UNITS', totalUnits, '20 M · 48 A · 48 R + 17 cmd');
+    html += kpi('SITES', '10', '9 clinical + OCC');
     html += kpi('AMBULANCES', ambCount, '10 E · 9 B · 6 R');
     html += kpi('TODAY', todayDH + ' DH', `${todayData.active_units} units active`);
     html += '</div>';
