@@ -5,7 +5,7 @@ Hajj Ops Dashboard — Data Builder v6 (v11.6 schema)
 Three-type unit model: Leadership (4) + Command (24) + Operational (110).
 Operational split: Mike Medical (20) + Alpha Ambulance (48) + Romeo Foot-runner (46).
 11 fixed sites: 9 clinical + OCC + SRCA. 3 floating functions (Logistics, Training, Mobile).
-v11.7: SRCA dropped (10 sites). Supervisors 8 → 6 (Jamarat M3a/M3b removed). Romeo 46 → 47 + Romeo-48 (single-para). Total units 138 → 136.
+v11.7: SRCA dropped (10 sites). Supervisors 8 → 6 (Jamarat M3a/M3b removed). Romeo 46 → 47 + Romeo-48 (single-para). Total units 138 → 137.
 """
 import os, sys, json, urllib.request, tempfile
 from datetime import datetime, timezone, time as dtime
