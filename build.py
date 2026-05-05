@@ -1057,6 +1057,70 @@ def main():
     print(f"  Roster fill: {roster['all_filled']}/{roster['all_total']} ({roster['all_fill_pct']}%)")
     print(f"  Hourly: {len(hourly['hours'])} rows · peak ARF={hourly['peak_arafat']} MUZ={hourly['peak_muzdalifah']} MIN={hourly['peak_mina']}")
 
+
+    # ── /api/v1/*.json — static API endpoints ────────────────────────
+    import os as _os
+    _os.makedirs("api/v1", exist_ok=True)
+    _api_endpoints = {
+        "api/v1/health.json": {
+            "status": "ok",
+            "version": "v11.8",
+            "build": "v8 schema",
+            "service": "hajj-ops",
+            "refreshed_at": data["refreshed_at"],
+        },
+        "api/v1/personnel.json": {
+            "personnel": data["personnel"],
+            "totals": data["totals"],
+            "refreshed_at": data["refreshed_at"],
+        },
+        "api/v1/units.json": {
+            "units": data.get("units_detail", []),
+            "count": len(data.get("units_detail", [])),
+            "refreshed_at": data["refreshed_at"],
+        },
+        "api/v1/stations.json": {
+            "stations": data.get("stations_detail", []),
+            "count": len(data.get("stations_detail", [])),
+            "refreshed_at": data["refreshed_at"],
+        },
+        "api/v1/movements.json": {
+            "movements": data.get("movements", []),
+            "augmentations": data.get("augmentations", []),
+            "refreshed_at": data["refreshed_at"],
+        },
+        "api/v1/ambulances.json": {
+            "ambulances": data.get("ambulance_roster", []),
+            "by_station": data.get("amb_by_station", {}),
+            "count": len(data.get("ambulance_roster", [])),
+            "refreshed_at": data["refreshed_at"],
+        },
+        "api/v1/calendar.json": {
+            "calendar": data.get("calendar", []),
+            "timeline": data.get("timeline", []),
+            "refreshed_at": data["refreshed_at"],
+        },
+        "api/v1/index.json": {
+            "api": "hajj-ops v1",
+            "version": "v11.8",
+            "endpoints": [
+                "/api/v1/health.json",
+                "/api/v1/personnel.json",
+                "/api/v1/units.json",
+                "/api/v1/stations.json",
+                "/api/v1/movements.json",
+                "/api/v1/ambulances.json",
+                "/api/v1/calendar.json",
+                "/data.json",
+            ],
+            "docs": "https://hajj.shuki.tech/api-docs.html",
+        },
+    }
+    for _path, _payload in _api_endpoints.items():
+        with open(_path, "w") as _f:
+            json.dump(_payload, _f, ensure_ascii=False, separators=(",", ":"))
+    print(f"  \u2713 Wrote {len(_api_endpoints)} /api/v1/*.json files")
+
     try: os.unlink(xlsx_path)
     except: pass
 

@@ -1,0 +1,1 @@
+{"api":"hajj-ops v1","version":"v11.8","endpoints":["/api/v1/health.json","/api/v1/personnel.json","/api/v1/units.json","/api/v1/stations.json","/api/v1/movements.json","/api/v1/ambulances.json","/api/v1/calendar.json","/data.json"],"docs":"https://hajj.shuki.tech/api-docs.html"}

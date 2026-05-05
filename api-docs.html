@@ -43,49 +43,49 @@
 
   <div class="endpoint">
     <span class="endpoint-method">GET</span>
-    <span class="endpoint-path">/api/v1/health</span>
+    <span class="endpoint-path">/api/v1/health.json</span>
     <div class="endpoint-desc">Service status, version, build identifier. Use for monitoring.</div>
   </div>
 
   <div class="endpoint">
     <span class="endpoint-method">GET</span>
-    <span class="endpoint-path">/api/v1/personnel</span>
+    <span class="endpoint-path">/api/v1/personnel.json</span>
     <div class="endpoint-desc">Total roster breakdown — leadership, command, paramedics, GPs, and unit totals.</div>
   </div>
 
   <div class="endpoint">
     <span class="endpoint-method">GET</span>
-    <span class="endpoint-path">/api/v1/units</span>
+    <span class="endpoint-path">/api/v1/units.json</span>
     <div class="endpoint-desc">All operational units with assignments, sizes, types, and home stations.</div>
   </div>
 
   <div class="endpoint">
     <span class="endpoint-method">GET</span>
-    <span class="endpoint-path">/api/v1/stations</span>
+    <span class="endpoint-path">/api/v1/stations.json</span>
     <div class="endpoint-desc">9 clinical stations + OCC. Includes unit composition and personnel counts per site.</div>
   </div>
 
   <div class="endpoint">
     <span class="endpoint-method">GET</span>
-    <span class="endpoint-path">/api/v1/movements</span>
+    <span class="endpoint-path">/api/v1/movements.json</span>
     <div class="endpoint-desc">All 12 augmentation movements (PRE-B, B1A/B, B2A/B, GAP, C, D, E1, E2, MAINT) with from/to flows.</div>
   </div>
 
   <div class="endpoint">
     <span class="endpoint-method">GET</span>
-    <span class="endpoint-path">/api/v1/ambulances</span>
+    <span class="endpoint-path">/api/v1/ambulances.json</span>
     <div class="endpoint-desc">25 ALS ambulances by class (Essential, Backup, Roving) and home station.</div>
   </div>
 
   <div class="endpoint">
     <span class="endpoint-method">GET</span>
-    <span class="endpoint-path">/api/v1/calendar</span>
+    <span class="endpoint-path">/api/v1/calendar.json</span>
     <div class="endpoint-desc">Hajj day calendar (1–15 DH) with phase, events, and Gregorian dates.</div>
   </div>
 
   <div class="endpoint">
     <span class="endpoint-method">GET</span>
-    <span class="endpoint-path">/api/v1/snapshot</span>
+    <span class="endpoint-path">/data.json</span>
     <div class="endpoint-desc">Full data.json contents — all sections, suitable for ETL or backup.</div>
   </div>
 
@@ -113,7 +113,7 @@
   <p>The dashboard can also pull live PCR (Patient Care Records) and Patient Census from your own Google Sheets via Google Apps Script. See the <a href="./gas-template.gs">deployable GAS template</a> and the in-app <strong>Settings → Google Apps Script endpoint</strong>.</p>
 
   <h2>Versioning & changes</h2>
-  <p>This is the v1 API on the v11.8 data schema. Breaking changes will publish under <code>/api/v2/</code>. Current version returned in <code>/api/v1/health</code>.</p>
+  <p>This is the v1 API on the v11.8 data schema. Breaking changes will publish under <code>/api/v2/</code>. Current version returned in <code>/api/v1/health.json</code>.</p>
 
   <p style="margin-top: 32px; color: #4A5266; font-size: 12px;">© Hajj 1447 · MMMP-SL · HMG Emergency Medical Services</p>
 </div>

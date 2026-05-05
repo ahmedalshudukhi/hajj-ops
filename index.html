@@ -2715,13 +2715,13 @@ function openSettingsModal() {
         <div class="modal-section">
           <label class="modal-label">Public read API</label>
           <div class="modal-help">
-            <code>GET /api/v1/health</code> — service status<br>
-            <code>GET /api/v1/personnel</code> — staff totals<br>
-            <code>GET /api/v1/units</code> — units detail<br>
-            <code>GET /api/v1/stations</code> — stations detail<br>
-            <code>GET /api/v1/movements</code> — augmentations<br>
+            <code>GET /api/v1/health.json</code> — service status<br>
+            <code>GET /api/v1/personnel.json</code> — staff totals<br>
+            <code>GET /api/v1/units.json</code> — units detail<br>
+            <code>GET /api/v1/stations.json</code> — stations detail<br>
+            <code>GET /api/v1/movements.json</code> — augmentations<br>
             <code>GET /data.json</code> — full snapshot<br>
-            All endpoints CORS-enabled and cached at edge.
+            All endpoints CORS-enabled, edge-cached, regenerated every 30 min.
           </div>
         </div>
 

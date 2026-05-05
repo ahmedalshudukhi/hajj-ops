@@ -71,15 +71,15 @@ Base URL: `https://hajj.shuki.tech/api/v1/`
 
 | Endpoint | Returns |
 |---|---|
-| `GET /api/v1/health` | service status, version, build |
-| `GET /api/v1/personnel` | staff totals, breakdown by role |
-| `GET /api/v1/units` | all 138 operational units |
-| `GET /api/v1/stations` | 9 clinical sites + OCC |
-| `GET /api/v1/movements` | augmentation movements |
-| `GET /api/v1/ambulances` | 25 ALS ambulances by station |
-| `GET /api/v1/calendar` | hajj day calendar |
-| `GET /api/v1/snapshot` | full data.json |
-| `GET /api/v1/pcr/proxy?url=…&endpoint=…` | server-side proxy to GAS |
+| `GET /api/v1/health.json` | service status, version, build |
+| `GET /api/v1/personnel.json` | staff totals, breakdown by role |
+| `GET /api/v1/units.json` | all 138 operational units |
+| `GET /api/v1/stations.json` | 9 clinical sites + OCC |
+| `GET /api/v1/movements.json` | augmentation movements |
+| `GET /api/v1/ambulances.json` | 25 ALS ambulances by station |
+| `GET /api/v1/calendar.json` | hajj day calendar |
+| `GET /data.json` | full data.json |
+| `GET /api/v1/pcr/proxy?url=…&endpoint=…` | server-side GAS proxy *(future — needs Worker config)* |
 
 All responses CORS-enabled, edge-cached for 60s. Full docs at `/api-docs.html`.
 
