@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-Hajj Ops Dashboard — Data Builder v6 (v11.6 schema)
+Hajj Ops Dashboard — Data Builder v8 (v11.8 schema)
 
-Three-type unit model: Leadership (4) + Command (24) + Operational (110).
-Operational split: Mike Medical (20) + Alpha Ambulance (48) + Romeo Foot-runner (46).
-11 fixed sites: 9 clinical + OCC + SRCA. 3 floating functions (Logistics, Training, Mobile).
-v11.7: SRCA dropped (10 sites). Supervisors 8 → 6 (Jamarat M3a/M3b removed). Romeo 46 → 47 + Romeo-48 (single-para). Total units 138 → 137.
+Three-type unit model: Leadership (4) + Command + Operational.
+Operational split: Mike Medical (20) + Alpha Ambulance (48) + Romeo Foot-runner (49).
+10 fixed sites: 9 clinical + OCC. 3 floating functions (Logistics, Training, Mobile).
+v11.7: SRCA dropped (10 sites). Supervisors 8 → 6. Romeo 46 → 47 + Romeo-48 (single-para). Units 138 → 137.
+v11.8: Romeo-48 size 1 → 2 (full unit). Romeo Solo-49 added (single-para, MIN3). Romeo 48 → 49. Units 137 → 138. Roster 275 → 277. Mandate paramedics = 250 exactly.
+OCC accommodation: housed at the closest available HMG sites (primarily ARF3 and MUZ3), pending SAR confirmation of rooms in the ABG building.
 """
 import os, sys, json, urllib.request, tempfile
 from datetime import datetime, timezone, time as dtime
@@ -976,7 +978,7 @@ def compute_insights(stations_detail, day_night_station, amb_by_station, hourly_
     }
 
 def main():
-    print("Hajj Ops Builder v7 (v11.7 schema)")
+    print("Hajj Ops Builder v8 (v11.8 schema)")
     xlsx_path = download_xlsx()
     wb = openpyxl.load_workbook(xlsx_path, data_only=True)
     print(f"  Sheets: {wb.sheetnames}")
@@ -1014,7 +1016,7 @@ def main():
 
     data = {
         "refreshed_at": datetime.now(timezone.utc).strftime("%d %b %Y · %H:%M UTC"),
-        "source": "Google Drive · Mobilization_Plan.xlsx (v11.7)",
+        "source": "Google Drive · Mobilization_Plan.xlsx (v11.8)",
         "personnel": personnel,
         "totals": {"allocated_staff_shifts": _count_allocated_shifts(schedule, units), "movements": len(MOVEMENTS)},
         "calendar": CALENDAR,

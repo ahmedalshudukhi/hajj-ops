@@ -6,3 +6,7 @@ __pycache__/
 node_modules/
 .idea/
 .vscode/
+
+# v11.8 work directories — local outputs only
+mob_v118/
+v118_check/

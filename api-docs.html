@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hajj Ops API — v1</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0A0E1A; color: #E8E5E0; font-family: 'Inter', sans-serif; line-height: 1.6; padding: 40px 20px; min-height: 100vh; }
+  .container { max-width: 880px; margin: 0 auto; }
+  h1 { font-size: 32px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 8px; color: #E8E5E0; }
+  .sub { color: #8B92A4; font-size: 14px; font-family: 'JetBrains Mono', monospace; margin-bottom: 32px; }
+  h2 { font-size: 18px; font-weight: 600; margin: 28px 0 12px; color: #F59E0B; }
+  p { color: #B8BFCF; font-size: 14px; margin-bottom: 12px; }
+  pre, code { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+  pre { background: #0F1729; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 16px; overflow-x: auto; margin: 12px 0; color: #C8CFE0; }
+  code { background: rgba(217,119,6,0.1); padding: 1px 8px; border-radius: 3px; color: #F59E0B; font-size: 12px; }
+  .endpoint { background: #0F1729; border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; padding: 16px 20px; margin-bottom: 12px; }
+  .endpoint-method { display: inline-block; background: #10B981; color: #0A0E1A; padding: 2px 8px; border-radius: 3px; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; margin-right: 10px; }
+  .endpoint-path { font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #E8E5E0; font-weight: 500; }
+  .endpoint-desc { font-size: 13px; color: #8B92A4; margin-top: 8px; }
+  a { color: #F59E0B; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  th { color: #8B92A4; font-weight: 500; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .nav-back { display: inline-block; margin-bottom: 24px; color: #8B92A4; font-size: 12px; font-family: 'JetBrains Mono', monospace; }
+</style>
+</head>
+<body>
+<div class="container">
+  <a href="./" class="nav-back">← back to dashboard</a>
+  <h1>Hajj Ops API · v1</h1>
+  <div class="sub">Public read API · v11.8 schema · CORS enabled · cached at edge for 60s</div>
+
+  <p>The dashboard exposes a JSON API on top of the public data feed. Useful for connecting external tools, mobile apps, BI dashboards, MoH reports, or your own integrations. All endpoints respond with <code>application/json</code> and CORS-permissive headers.</p>
+
+  <h2>Base URL</h2>
+  <pre>https://hajj.shuki.tech/api/v1/</pre>
+
+  <h2>Endpoints</h2>
+
+  <div class="endpoint">
+    <span class="endpoint-method">GET</span>
+    <span class="endpoint-path">/api/v1/health</span>
+    <div class="endpoint-desc">Service status, version, build identifier. Use for monitoring.</div>
+  </div>
+
+  <div class="endpoint">
+    <span class="endpoint-method">GET</span>
+    <span class="endpoint-path">/api/v1/personnel</span>
+    <div class="endpoint-desc">Total roster breakdown — leadership, command, paramedics, GPs, and unit totals.</div>
+  </div>
+
+  <div class="endpoint">
+    <span class="endpoint-method">GET</span>
+    <span class="endpoint-path">/api/v1/units</span>
+    <div class="endpoint-desc">All operational units with assignments, sizes, types, and home stations.</div>
+  </div>
+
+  <div class="endpoint">
+    <span class="endpoint-method">GET</span>
+    <span class="endpoint-path">/api/v1/stations</span>
+    <div class="endpoint-desc">9 clinical stations + OCC. Includes unit composition and personnel counts per site.</div>
+  </div>
+
+  <div class="endpoint">
+    <span class="endpoint-method">GET</span>
+    <span class="endpoint-path">/api/v1/movements</span>
+    <div class="endpoint-desc">All 12 augmentation movements (PRE-B, B1A/B, B2A/B, GAP, C, D, E1, E2, MAINT) with from/to flows.</div>
+  </div>
+
+  <div class="endpoint">
+    <span class="endpoint-method">GET</span>
+    <span class="endpoint-path">/api/v1/ambulances</span>
+    <div class="endpoint-desc">25 ALS ambulances by class (Essential, Backup, Roving) and home station.</div>
+  </div>
+
+  <div class="endpoint">
+    <span class="endpoint-method">GET</span>
+    <span class="endpoint-path">/api/v1/calendar</span>
+    <div class="endpoint-desc">Hajj day calendar (1–15 DH) with phase, events, and Gregorian dates.</div>
+  </div>
+
+  <div class="endpoint">
+    <span class="endpoint-method">GET</span>
+    <span class="endpoint-path">/api/v1/snapshot</span>
+    <div class="endpoint-desc">Full data.json contents — all sections, suitable for ETL or backup.</div>
+  </div>
+
+  <div class="endpoint">
+    <span class="endpoint-method">GET</span>
+    <span class="endpoint-path">/api/v1/pcr/proxy?url={GAS_URL}&endpoint={endpoint}</span>
+    <div class="endpoint-desc">Server-side proxy for the Google Apps Script PCR endpoint. Useful for clients that need a non-Google domain to avoid CORS issues. Requires <code>url</code> to be a valid <code>script.google.com</code> URL.</div>
+  </div>
+
+  <h2>Example</h2>
+  <pre>curl https://hajj.shuki.tech/api/v1/personnel
+{
+  "personnel": {
+    "total": 277,
+    "ops_paramedics_mandate": 250,
+    "leadership": 4,
+    "dispatchers": 3,
+    "gps": 20,
+    ...
+  },
+  "refreshed_at": "..."
+}</pre>
+
+  <h2>Connecting your own data</h2>
+  <p>The dashboard can also pull live PCR (Patient Care Records) and Patient Census from your own Google Sheets via Google Apps Script. See the <a href="./gas-template.gs">deployable GAS template</a> and the in-app <strong>Settings → Google Apps Script endpoint</strong>.</p>
+
+  <h2>Versioning & changes</h2>
+  <p>This is the v1 API on the v11.8 data schema. Breaking changes will publish under <code>/api/v2/</code>. Current version returned in <code>/api/v1/health</code>.</p>
+
+  <p style="margin-top: 32px; color: #4A5266; font-size: 12px;">© Hajj 1447 · MMMP-SL · HMG Emergency Medical Services</p>
+</div>
+</body>
+</html>
