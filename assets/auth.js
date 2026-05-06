@@ -184,7 +184,8 @@
   function landingFor(role) {
     role = String(role || '').toLowerCase();
     if (role === 'dispatcher') return 'dispatch.html';
-    if (role === 'leadership' || role === 'admin') return 'lobby.html';
+    // Admin, leadership, paramedic, gp, cluster_supervisor → personal page.
+    // Lobby comes later when active.html exists.
     return 'me.html';
   }
 
