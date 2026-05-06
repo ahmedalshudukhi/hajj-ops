@@ -204,9 +204,68 @@ function formatTime(d) {
   return `${hh}:${mm}`;
 }
 
-// Optional: handle POST for writing back to PCR (future write-back support)
+/**
+ * Q-PCR write endpoint. Called by dispatch.html when a card closes.
+ *
+ * Body: JSON with at minimum complaint + station. All other fields optional.
+ *   patient_id, age, gender, complaint, acuity, disposition, treating_unit,
+ *   station, notes, incident_id, submitter_nid, submitter_name
+ *
+ * Returns: { ok: true, encounter_id: "PCR-YYYYMMDD-HHMMSS-XXX" }
+ *
+ * The sheet schema columns (A–K, see header comment above) are filled in order.
+ * If the sheet is missing or empty, we create the header row first.
+ */
 function doPost(e) {
-  return ContentService
-    .createTextOutput(JSON.stringify({ error: 'POST not implemented yet' }))
-    .setMimeType(ContentService.MimeType.JSON);
+  try {
+    const body = e.postData && e.postData.contents
+      ? JSON.parse(e.postData.contents)
+      : {};
+
+    const ss = SpreadsheetApp.openById(PCR_SHEET_ID);
+    let sheet = ss.getSheetByName(PCR_TAB_NAME);
+    if (!sheet) sheet = ss.insertSheet(PCR_TAB_NAME);
+
+    // Ensure header row exists
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow([
+        'Encounter ID', 'Timestamp', 'Station', 'Patient ID', 'Age',
+        'Gender', 'Chief Complaint', 'Acuity', 'Disposition',
+        'Treating Unit', 'Notes', 'Source', 'Incident ID', 'Submitter'
+      ]);
+      sheet.getRange(1, 1, 1, 14).setFontWeight('bold').setBackground('#1f2937').setFontColor('#ffffff');
+      sheet.setFrozenRows(1);
+    }
+
+    const now = new Date();
+    const encounterId = 'PCR-'
+      + Utilities.formatDate(now, 'GMT+3', 'yyyyMMdd-HHmmss')
+      + '-' + Math.floor(Math.random() * 1000);
+
+    sheet.appendRow([
+      encounterId,
+      now,
+      String(body.station || '').trim().toUpperCase(),
+      String(body.patient_id || ''),
+      body.age || '',
+      String(body.gender || ''),
+      String(body.complaint || ''),
+      String(body.acuity || 'standard').toLowerCase(),
+      String(body.disposition || ''),
+      String(body.treating_unit || ''),
+      String(body.notes || ''),
+      'Q-PCR (dispatch)',
+      String(body.incident_id || ''),
+      String(body.submitter_name || body.submitter_nid || '')
+    ]);
+
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: true, encounter_id: encounterId, time: now.toISOString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: false, error: 'server_error', message: String(err && err.message || err) }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }

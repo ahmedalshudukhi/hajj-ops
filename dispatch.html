@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#0f172a">
+<title>Dispatch · Hajj 2026</title>
+<link rel="stylesheet" href="assets/style.css">
+
+<style>
+  body { background: var(--bg); }
+  .topbar {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 10px 14px;
+    padding-top: calc(10px + env(safe-area-inset-top));
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px;
+  }
+  .topbar .who { font-size: 13px; color: var(--text-dim); }
+  .topbar .who strong { color: var(--text); font-weight: 600; }
+  .topbar .clock { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 12px 14px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .stat {
+    background: var(--bg);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    text-align: center;
+  }
+  .stat-num { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-top: 2px; }
+  .stat--red    .stat-num { color: #fca5a5; }
+  .stat--amber  .stat-num { color: #fcd34d; }
+  .stat--green  .stat-num { color: #86efac; }
+  .stat--blue   .stat-num { color: #93c5fd; }
+
+  .form-card {
+    margin: 12px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    padding: 14px;
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .form-grid .full { grid-column: 1 / -1; }
+  @media (max-width: 480px) {
+    .form-grid { grid-template-columns: 1fr; }
+  }
+
+  .form-card .input, .form-card .select {
+    padding: 10px 12px;
+    font-size: 14px;
+    min-height: 42px;
+  }
+
+  .cards-area {
+    padding: 0 14px 80px;
+  }
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 12px;
+  }
+
+  .inc-card {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    padding: 14px;
+    border-left-width: 4px;
+    border-left-style: solid;
+  }
+  .inc-card.cat-resus  { border-left-color: var(--danger); }
+  .inc-card.cat-urgent { border-left-color: var(--warning); }
+  .inc-card.cat-less   { border-left-color: var(--success); }
+  .inc-card.is-closed  { opacity: 0.55; }
+
+  .inc-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 10px; margin-bottom: 10px;
+  }
+  .inc-head .id-line {
+    font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);
+  }
+  .inc-head .where {
+    margin-top: 2px; font-size: 16px; font-weight: 700; line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+  .inc-head .timer {
+    font-variant-numeric: tabular-nums;
+    font-size: 14px; font-weight: 600; color: var(--text-dim);
+  }
+
+  .inc-meta {
+    display: grid; grid-template-columns: auto 1fr; gap: 4px 10px;
+    font-size: 13px; margin-bottom: 12px;
+  }
+  .inc-meta dt { color: var(--text-muted); }
+  .inc-meta dd { margin: 0; color: var(--text); }
+
+  .btn-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .btn-row .btn {
+    width: auto; flex: 1; min-width: 0;
+    min-height: 36px; padding: 6px 8px;
+    font-size: 13px; font-weight: 500;
+  }
+  .btn-row .btn--small-ghost {
+    background: var(--surface-2); border: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+  .btn-row .btn--small-ghost.is-done { background: rgba(34,197,94,0.10); border-color: rgba(34,197,94,0.4); color: #86efac; }
+
+  .section-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-muted); margin: 12px 0 6px;
+  }
+
+  .timeline {
+    font-size: 11px; color: var(--text-dim);
+    background: var(--surface-2); padding: 8px 10px; border-radius: 6px;
+    max-height: 100px; overflow-y: auto;
+  }
+  .timeline-row { display: flex; justify-content: space-between; gap: 8px; }
+  .timeline-row .ev { color: var(--text-dim); }
+  .timeline-row .at { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+  .empty-cards {
+    text-align: center; color: var(--text-muted); font-size: 14px;
+    padding: 40px 20px;
+  }
+
+  .floater {
+    position: fixed; bottom: 16px; right: 16px;
+    background: var(--surface-2); padding: 6px 10px; border-radius: 999px;
+    font-size: 11px; color: var(--text-muted);
+    border: 1px solid var(--border-soft);
+    z-index: 5;
+  }
+  .floater .dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--success); margin-right: 6px;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="who">
+    <strong id="dispName">—</strong>
+    <span id="dispRole" class="badge" style="margin-left:6px;">—</span>
+  </div>
+  <div class="clock" id="clock">--:--:--</div>
+  <button class="btn btn--ghost btn--auto-width btn--small" id="logoutBtn">Sign out</button>
+</div>
+
+<div class="stats">
+  <div class="stat stat--red">
+    <div class="stat-num" id="statOpen">0</div>
+    <div class="stat-label">Open</div>
+  </div>
+  <div class="stat stat--amber">
+    <div class="stat-num" id="statResus">0</div>
+    <div class="stat-label">Resus</div>
+  </div>
+  <div class="stat stat--green">
+    <div class="stat-num" id="statClosed">0</div>
+    <div class="stat-label">Closed today</div>
+  </div>
+  <div class="stat stat--blue">
+    <div class="stat-num" id="statQPCR">0</div>
+    <div class="stat-label">Q-PCR filed</div>
+  </div>
+</div>
+
+<div class="form-card">
+  <div class="card-title">New incident</div>
+  <div class="form-grid">
+    <select class="select" id="region">
+      <option value="">Region</option>
+      <option>Mina</option>
+      <option>Arafat</option>
+      <option>Muzdalifah</option>
+      <option>OCC</option>
+    </select>
+    <select class="select" id="zone">
+      <option value="">Zone / Station</option>
+    </select>
+    <input class="input" id="source" placeholder="Source (caller, walk-in…)">
+    <input class="input" id="location" placeholder="Specific location">
+    <input class="input" id="caseField" placeholder="Case (chief complaint)">
+    <input class="input" id="unit" placeholder="Unit code">
+    <select class="select" id="type">
+      <option>Alpha</option>
+      <option>Romeo</option>
+      <option>Mike</option>
+    </select>
+    <select class="select" id="shift">
+      <option>Day</option>
+      <option>Night</option>
+    </select>
+    <select class="select full" id="category">
+      <option value="resus">Resuscitation</option>
+      <option value="urgent" selected>Urgent</option>
+      <option value="less">Less Urgent</option>
+    </select>
+    <button class="btn full" id="createBtn">Create incident</button>
+  </div>
+  <div id="createMsg" style="margin-top:8px;"></div>
+</div>
+
+<div class="cards-area">
+  <div class="section-label">Active &amp; recent</div>
+  <div class="cards-grid" id="cards"></div>
+  <div class="empty-cards" id="emptyState" hidden>No incidents yet today.</div>
+</div>
+
+<div class="floater"><span class="dot"></span><span id="syncStatus">Live · syncing every 5s</span></div>
+
+<!-- Q-PCR modal -->
+<div class="modal-backdrop" id="qpcrModal" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Q-PCR <span id="qpcrIncId" style="color:var(--text-muted); font-size:12px; font-family:var(--font-mono);"></span></h2>
+      <button class="modal-close" id="qpcrCancel">×</button>
+    </div>
+
+    <div class="form-grid">
+      <input class="input" id="qpcrPatientId" placeholder="Patient ID (auto if blank)">
+      <input class="input" id="qpcrAge" type="number" inputmode="numeric" placeholder="Age">
+      <select class="select" id="qpcrGender">
+        <option value="">Gender</option>
+        <option value="M">Male</option>
+        <option value="F">Female</option>
+      </select>
+      <select class="select" id="qpcrAcuity">
+        <option value="">Acuity</option>
+        <option value="critical">Critical</option>
+        <option value="urgent">Urgent</option>
+        <option value="standard">Standard</option>
+        <option value="minor">Minor</option>
+      </select>
+      <input class="input full" id="qpcrComplaint" placeholder="Chief complaint">
+      <input class="input" id="qpcrUnit" placeholder="Treating unit">
+      <input class="input" id="qpcrDispo" readonly placeholder="Disposition" style="opacity:0.7;">
+      <textarea class="textarea full" id="qpcrNotes" placeholder="Notes (optional)"></textarea>
+    </div>
+
+    <div id="qpcrMsg" style="margin: 10px 0 0;"></div>
+
+    <div class="btn-row" style="margin-top:14px;">
+      <button class="btn btn--ghost" id="qpcrSkip">Close without Q-PCR</button>
+      <button class="btn" id="qpcrSubmit">File Q-PCR &amp; close</button>
+    </div>
+  </div>
+</div>
+
+<script src="assets/config.js"></script>
+<script src="assets/auth.js"></script>
+<script>
+(function () {
+
+  if (!HAJJ.requireRole(['dispatcher', 'leadership', 'admin'])) return;
+
+  const user = HAJJ.getUser() || {};
+  document.getElementById('dispName').textContent = user.name || '—';
+  const rb = document.getElementById('dispRole');
+  rb.textContent = String(user.role || '').replace(/_/g, ' ');
+  rb.className = 'badge ' + (user.role === 'admin' || user.role === 'leadership' ? 'badge--blue' : 'badge--amber');
+  document.getElementById('logoutBtn').addEventListener('click', HAJJ.logout);
+
+  // ============ Clock ============
+  function tickClock() {
+    const d = new Date();
+    document.getElementById('clock').textContent =
+      String(d.getHours()).padStart(2,'0') + ':' +
+      String(d.getMinutes()).padStart(2,'0') + ':' +
+      String(d.getSeconds()).padStart(2,'0');
+  }
+  tickClock(); setInterval(tickClock, 1000);
+
+  // ============ Region → zone ============
+  const ZONES = {
+    Mina:       ["Mina 1","Mina 2","Mina 3","Mina Clinic 1","Mina Clinic 2"],
+    Arafat:     ["Arafat 1","Arafat 2","Arafat 3","Arafat Clinic 1","Arafat Clinic 2"],
+    Muzdalifah: ["Muzdalifah 1","Muzdalifah 2","Muzdalifah 3","Muzdalifah Clinic 1","Muzdalifah Clinic 2"],
+    OCC:        ["OCC / Depot"]
+  };
+  const regionEl = document.getElementById('region');
+  const zoneEl   = document.getElementById('zone');
+  regionEl.addEventListener('change', function () {
+    const list = ZONES[regionEl.value] || [];
+    zoneEl.innerHTML = '<option value="">Zone / Station</option>' +
+      list.map(z => '<option>' + z + '</option>').join('');
+  });
+
+  // ============ Create incident ============
+  const createBtn = document.getElementById('createBtn');
+  const createMsg = document.getElementById('createMsg');
+
+  createBtn.addEventListener('click', async function () {
+    createMsg.innerHTML = '';
+    const region = regionEl.value, zone = zoneEl.value;
+    const source = val('source'), location = val('location'), caseField = val('caseField');
+    const unit = val('unit'), type = val('type'), shift = val('shift');
+    const category = val('category');
+
+    if (!region || !zone) { showCreateErr('Pick region and zone.'); return; }
+    if (!caseField)       { showCreateErr('Enter the case / chief complaint.'); return; }
+
+    createBtn.disabled = true;
+    createBtn.innerHTML = '<span class="spinner"></span>&nbsp;&nbsp;Creating…';
+
+    const r = await HAJJ.authedCall('dispatch_create', {
+      region: region,
+      zone: zone,
+      station: zone,
+      source: source,
+      location: location,
+      case_field: caseField,
+      unit: unit,
+      type: type,
+      shift: shift,
+      category: category
+    });
+
+    createBtn.disabled = false;
+    createBtn.innerHTML = 'Create incident';
+
+    if (!r || !r.ok) {
+      showCreateErr('Failed to create. ' + (r && r.error || ''));
+      return;
+    }
+    // Clear form
+    ['source','location','caseField','unit'].forEach(id => document.getElementById(id).value = '');
+    regionEl.value = ''; zoneEl.innerHTML = '<option value="">Zone / Station</option>';
+    refresh();
+  });
+
+  function val(id) { return document.getElementById(id).value.trim(); }
+  function showCreateErr(text) {
+    createMsg.innerHTML = '<div class="notice notice--error">' + text + '</div>';
+  }
+
+  // ============ Live sync ============
+  const incidentsById = {};
+  let lastSync = null;
+
+  async function refresh() {
+    const r = await HAJJ.authedCall('dispatch_list');
+    if (!r || !r.ok) return;
+    lastSync = new Date();
+    const list = r.incidents || [];
+    list.sort((a, b) => new Date(b.Created_At) - new Date(a.Created_At));
+    list.forEach(inc => incidentsById[inc.Incident_ID] = inc);
+    renderCards();
+    renderStats();
+  }
+
+  setInterval(refresh, 5000);
+  refresh();
+
+  // ============ Render ============
+  function renderCards() {
+    const grid = document.getElementById('cards');
+    grid.innerHTML = '';
+    const items = Object.values(incidentsById)
+      .sort((a, b) => new Date(b.Created_At) - new Date(a.Created_At));
+
+    if (!items.length) {
+      document.getElementById('emptyState').hidden = false;
+      return;
+    }
+    document.getElementById('emptyState').hidden = true;
+
+    items.forEach(inc => grid.appendChild(buildCard(inc)));
+  }
+
+  function renderStats() {
+    const items = Object.values(incidentsById);
+    const today = new Date(); today.setHours(0,0,0,0);
+    let open = 0, closedToday = 0, resus = 0, qpcrFiled = 0;
+    items.forEach(i => {
+      if (i.Status === 'open') open++;
+      if (i.Status === 'closed' && new Date(i.Closed_At) >= today) closedToday++;
+      if ((i.Category || '').toLowerCase() === 'resus' && i.Status === 'open') resus++;
+      if (i.Q_PCR_ID) qpcrFiled++;
+    });
+    document.getElementById('statOpen').textContent = open;
+    document.getElementById('statResus').textContent = resus;
+    document.getElementById('statClosed').textContent = closedToday;
+    document.getElementById('statQPCR').textContent = qpcrFiled;
+  }
+
+  function buildCard(inc) {
+    const card = document.createElement('div');
+    const cat = (inc.Category || 'urgent').toLowerCase();
+    card.className = 'inc-card cat-' + cat + (inc.Status === 'closed' ? ' is-closed' : '');
+    card.dataset.id = inc.Incident_ID;
+
+    const idShort = (inc.Incident_ID || '').replace(/^INC-/, '').slice(0, 18);
+    const where = (inc.Region || '—') + ' · ' + (inc.Station || '—');
+    const startMs = new Date(inc.Created_At).getTime();
+
+    const statusBtn = (label, key, doneAt) => {
+      const done = !!doneAt;
+      return '<button class="btn btn--small-ghost ' + (done ? 'is-done' : '') + '" '
+        + 'data-event="' + key + '">' + label + (done ? ' ✓' : '') + '</button>';
+    };
+
+    const isClosed = inc.Status === 'closed';
+    const decisionsRow = isClosed
+      ? '<div class="section-label">Closed: ' + (inc.Decision || '—') + '</div>'
+      : '<div class="section-label">Decision</div>'
+      + '<div class="btn-row">'
+      + '<button class="btn btn--small" data-decide="Treat">Treat</button>'
+      + '<button class="btn btn--blue btn--small" data-decide="Transfer">Transfer</button>'
+      + '<button class="btn btn--red btn--small" data-decide="Refusal">Refusal</button>'
+      + '</div>';
+
+    const tlRows = [];
+    if (inc.Created_At)         tlRows.push(['Dispatched', inc.Created_At]);
+    if (inc.En_Route_At)        tlRows.push(['En route', inc.En_Route_At]);
+    if (inc.On_Scene_At)        tlRows.push(['On scene', inc.On_Scene_At]);
+    if (inc.Patient_Contact_At) tlRows.push(['Patient contact', inc.Patient_Contact_At]);
+    if (inc.Transfer_Start)     tlRows.push(['Transfer start', inc.Transfer_Start]);
+    if (inc.Hospital_Arrival)   tlRows.push(['Hospital arrival', inc.Hospital_Arrival]);
+    if (inc.Handover)           tlRows.push(['Handover', inc.Handover]);
+    if (inc.Closed_At)          tlRows.push(['Closed', inc.Closed_At]);
+
+    card.innerHTML =
+      '<div class="inc-head">'
+      +   '<div>'
+      +     '<div class="id-line">' + idShort + '</div>'
+      +     '<div class="where">' + where + '</div>'
+      +     '<div style="font-size:12px; color:var(--text-muted);">'
+      +       (inc.Type || '—') + ' · ' + (inc.Unit || '—') + ' (' + (inc.Shift || '—') + ')'
+      +     '</div>'
+      +   '</div>'
+      +   '<div class="timer" data-start="' + startMs + '">⏱ 0:00</div>'
+      + '</div>'
+      + '<dl class="inc-meta">'
+      +   '<dt>Category</dt><dd>' + (inc.Category || '—') + '</dd>'
+      +   '<dt>Case</dt><dd>' + (inc.Case || '—') + '</dd>'
+      +   '<dt>Location</dt><dd>' + (inc.Location || inc.Zone || '—') + '</dd>'
+      +   (inc.Source ? '<dt>Source</dt><dd>' + inc.Source + '</dd>' : '')
+      + '</dl>'
+      + (isClosed ? '' :
+          '<div class="section-label">Status</div>'
+        + '<div class="btn-row">'
+        +   statusBtn('En route', 'en_route', inc.En_Route_At)
+        +   statusBtn('On scene', 'on_scene', inc.On_Scene_At)
+        +   statusBtn('Pt contact', 'patient_contact', inc.Patient_Contact_At)
+        + '</div>')
+      + decisionsRow
+      + (tlRows.length ?
+          '<div class="section-label">Timeline</div>'
+        + '<div class="timeline">'
+        + tlRows.map(r => '<div class="timeline-row"><span class="ev">' + r[0] + '</span><span class="at">' + formatTimeShort(r[1]) + '</span></div>').join('')
+        + '</div>' : '');
+
+    // Wire status buttons
+    card.querySelectorAll('[data-event]').forEach(btn => {
+      btn.addEventListener('click', () => recordEvent(inc.Incident_ID, btn.dataset.event));
+    });
+    // Wire decision buttons
+    card.querySelectorAll('[data-decide]').forEach(btn => {
+      btn.addEventListener('click', () => openQpcr(inc, btn.dataset.decide));
+    });
+
+    return card;
+  }
+
+  function formatTimeShort(t) {
+    if (!t) return '—';
+    const d = new Date(t);
+    return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+
+  // Live timer tick
+  setInterval(() => {
+    document.querySelectorAll('.timer[data-start]').forEach(el => {
+      const start = parseInt(el.dataset.start, 10);
+      if (!start) return;
+      const ms = Date.now() - start;
+      const m = Math.floor(ms / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      el.textContent = '⏱ ' + m + ':' + String(s).padStart(2,'0');
+    });
+  }, 1000);
+
+  async function recordEvent(incidentId, eventType) {
+    const r = await HAJJ.authedCall('dispatch_event', {
+      incident_id: incidentId,
+      event_type: eventType
+    });
+    if (r && r.ok) refresh();
+  }
+
+  // ============ Q-PCR modal ============
+  let pendingClose = null; // { incident, decision }
+
+  function openQpcr(incident, decision) {
+    pendingClose = { incident: incident, decision: decision };
+    document.getElementById('qpcrIncId').textContent =
+      (incident.Incident_ID || '').replace(/^INC-/, '').slice(0, 18);
+    document.getElementById('qpcrUnit').value = incident.Unit || '';
+    document.getElementById('qpcrComplaint').value = incident.Case || '';
+    const dispoMap = { 'Treat': 'Discharged', 'Transfer': 'Transferred', 'Refusal': 'Refused' };
+    document.getElementById('qpcrDispo').value = dispoMap[decision] || decision;
+
+    // Pre-fill acuity from category
+    const catToAcuity = { 'resus': 'critical', 'urgent': 'urgent', 'less': 'standard' };
+    document.getElementById('qpcrAcuity').value = catToAcuity[(incident.Category || '').toLowerCase()] || '';
+
+    document.getElementById('qpcrMsg').innerHTML = '';
+    document.getElementById('qpcrModal').hidden = false;
+  }
+
+  function closeQpcrModal() {
+    document.getElementById('qpcrModal').hidden = true;
+    pendingClose = null;
+    ['qpcrPatientId','qpcrAge','qpcrComplaint','qpcrUnit','qpcrNotes'].forEach(id => document.getElementById(id).value = '');
+    ['qpcrGender','qpcrAcuity'].forEach(id => document.getElementById(id).value = '');
+  }
+
+  document.getElementById('qpcrCancel').addEventListener('click', closeQpcrModal);
+
+  document.getElementById('qpcrSkip').addEventListener('click', async function () {
+    if (!pendingClose) return;
+    await HAJJ.authedCall('dispatch_close', {
+      incident_id: pendingClose.incident.Incident_ID,
+      decision: pendingClose.decision
+    });
+    closeQpcrModal();
+    refresh();
+  });
+
+  document.getElementById('qpcrSubmit').addEventListener('click', async function () {
+    if (!pendingClose) return;
+    const inc = pendingClose.incident;
+    const dec = pendingClose.decision;
+
+    const payload = {
+      action: 'submit_qpcr',
+      incident_id: inc.Incident_ID,
+      patient_id: val('qpcrPatientId') || ('PT-' + Date.now().toString().slice(-6)),
+      age: val('qpcrAge'),
+      gender: val('qpcrGender'),
+      complaint: val('qpcrComplaint') || inc.Case || '',
+      acuity: val('qpcrAcuity') || (inc.Category || '').toLowerCase(),
+      disposition: document.getElementById('qpcrDispo').value,
+      treating_unit: val('qpcrUnit') || inc.Unit || '',
+      station: inc.Station || inc.Zone || '',
+      notes: val('qpcrNotes'),
+      submitter_nid: (HAJJ.getUser() || {}).nid || '',
+      submitter_name: (HAJJ.getUser() || {}).name || ''
+    };
+
+    document.getElementById('qpcrMsg').innerHTML =
+      '<div class="notice notice--info"><span class="spinner"></span>&nbsp;Filing Q-PCR…</div>';
+
+    // 1. Submit to DCH's PCR script (if configured)
+    const pcrResult = await HAJJ.pcrCall('POST', payload);
+
+    // 2. Tell our backend the dispatch is closed (and link the Q-PCR ID if we got one)
+    const closeResult = await HAJJ.authedCall('dispatch_close', {
+      incident_id: inc.Incident_ID,
+      decision: dec
+    });
+
+    // 3. Also record Q-PCR locally in our backend (paper trail / fallback)
+    await HAJJ.authedCall('qpcr_submit', payload);
+
+    if (pcrResult && pcrResult.ok === false && pcrResult.error === 'pcr_not_configured') {
+      document.getElementById('qpcrMsg').innerHTML =
+        '<div class="notice notice--warn">Q-PCR saved to backup only — DCH script URL not set in config.js. Tell Ahmed.</div>';
+      setTimeout(closeQpcrModal, 1500);
+    } else if (pcrResult && pcrResult.ok) {
+      document.getElementById('qpcrMsg').innerHTML =
+        '<div class="notice notice--success">Filed. Encounter ' + (pcrResult.encounter_id || '—') + '</div>';
+      setTimeout(closeQpcrModal, 800);
+    } else {
+      document.getElementById('qpcrMsg').innerHTML =
+        '<div class="notice notice--error">Q-PCR send failed. Card closed; the row stayed in our backend backup.</div>';
+      setTimeout(closeQpcrModal, 1800);
+    }
+
+    refresh();
+  });
+
+})();
+</script>
+
+</body>
+</html>
