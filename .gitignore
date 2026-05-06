@@ -10,3 +10,9 @@ node_modules/
 # v11.8 work directories — local outputs only
 mob_v118/
 v118_check/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
