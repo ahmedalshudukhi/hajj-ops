@@ -1,0 +1,28 @@
+# Files NOT to deploy as static assets.
+# Patterns work like .gitignore.
+
+# Worker entry point — declared via wrangler.jsonc "main", must NOT also ship as asset
+_worker.js
+
+# Wrangler / build / VCS internals
+.git/
+.github/
+.wrangler/
+.assetsignore
+wrangler.jsonc
+node_modules/
+package.json
+package-lock.json
+
+# Build-time only, not for serving
+*.py
+__pycache__/
+*.pyc
+requirements.txt
+backend/
+
+# Local artifacts
+.DS_Store
+.gitignore
+mob_v118/
+v118_check/
