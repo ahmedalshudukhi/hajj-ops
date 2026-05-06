@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#0f172a">
+<title>Q-PCR · Hajj 2026</title>
+<link rel="stylesheet" href="assets/style.css">
+
+<style>
+  /* qpcr-specific */
+  .me-strip {
+    background: var(--surface-2);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 13px;
+  }
+  .me-strip strong { color: var(--text); }
+
+  .form-section { margin-bottom: 14px; }
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  }
+  .grid-3 {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+  }
+  @media (max-width: 380px) { .grid-3 { grid-template-columns: 1fr 1fr; } }
+
+  .vitals-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  }
+  .vitals-grid .full { grid-column: 1 / -1; }
+  @media (max-width: 380px) { .vitals-grid { grid-template-columns: 1fr 1fr; } }
+
+  .input--small { padding: 10px 12px; font-size: 14px; min-height: 42px; }
+
+  .check-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  }
+  .check-pill {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    cursor: pointer;
+    font-size: 14px;
+    user-select: none;
+  }
+  .check-pill input { width: 18px; height: 18px; accent-color: var(--success); cursor: pointer; }
+  .check-pill.is-on {
+    border-color: var(--success);
+    background: rgba(34, 197, 94, 0.08);
+    color: #86efac;
+  }
+
+  .radio-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+  }
+  @media (max-width: 480px) { .radio-row { grid-template-columns: 1fr 1fr; } }
+  .radio-tile {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 8px;
+    text-align: center;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    user-select: none;
+  }
+  .radio-tile input { display: none; }
+  .radio-tile.is-on  { border-color: var(--success); background: rgba(34,197,94,0.10); color: #86efac; }
+  .radio-tile.is-on--blue   { border-color: var(--info); background: rgba(59,130,246,0.10); color: #93c5fd; }
+  .radio-tile.is-on--amber  { border-color: var(--warning); background: rgba(245,158,11,0.10); color: #fcd34d; }
+  .radio-tile.is-on--red    { border-color: var(--danger); background: rgba(239,68,68,0.10); color: #fca5a5; }
+
+  .conditional { display: none; }
+  .conditional.is-shown { display: block; }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <div class="app-header">
+    <div>
+      <h1>Q-PCR</h1>
+      <div class="sub">Patient care report · Hajj 2026</div>
+    </div>
+    <button class="btn btn--ghost btn--auto-width btn--small" id="logoutBtn">Sign out</button>
+  </div>
+
+  <div class="me-strip">
+    <span><strong id="meName">—</strong> · <span id="meCallsign">—</span></span>
+    <a href="me.html" style="color: var(--text-muted); text-decoration: none; font-size: 12px;">← Back</a>
+  </div>
+
+  <form id="qpcrForm" autocomplete="off" novalidate>
+
+    <!-- ========== Encounter ========== -->
+    <div class="card">
+      <div class="card-title">Encounter</div>
+      <div class="form-section grid-2">
+        <input class="input input--small" id="incidentId" placeholder="Incident ID (optional)">
+        <input class="input input--small" id="station" placeholder="Station">
+      </div>
+    </div>
+
+    <!-- ========== Patient ========== -->
+    <div class="card">
+      <div class="card-title">Patient</div>
+      <div class="form-section grid-2">
+        <input class="input input--small" id="patientId" placeholder="Patient ID (auto)">
+        <input class="input input--small" id="nationality" placeholder="Nationality">
+        <input class="input input--small" id="age" type="number" inputmode="numeric" placeholder="Age">
+        <select class="select input--small" id="gender">
+          <option value="">Gender</option>
+          <option value="M">Male</option>
+          <option value="F">Female</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- ========== Presentation ========== -->
+    <div class="card">
+      <div class="card-title">Presentation</div>
+      <div class="form-section">
+        <div class="field">
+          <label class="label">Chief complaint *</label>
+          <input class="input input--small" id="complaint" placeholder="e.g. chest pain, syncope, trauma">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label class="label">Acuity *</label>
+          <div class="radio-row">
+            <label class="radio-tile" data-acuity="critical"><input type="radio" name="acuity" value="critical">Critical</label>
+            <label class="radio-tile" data-acuity="urgent"><input type="radio" name="acuity" value="urgent">Urgent</label>
+            <label class="radio-tile" data-acuity="standard"><input type="radio" name="acuity" value="standard">Standard</label>
+            <label class="radio-tile" data-acuity="minor"><input type="radio" name="acuity" value="minor">Minor</label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== Vitals (optional) ========== -->
+    <div class="card">
+      <div class="card-title">Vitals (optional)</div>
+      <div class="vitals-grid">
+        <input class="input input--small" id="hr" type="number" inputmode="numeric" placeholder="HR">
+        <input class="input input--small" id="bpSys" type="number" inputmode="numeric" placeholder="BP sys">
+        <input class="input input--small" id="bpDia" type="number" inputmode="numeric" placeholder="BP dia">
+        <input class="input input--small" id="spo2" type="number" inputmode="numeric" placeholder="SpO2 %">
+        <input class="input input--small" id="temp" type="number" inputmode="decimal" step="0.1" placeholder="Temp °C">
+        <input class="input input--small" id="gcs" type="number" inputmode="numeric" min="3" max="15" placeholder="GCS">
+      </div>
+    </div>
+
+    <!-- ========== Interventions ========== -->
+    <div class="card">
+      <div class="card-title">Interventions</div>
+      <div class="check-grid">
+        <label class="check-pill" data-int="O2"><input type="checkbox" value="O2">Oxygen</label>
+        <label class="check-pill" data-int="IV"><input type="checkbox" value="IV">IV access</label>
+        <label class="check-pill" data-int="Meds"><input type="checkbox" value="Meds">Medications</label>
+        <label class="check-pill" data-int="Splint"><input type="checkbox" value="Splint">Splint</label>
+        <label class="check-pill" data-int="Dressing"><input type="checkbox" value="Dressing">Dressing</label>
+        <label class="check-pill" data-int="Monitor"><input type="checkbox" value="Monitor">Monitor</label>
+        <label class="check-pill" data-int="CPR"><input type="checkbox" value="CPR">CPR</label>
+        <label class="check-pill" data-int="None"><input type="checkbox" value="None">None</label>
+      </div>
+    </div>
+
+    <!-- ========== Disposition ========== -->
+    <div class="card">
+      <div class="card-title">Disposition *</div>
+      <div class="radio-row">
+        <label class="radio-tile" data-dispo="Discharged">     <input type="radio" name="dispo" value="Discharged">Treated · Released</label>
+        <label class="radio-tile" data-dispo="Transferred">    <input type="radio" name="dispo" value="Transferred">Transferred</label>
+        <label class="radio-tile" data-dispo="Refused">        <input type="radio" name="dispo" value="Refused">Refused</label>
+        <label class="radio-tile" data-dispo="DOA">            <input type="radio" name="dispo" value="DOA">DOA</label>
+      </div>
+
+      <div class="conditional" id="transferDestWrap" style="margin-top:12px;">
+        <label class="label">Transfer destination</label>
+        <input class="input input--small" id="transferDest" placeholder="Receiving hospital">
+      </div>
+    </div>
+
+    <!-- ========== Notes ========== -->
+    <div class="card">
+      <div class="card-title">Notes</div>
+      <textarea class="textarea" id="notes" rows="3" placeholder="Optional clinical notes"></textarea>
+    </div>
+
+    <div id="msg"></div>
+
+    <button class="btn" id="submitBtn" type="submit">File Q-PCR</button>
+
+  </form>
+
+  <div class="card" id="successCard" hidden style="margin-top:12px; text-align:center;">
+    <div class="card-title">Filed</div>
+    <div style="font-size:18px; font-weight:600; margin-bottom:6px;">Encounter <span id="successId" class="num">—</span></div>
+    <div style="color:var(--text-muted); font-size:12px; margin-bottom:14px;">Saved to clinical record.</div>
+    <button class="btn btn--ghost" id="anotherBtn">File another</button>
+  </div>
+
+</div>
+
+<script src="assets/config.js"></script>
+<script src="assets/auth.js"></script>
+<script>
+(function () {
+
+  if (!HAJJ.requireAuth()) return;
+
+  const user = HAJJ.getUser() || {};
+  document.getElementById('meName').textContent = user.name || '—';
+  document.getElementById('meCallsign').textContent =
+    [user.role, user.callsign].filter(Boolean).join(' · ') || '—';
+  document.getElementById('logoutBtn').addEventListener('click', HAJJ.logout);
+
+  // Pre-fill station from user assignment
+  document.getElementById('station').value = user.station || '';
+
+  // ============ Tile selection (acuity + dispo) ============
+  document.querySelectorAll('.radio-tile').forEach(tile => {
+    tile.addEventListener('click', function () {
+      const input = tile.querySelector('input');
+      if (!input) return;
+      // Clear siblings within the same name group
+      const name = input.name;
+      document.querySelectorAll('input[name="' + name + '"]').forEach(i => {
+        const t = i.closest('.radio-tile');
+        t.classList.remove('is-on', 'is-on--blue', 'is-on--amber', 'is-on--red');
+      });
+      input.checked = true;
+      // Color depending on group + value
+      let cls = 'is-on';
+      if (name === 'acuity') {
+        if (input.value === 'critical') cls = 'is-on--red';
+        else if (input.value === 'urgent') cls = 'is-on--amber';
+        else if (input.value === 'minor') cls = 'is-on';
+        else cls = 'is-on--blue';
+      } else if (name === 'dispo') {
+        if (input.value === 'Transferred') cls = 'is-on--blue';
+        else if (input.value === 'Refused') cls = 'is-on--amber';
+        else if (input.value === 'DOA') cls = 'is-on--red';
+      }
+      tile.classList.add(cls);
+
+      // Show/hide transfer destination
+      if (name === 'dispo') {
+        const wrap = document.getElementById('transferDestWrap');
+        if (input.value === 'Transferred') wrap.classList.add('is-shown');
+        else wrap.classList.remove('is-shown');
+      }
+    });
+  });
+
+  // ============ Intervention pills ============
+  document.querySelectorAll('.check-pill').forEach(pill => {
+    pill.addEventListener('click', function (e) {
+      // Avoid double-toggle when clicking the input directly
+      if (e.target.tagName === 'INPUT') {
+        pill.classList.toggle('is-on', e.target.checked);
+        return;
+      }
+      const cb = pill.querySelector('input');
+      cb.checked = !cb.checked;
+      pill.classList.toggle('is-on', cb.checked);
+
+      // "None" is exclusive
+      if (cb.value === 'None' && cb.checked) {
+        document.querySelectorAll('.check-pill').forEach(p => {
+          if (p === pill) return;
+          const c = p.querySelector('input');
+          c.checked = false; p.classList.remove('is-on');
+        });
+      } else if (cb.checked && cb.value !== 'None') {
+        const noneCb = document.querySelector('.check-pill input[value="None"]');
+        if (noneCb && noneCb.checked) {
+          noneCb.checked = false;
+          noneCb.closest('.check-pill').classList.remove('is-on');
+        }
+      }
+    });
+  });
+
+  // ============ Submit ============
+  const form = document.getElementById('qpcrForm');
+  const submitBtn = document.getElementById('submitBtn');
+  const msgEl = document.getElementById('msg');
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    msgEl.innerHTML = '';
+
+    const complaint = val('complaint');
+    const acuity = (document.querySelector('input[name="acuity"]:checked') || {}).value;
+    const dispo = (document.querySelector('input[name="dispo"]:checked') || {}).value;
+
+    if (!complaint) { showErr('Chief complaint is required.'); return; }
+    if (!acuity)    { showErr('Pick an acuity.'); return; }
+    if (!dispo)     { showErr('Pick a disposition.'); return; }
+
+    const interventions = Array.from(document.querySelectorAll('.check-pill input:checked'))
+      .map(i => i.value).join(', ');
+
+    const payload = {
+      patient_id:    val('patientId') || ('PT-' + Date.now().toString().slice(-6)),
+      age:           val('age'),
+      gender:        val('gender'),
+      nationality:   val('nationality'),
+      complaint:     complaint,
+      acuity:        acuity,
+      hr:            val('hr'),
+      bp_systolic:   val('bpSys'),
+      bp_diastolic:  val('bpDia'),
+      spo2:          val('spo2'),
+      temp:          val('temp'),
+      gcs:           val('gcs'),
+      interventions: interventions,
+      disposition:   dispo,
+      transfer_dest: dispo === 'Transferred' ? val('transferDest') : '',
+      treating_unit: user.unit || user.callsign || '',
+      station:       val('station') || user.station || '',
+      incident_id:   val('incidentId'),
+      notes:         val('notes'),
+      submitter_nid:  user.nid || '',
+      submitter_name: user.name || ''
+    };
+
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner"></span>&nbsp;&nbsp;Filing…';
+
+    // 1. Submit to DCH's PCR script
+    const pcrResult = await HAJJ.pcrCall('POST', payload);
+    // 2. Submit a backup copy to our backend (full audit trail)
+    await HAJJ.authedCall('qpcr_submit', payload);
+
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = 'File Q-PCR';
+
+    if (pcrResult && pcrResult.ok) {
+      showSuccess(pcrResult.encounter_id || '—');
+    } else if (pcrResult && pcrResult.error === 'pcr_not_configured') {
+      showWarn('Filed to backup. Ask Ahmed to configure DCH script URL.');
+    } else {
+      showErr('Submission failed: ' + (pcrResult && pcrResult.error || 'unknown') + '. Filed to backup; reach OCC if patient is critical.');
+    }
+  });
+
+  function val(id) {
+    const el = document.getElementById(id);
+    return el ? String(el.value || '').trim() : '';
+  }
+  function showErr(text) {
+    msgEl.innerHTML = '<div class="notice notice--error">' + text + '</div>';
+  }
+  function showWarn(text) {
+    msgEl.innerHTML = '<div class="notice notice--warn">' + text + '</div>';
+  }
+  function showSuccess(encounterId) {
+    msgEl.innerHTML = '';
+    document.getElementById('successId').textContent = encounterId;
+    document.getElementById('qpcrForm').hidden = true;
+    document.getElementById('successCard').hidden = false;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  document.getElementById('anotherBtn').addEventListener('click', function () {
+    document.getElementById('qpcrForm').reset();
+    document.querySelectorAll('.radio-tile').forEach(t =>
+      t.classList.remove('is-on', 'is-on--blue', 'is-on--amber', 'is-on--red'));
+    document.querySelectorAll('.check-pill').forEach(p => p.classList.remove('is-on'));
+    document.getElementById('transferDestWrap').classList.remove('is-shown');
+    document.getElementById('station').value = user.station || '';
+    document.getElementById('successCard').hidden = true;
+    document.getElementById('qpcrForm').hidden = false;
+    msgEl.innerHTML = '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+})();
+</script>
+
+</body>
+</html>

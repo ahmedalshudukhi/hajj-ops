@@ -23,9 +23,7 @@
   .topbar .clock { font-variant-numeric: tabular-nums; font-weight: 600; }
 
   .stats {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
     padding: 12px 14px;
     background: var(--surface-2);
     border-bottom: 1px solid var(--border-soft);
@@ -34,8 +32,7 @@
     background: var(--bg);
     border: 1px solid var(--border-soft);
     border-radius: var(--radius-sm);
-    padding: 8px 10px;
-    text-align: center;
+    padding: 8px 10px; text-align: center;
   }
   .stat-num { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
   .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-top: 2px; }
@@ -52,28 +49,15 @@
     padding: 14px;
   }
   .form-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
   }
   .form-grid .full { grid-column: 1 / -1; }
-  @media (max-width: 480px) {
-    .form-grid { grid-template-columns: 1fr; }
-  }
+  @media (max-width: 480px) { .form-grid { grid-template-columns: 1fr; } }
+  .form-card .input, .form-card .select { padding: 10px 12px; font-size: 14px; min-height: 42px; }
 
-  .form-card .input, .form-card .select {
-    padding: 10px 12px;
-    font-size: 14px;
-    min-height: 42px;
-  }
-
-  .cards-area {
-    padding: 0 14px 80px;
-  }
+  .cards-area { padding: 0 14px 80px; }
   .cards-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 12px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px;
   }
 
   .inc-card {
@@ -81,8 +65,7 @@
     border: 1px solid var(--border-soft);
     border-radius: var(--radius);
     padding: 14px;
-    border-left-width: 4px;
-    border-left-style: solid;
+    border-left-width: 4px; border-left-style: solid;
   }
   .inc-card.cat-resus  { border-left-color: var(--danger); }
   .inc-card.cat-urgent { border-left-color: var(--warning); }
@@ -93,9 +76,7 @@
     display: flex; justify-content: space-between; align-items: flex-start;
     gap: 10px; margin-bottom: 10px;
   }
-  .inc-head .id-line {
-    font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);
-  }
+  .inc-head .id-line { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
   .inc-head .where {
     margin-top: 2px; font-size: 16px; font-weight: 700; line-height: 1.2;
     letter-spacing: -0.01em;
@@ -138,17 +119,13 @@
   .timeline-row .ev { color: var(--text-dim); }
   .timeline-row .at { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
-  .empty-cards {
-    text-align: center; color: var(--text-muted); font-size: 14px;
-    padding: 40px 20px;
-  }
+  .empty-cards { text-align: center; color: var(--text-muted); font-size: 14px; padding: 40px 20px; }
 
   .floater {
     position: fixed; bottom: 16px; right: 16px;
     background: var(--surface-2); padding: 6px 10px; border-radius: 999px;
     font-size: 11px; color: var(--text-muted);
-    border: 1px solid var(--border-soft);
-    z-index: 5;
+    border: 1px solid var(--border-soft); z-index: 5;
   }
   .floater .dot {
     display: inline-block; width: 8px; height: 8px; border-radius: 50%;
@@ -178,13 +155,13 @@
     <div class="stat-num" id="statResus">0</div>
     <div class="stat-label">Resus</div>
   </div>
+  <div class="stat stat--blue">
+    <div class="stat-num" id="statTransfer">0</div>
+    <div class="stat-label">In transfer</div>
+  </div>
   <div class="stat stat--green">
     <div class="stat-num" id="statClosed">0</div>
     <div class="stat-label">Closed today</div>
-  </div>
-  <div class="stat stat--blue">
-    <div class="stat-num" id="statQPCR">0</div>
-    <div class="stat-label">Q-PCR filed</div>
   </div>
 </div>
 
@@ -204,7 +181,7 @@
     <input class="input" id="source" placeholder="Source (caller, walk-in…)">
     <input class="input" id="location" placeholder="Specific location">
     <input class="input" id="caseField" placeholder="Case (chief complaint)">
-    <input class="input" id="unit" placeholder="Unit code">
+    <input class="input" id="unit" placeholder="Unit assigned">
     <select class="select" id="type">
       <option>Alpha</option>
       <option>Romeo</option>
@@ -219,7 +196,7 @@
       <option value="urgent" selected>Urgent</option>
       <option value="less">Less Urgent</option>
     </select>
-    <button class="btn full" id="createBtn">Create incident</button>
+    <button class="btn full" id="createBtn">Dispatch</button>
   </div>
   <div id="createMsg" style="margin-top:8px;"></div>
 </div>
@@ -231,44 +208,6 @@
 </div>
 
 <div class="floater"><span class="dot"></span><span id="syncStatus">Live · syncing every 5s</span></div>
-
-<!-- Q-PCR modal -->
-<div class="modal-backdrop" id="qpcrModal" hidden>
-  <div class="modal">
-    <div class="modal-header">
-      <h2>Q-PCR <span id="qpcrIncId" style="color:var(--text-muted); font-size:12px; font-family:var(--font-mono);"></span></h2>
-      <button class="modal-close" id="qpcrCancel">×</button>
-    </div>
-
-    <div class="form-grid">
-      <input class="input" id="qpcrPatientId" placeholder="Patient ID (auto if blank)">
-      <input class="input" id="qpcrAge" type="number" inputmode="numeric" placeholder="Age">
-      <select class="select" id="qpcrGender">
-        <option value="">Gender</option>
-        <option value="M">Male</option>
-        <option value="F">Female</option>
-      </select>
-      <select class="select" id="qpcrAcuity">
-        <option value="">Acuity</option>
-        <option value="critical">Critical</option>
-        <option value="urgent">Urgent</option>
-        <option value="standard">Standard</option>
-        <option value="minor">Minor</option>
-      </select>
-      <input class="input full" id="qpcrComplaint" placeholder="Chief complaint">
-      <input class="input" id="qpcrUnit" placeholder="Treating unit">
-      <input class="input" id="qpcrDispo" readonly placeholder="Disposition" style="opacity:0.7;">
-      <textarea class="textarea full" id="qpcrNotes" placeholder="Notes (optional)"></textarea>
-    </div>
-
-    <div id="qpcrMsg" style="margin: 10px 0 0;"></div>
-
-    <div class="btn-row" style="margin-top:14px;">
-      <button class="btn btn--ghost" id="qpcrSkip">Close without Q-PCR</button>
-      <button class="btn" id="qpcrSubmit">File Q-PCR &amp; close</button>
-    </div>
-  </div>
-</div>
 
 <script src="assets/config.js"></script>
 <script src="assets/auth.js"></script>
@@ -324,29 +263,18 @@
     if (!caseField)       { showCreateErr('Enter the case / chief complaint.'); return; }
 
     createBtn.disabled = true;
-    createBtn.innerHTML = '<span class="spinner"></span>&nbsp;&nbsp;Creating…';
+    createBtn.innerHTML = '<span class="spinner"></span>&nbsp;&nbsp;Dispatching…';
 
     const r = await HAJJ.authedCall('dispatch_create', {
-      region: region,
-      zone: zone,
-      station: zone,
-      source: source,
-      location: location,
-      case_field: caseField,
-      unit: unit,
-      type: type,
-      shift: shift,
-      category: category
+      region: region, zone: zone, station: zone,
+      source: source, location: location, case_field: caseField,
+      unit: unit, type: type, shift: shift, category: category
     });
 
     createBtn.disabled = false;
-    createBtn.innerHTML = 'Create incident';
+    createBtn.innerHTML = 'Dispatch';
 
-    if (!r || !r.ok) {
-      showCreateErr('Failed to create. ' + (r && r.error || ''));
-      return;
-    }
-    // Clear form
+    if (!r || !r.ok) { showCreateErr('Failed to dispatch. ' + (r && r.error || '')); return; }
     ['source','location','caseField','unit'].forEach(id => document.getElementById(id).value = '');
     regionEl.value = ''; zoneEl.innerHTML = '<option value="">Zone / Station</option>';
     refresh();
@@ -359,19 +287,16 @@
 
   // ============ Live sync ============
   const incidentsById = {};
-  let lastSync = null;
 
   async function refresh() {
     const r = await HAJJ.authedCall('dispatch_list');
     if (!r || !r.ok) return;
-    lastSync = new Date();
     const list = r.incidents || [];
     list.sort((a, b) => new Date(b.Created_At) - new Date(a.Created_At));
     list.forEach(inc => incidentsById[inc.Incident_ID] = inc);
     renderCards();
     renderStats();
   }
-
   setInterval(refresh, 5000);
   refresh();
 
@@ -381,30 +306,25 @@
     grid.innerHTML = '';
     const items = Object.values(incidentsById)
       .sort((a, b) => new Date(b.Created_At) - new Date(a.Created_At));
-
-    if (!items.length) {
-      document.getElementById('emptyState').hidden = false;
-      return;
-    }
+    if (!items.length) { document.getElementById('emptyState').hidden = false; return; }
     document.getElementById('emptyState').hidden = true;
-
     items.forEach(inc => grid.appendChild(buildCard(inc)));
   }
 
   function renderStats() {
     const items = Object.values(incidentsById);
     const today = new Date(); today.setHours(0,0,0,0);
-    let open = 0, closedToday = 0, resus = 0, qpcrFiled = 0;
+    let open = 0, closedToday = 0, resus = 0, inTransfer = 0;
     items.forEach(i => {
       if (i.Status === 'open') open++;
-      if (i.Status === 'closed' && new Date(i.Closed_At) >= today) closedToday++;
+      if (i.Status === 'closed' && i.Closed_At && new Date(i.Closed_At) >= today) closedToday++;
       if ((i.Category || '').toLowerCase() === 'resus' && i.Status === 'open') resus++;
-      if (i.Q_PCR_ID) qpcrFiled++;
+      if (i.Status === 'open' && i.Transfer_Start && !i.Closed_At) inTransfer++;
     });
     document.getElementById('statOpen').textContent = open;
     document.getElementById('statResus').textContent = resus;
+    document.getElementById('statTransfer').textContent = inTransfer;
     document.getElementById('statClosed').textContent = closedToday;
-    document.getElementById('statQPCR').textContent = qpcrFiled;
   }
 
   function buildCard(inc) {
@@ -424,14 +344,28 @@
     };
 
     const isClosed = inc.Status === 'closed';
-    const decisionsRow = isClosed
-      ? '<div class="section-label">Closed: ' + (inc.Decision || '—') + '</div>'
-      : '<div class="section-label">Decision</div>'
-      + '<div class="btn-row">'
-      + '<button class="btn btn--small" data-decide="Treat">Treat</button>'
-      + '<button class="btn btn--blue btn--small" data-decide="Transfer">Transfer</button>'
-      + '<button class="btn btn--red btn--small" data-decide="Refusal">Refusal</button>'
-      + '</div>';
+    const inTransfer = !!inc.Transfer_Start && !isClosed;
+
+    let decisionHtml;
+    if (isClosed) {
+      decisionHtml = '<div class="section-label">Closed: ' + (inc.Decision || '—') + '</div>';
+    } else if (inTransfer) {
+      decisionHtml = '<div class="section-label">Transfer in progress</div>'
+        + '<div class="btn-row">'
+        +   statusBtn('Hospital arrival', 'hospital_arrival', inc.Hospital_Arrival)
+        +   statusBtn('Handover',          'handover',         inc.Handover)
+        + '</div>'
+        + '<div class="btn-row">'
+        +   '<button class="btn btn--small" data-decide="Transfer">Complete transfer</button>'
+        + '</div>';
+    } else {
+      decisionHtml = '<div class="section-label">Disposition</div>'
+        + '<div class="btn-row">'
+        +   '<button class="btn btn--small" data-decide="Treat">Treat</button>'
+        +   '<button class="btn btn--blue btn--small" data-transfer="1">Transfer</button>'
+        +   '<button class="btn btn--red btn--small" data-decide="Refusal">Refusal</button>'
+        + '</div>';
+    }
 
     const tlRows = [];
     if (inc.Created_At)         tlRows.push(['Dispatched', inc.Created_At]);
@@ -467,20 +401,21 @@
         +   statusBtn('On scene', 'on_scene', inc.On_Scene_At)
         +   statusBtn('Pt contact', 'patient_contact', inc.Patient_Contact_At)
         + '</div>')
-      + decisionsRow
+      + decisionHtml
       + (tlRows.length ?
           '<div class="section-label">Timeline</div>'
         + '<div class="timeline">'
         + tlRows.map(r => '<div class="timeline-row"><span class="ev">' + r[0] + '</span><span class="at">' + formatTimeShort(r[1]) + '</span></div>').join('')
         + '</div>' : '');
 
-    // Wire status buttons
     card.querySelectorAll('[data-event]').forEach(btn => {
       btn.addEventListener('click', () => recordEvent(inc.Incident_ID, btn.dataset.event));
     });
-    // Wire decision buttons
     card.querySelectorAll('[data-decide]').forEach(btn => {
-      btn.addEventListener('click', () => openQpcr(inc, btn.dataset.decide));
+      btn.addEventListener('click', () => closeIncident(inc.Incident_ID, btn.dataset.decide));
+    });
+    card.querySelectorAll('[data-transfer]').forEach(btn => {
+      btn.addEventListener('click', () => recordEvent(inc.Incident_ID, 'transfer_start'));
     });
 
     return card;
@@ -492,7 +427,6 @@
     return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
   }
 
-  // Live timer tick
   setInterval(() => {
     document.querySelectorAll('.timer[data-start]').forEach(el => {
       const start = parseInt(el.dataset.start, 10);
@@ -506,103 +440,17 @@
 
   async function recordEvent(incidentId, eventType) {
     const r = await HAJJ.authedCall('dispatch_event', {
-      incident_id: incidentId,
-      event_type: eventType
+      incident_id: incidentId, event_type: eventType
     });
     if (r && r.ok) refresh();
   }
 
-  // ============ Q-PCR modal ============
-  let pendingClose = null; // { incident, decision }
-
-  function openQpcr(incident, decision) {
-    pendingClose = { incident: incident, decision: decision };
-    document.getElementById('qpcrIncId').textContent =
-      (incident.Incident_ID || '').replace(/^INC-/, '').slice(0, 18);
-    document.getElementById('qpcrUnit').value = incident.Unit || '';
-    document.getElementById('qpcrComplaint').value = incident.Case || '';
-    const dispoMap = { 'Treat': 'Discharged', 'Transfer': 'Transferred', 'Refusal': 'Refused' };
-    document.getElementById('qpcrDispo').value = dispoMap[decision] || decision;
-
-    // Pre-fill acuity from category
-    const catToAcuity = { 'resus': 'critical', 'urgent': 'urgent', 'less': 'standard' };
-    document.getElementById('qpcrAcuity').value = catToAcuity[(incident.Category || '').toLowerCase()] || '';
-
-    document.getElementById('qpcrMsg').innerHTML = '';
-    document.getElementById('qpcrModal').hidden = false;
-  }
-
-  function closeQpcrModal() {
-    document.getElementById('qpcrModal').hidden = true;
-    pendingClose = null;
-    ['qpcrPatientId','qpcrAge','qpcrComplaint','qpcrUnit','qpcrNotes'].forEach(id => document.getElementById(id).value = '');
-    ['qpcrGender','qpcrAcuity'].forEach(id => document.getElementById(id).value = '');
-  }
-
-  document.getElementById('qpcrCancel').addEventListener('click', closeQpcrModal);
-
-  document.getElementById('qpcrSkip').addEventListener('click', async function () {
-    if (!pendingClose) return;
-    await HAJJ.authedCall('dispatch_close', {
-      incident_id: pendingClose.incident.Incident_ID,
-      decision: pendingClose.decision
+  async function closeIncident(incidentId, decision) {
+    const r = await HAJJ.authedCall('dispatch_close', {
+      incident_id: incidentId, decision: decision
     });
-    closeQpcrModal();
-    refresh();
-  });
-
-  document.getElementById('qpcrSubmit').addEventListener('click', async function () {
-    if (!pendingClose) return;
-    const inc = pendingClose.incident;
-    const dec = pendingClose.decision;
-
-    const payload = {
-      action: 'submit_qpcr',
-      incident_id: inc.Incident_ID,
-      patient_id: val('qpcrPatientId') || ('PT-' + Date.now().toString().slice(-6)),
-      age: val('qpcrAge'),
-      gender: val('qpcrGender'),
-      complaint: val('qpcrComplaint') || inc.Case || '',
-      acuity: val('qpcrAcuity') || (inc.Category || '').toLowerCase(),
-      disposition: document.getElementById('qpcrDispo').value,
-      treating_unit: val('qpcrUnit') || inc.Unit || '',
-      station: inc.Station || inc.Zone || '',
-      notes: val('qpcrNotes'),
-      submitter_nid: (HAJJ.getUser() || {}).nid || '',
-      submitter_name: (HAJJ.getUser() || {}).name || ''
-    };
-
-    document.getElementById('qpcrMsg').innerHTML =
-      '<div class="notice notice--info"><span class="spinner"></span>&nbsp;Filing Q-PCR…</div>';
-
-    // 1. Submit to DCH's PCR script (if configured)
-    const pcrResult = await HAJJ.pcrCall('POST', payload);
-
-    // 2. Tell our backend the dispatch is closed (and link the Q-PCR ID if we got one)
-    const closeResult = await HAJJ.authedCall('dispatch_close', {
-      incident_id: inc.Incident_ID,
-      decision: dec
-    });
-
-    // 3. Also record Q-PCR locally in our backend (paper trail / fallback)
-    await HAJJ.authedCall('qpcr_submit', payload);
-
-    if (pcrResult && pcrResult.ok === false && pcrResult.error === 'pcr_not_configured') {
-      document.getElementById('qpcrMsg').innerHTML =
-        '<div class="notice notice--warn">Q-PCR saved to backup only — DCH script URL not set in config.js. Tell Ahmed.</div>';
-      setTimeout(closeQpcrModal, 1500);
-    } else if (pcrResult && pcrResult.ok) {
-      document.getElementById('qpcrMsg').innerHTML =
-        '<div class="notice notice--success">Filed. Encounter ' + (pcrResult.encounter_id || '—') + '</div>';
-      setTimeout(closeQpcrModal, 800);
-    } else {
-      document.getElementById('qpcrMsg').innerHTML =
-        '<div class="notice notice--error">Q-PCR send failed. Card closed; the row stayed in our backend backup.</div>';
-      setTimeout(closeQpcrModal, 1800);
-    }
-
-    refresh();
-  });
+    if (r && r.ok) refresh();
+  }
 
 })();
 </script>
