@@ -17,8 +17,11 @@
     padding-top: calc(10px + env(safe-area-inset-top));
     display: flex; align-items: center; justify-content: space-between;
     gap: 10px;
+    flex-wrap: wrap;
   }
   .topbar h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+  .topbar-left { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; min-width: 0; }
+  @media (max-width: 600px) { .topbar h1 { font-size: 14px; } }
   .topbar .live-dot {
     display: inline-block; width: 8px; height: 8px; border-radius: 50%;
     background: var(--success); margin-right: 6px;
@@ -26,6 +29,16 @@
   }
   .topbar .live { font-size: 11px; color: var(--text-muted); }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .nav-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 999px;
+    background: var(--bg); border: 1px solid var(--border-soft);
+    color: var(--text-dim); text-decoration: none;
+    font-size: 12px; font-weight: 500;
+    transition: background 0.15s, color 0.15s;
+  }
+  .nav-pill:hover { background: var(--surface-3); color: var(--text); }
+  .nav-strip { display: flex; gap: 6px; flex-wrap: wrap; }
 
   .content { padding: 12px 14px 80px; max-width: 1280px; margin: 0 auto; }
 
@@ -171,7 +184,14 @@
 <body>
 
 <div class="topbar">
-  <h1>Active Insights</h1>
+  <div class="topbar-left">
+    <h1>Active Insights</h1>
+    <div class="nav-strip" id="navStrip">
+      <a href="lobby.html" class="nav-pill">← Lobby</a>
+      <a href="dispatch.html" class="nav-pill">Dispatch</a>
+      <a href="me.html" class="nav-pill">My schedule</a>
+    </div>
+  </div>
   <div class="live"><span class="live-dot"></span><span id="liveText">Connecting…</span></div>
   <button class="btn btn--ghost btn--auto-width btn--small" id="logoutBtn">Sign out</button>
 </div>

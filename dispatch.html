@@ -17,10 +17,21 @@
     padding-top: calc(10px + env(safe-area-inset-top));
     display: flex; align-items: center; justify-content: space-between;
     gap: 10px;
+    flex-wrap: wrap;
   }
   .topbar .who { font-size: 13px; color: var(--text-dim); }
   .topbar .who strong { color: var(--text); font-weight: 600; }
   .topbar .clock { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .nav-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 999px;
+    background: var(--bg); border: 1px solid var(--border-soft);
+    color: var(--text-dim); text-decoration: none;
+    font-size: 12px; font-weight: 500;
+    transition: background 0.15s, color 0.15s;
+  }
+  .nav-pill:hover { background: var(--surface-3); color: var(--text); }
+  .nav-strip { display: flex; gap: 6px; flex-wrap: wrap; }
 
   .stats {
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
@@ -138,6 +149,11 @@
 <body>
 
 <div class="topbar">
+  <div class="nav-strip" id="navStrip">
+    <a href="lobby.html" class="nav-pill" id="navLobby" hidden>← Lobby</a>
+    <a href="me.html" class="nav-pill">My schedule</a>
+    <a href="active.html" class="nav-pill" id="navActive" hidden>Active insights</a>
+  </div>
   <div class="who">
     <strong id="dispName">—</strong>
     <span id="dispRole" class="badge" style="margin-left:6px;">—</span>
@@ -222,6 +238,12 @@
   rb.textContent = String(user.role || '').replace(/_/g, ' ');
   rb.className = 'badge ' + (user.role === 'admin' || user.role === 'leadership' ? 'badge--blue' : 'badge--amber');
   document.getElementById('logoutBtn').addEventListener('click', HAJJ.logout);
+
+  // Nav visibility — leadership/admin can see lobby + active; dispatcher just gets My schedule
+  if (user.role === 'leadership' || user.role === 'admin') {
+    document.getElementById('navLobby').hidden = false;
+    document.getElementById('navActive').hidden = false;
+  }
 
   // ============ Clock ============
   function tickClock() {
