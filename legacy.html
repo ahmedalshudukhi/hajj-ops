@@ -2433,7 +2433,7 @@ async function boot() {
     } else {
       const r = await fetch('./data.json?t=' + Date.now());
       DATA = await r.json();
-      window.__data = data;
+      window.__data = DATA;
       status('data loaded (fetch)');
     }
   } catch (e) {
