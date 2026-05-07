@@ -1,0 +1,3044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hajj 1447 — Operations Command</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg-deep: #0A0E1A; --bg-surface: #0F1729; --bg-elevated: #141E36;
+    --border: rgba(255,255,255,0.07); --border-strong: rgba(255,255,255,0.14);
+    --text: #E8E5E0; --text-dim: #8B92A4; --text-faint: #4A5266;
+    --amber: #D97706; --amber-glow: #F59E0B;
+    --teal: #0891B2; --teal-glow: #06B6D4;
+    --arf: #F59E0B; --muz: #10B981; --min: #8B5CF6;
+    --surge: #DC2626; --active: #F97316; --standby: #EAB308; --support: #3B82F6;
+    --vacant: #DC2626; --filled: #10B981;
+    --gradient-warm: linear-gradient(135deg, #D97706 0%, #B45309 100%);
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg-deep); color: var(--text); font-family: var(--font-sans);
+    font-size: 14px; line-height: 1.5; min-height: 100vh; overflow-x: hidden;
+    background-image:
+      radial-gradient(circle at 15% 0%, rgba(217,119,6,0.04) 0%, transparent 40%),
+      radial-gradient(circle at 85% 100%, rgba(8,145,178,0.04) 0%, transparent 40%);
+  }
+  .num, .kpi-value, .countdown-value, .movement-stat-value,
+  td, th, .day-num { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' /%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+    opacity: 0.025; pointer-events: none; z-index: 1;
+  }
+  .container { max-width: 1440px; margin: 0 auto; padding: 0 32px; position: relative; z-index: 2; }
+
+  #boot-status { position: fixed; top: 0; left: 0; right: 0; background: var(--vacant);
+    color: white; padding: 10px 20px; z-index: 99999; font-family: var(--font-mono); font-size: 12px;
+    display: none; }
+  #boot-status.show { display: block; }
+  #boot-status.success { background: var(--filled); }
+
+  .nav { position: sticky; top: 0; backdrop-filter: blur(24px) saturate(180%); background: rgba(10,14,26,0.85); border-bottom: 1px solid var(--border); z-index: 100; padding: 14px 0; }
+  .nav-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+  .nav-brand { display: flex; align-items: center; gap: 14px; }
+  .nav-brand-mark { width: 32px; height: 32px; background: var(--gradient-warm); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; color: #0A0E1A; box-shadow: 0 0 0 1px rgba(217,119,6,0.3), 0 8px 24px rgba(217,119,6,0.15); }
+  .nav-brand-text { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
+  .nav-brand-sub { color: var(--text-dim); font-size: 11px; font-family: var(--font-mono); margin-left: 8px; }
+  .nav-status { display: flex; align-items: center; gap: 8px; font-size: 11px; font-family: var(--font-mono); color: var(--text-dim); }
+  .nav-status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--filled); box-shadow: 0 0 8px var(--filled); animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.85); } }
+
+  .hero { padding: 40px 0 24px; }
+  .hero-eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--amber); margin-bottom: 14px; display: flex; align-items: center; gap: 12px; }
+  .hero-eyebrow::before { content: ''; width: 32px; height: 1px; background: var(--amber); }
+  .hero-title { font-weight: 600; font-size: clamp(28px, 3.6vw, 42px); line-height: 1.1; letter-spacing: -0.02em; margin-bottom: 10px; }
+  .hero-title .accent { color: var(--amber); font-weight: 600; }
+  .hero-subtitle { font-size: 14px; color: var(--text-dim); max-width: 720px; line-height: 1.6; }
+  .countdown-strip { display: grid; grid-template-columns: 1fr auto; align-items: end; margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--border); gap: 32px; }
+  .countdown-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; }
+  .countdown-value { font-weight: 300; font-size: 48px; line-height: 1; letter-spacing: -0.03em; }
+  .countdown-value-unit { font-size: 16px; color: var(--text-dim); margin-left: 12px; font-weight: 400; }
+  .countdown-detail { text-align: right; color: var(--text-dim); font-size: 12px; line-height: 1.7; }
+  .countdown-detail strong { color: var(--text); font-weight: 500; }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 28px; }
+  .kpi { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; position: relative; overflow: hidden; transition: all 0.2s; }
+  .kpi:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+  .kpi::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: var(--accent, var(--amber)); opacity: 0.6; }
+  .kpi[data-c="warm"] { --accent: var(--amber); }
+  .kpi[data-c="cool"] { --accent: var(--teal); }
+  .kpi[data-c="success"] { --accent: var(--filled); }
+  .kpi[data-c="warning"] { --accent: var(--standby); }
+  .kpi[data-c="danger"] { --accent: var(--vacant); }
+  .kpi[data-c="arf"] { --accent: var(--arf); }
+  .kpi[data-c="muz"] { --accent: var(--muz); }
+  .kpi[data-c="min"] { --accent: var(--min); }
+  .kpi-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; }
+  .kpi-value { font-weight: 500; font-size: 26px; line-height: 1; letter-spacing: -0.02em; }
+  .kpi-value.accent-color { color: var(--accent); }
+  .kpi-meta { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); margin-top: 5px; }
+  .kpi-meta strong { color: var(--accent, var(--amber)); font-weight: 500; }
+
+  .tabbar { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; padding: 6px; margin-top: 36px; display: flex; gap: 4px; overflow-x: auto; }
+  .tab-btn { background: transparent; color: var(--text-dim); border: none; padding: 9px 16px; border-radius: 6px; cursor: pointer; font-family: var(--font-sans); font-size: 12px; font-weight: 500; letter-spacing: 0.02em; white-space: nowrap; transition: all 0.15s; display: flex; align-items: center; gap: 8px; }
+  .tab-btn:hover { color: var(--text); background: var(--bg-elevated); }
+  .tab-btn.active { background: var(--bg-elevated); color: var(--amber); box-shadow: inset 0 0 0 1px rgba(217,119,6,0.3); }
+  .tab-btn-num { font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); }
+  .tab-btn.active .tab-btn-num { color: var(--amber); opacity: 0.7; }
+
+  .tab-panel { display: none; padding: 28px 0 16px; animation: tabIn 0.25s ease; }
+  .tab-panel.active { display: block; }
+  @keyframes tabIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 32px; margin-bottom: 24px; flex-wrap: wrap; }
+  .section-num { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); letter-spacing: 0.12em; }
+  .section-title { font-weight: 600; font-size: 26px; letter-spacing: -0.02em; line-height: 1.2; }
+  .section-title .accent { color: var(--amber); font-weight: 500; }
+  .section-blurb { color: var(--text-dim); font-size: 13px; max-width: 480px; text-align: right; line-height: 1.55; }
+
+  .day-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  .day-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 14px 12px; transition: all 0.15s; position: relative; overflow: hidden; }
+  .day-card:hover { border-color: var(--border-strong); }
+  .day-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--phase-color, var(--text-faint)); opacity: 0.7; }
+  .day-card[data-phase="Site Prep"] { --phase-color: #6366F1; }
+  .day-card[data-phase="Training"] { --phase-color: var(--standby); }
+  .day-card[data-phase*="Ops"] { --phase-color: var(--surge); }
+  .day-card[data-phase="Demob"] { --phase-color: #6B7280; }
+  .day-num { font-weight: 700; font-size: 20px; letter-spacing: -0.02em; line-height: 1; }
+  .day-num-label { font-size: 9px; color: var(--text-faint); font-family: var(--font-mono); letter-spacing: 0.15em; margin-left: 4px; }
+  .day-greg { font-size: 11px; color: var(--text-dim); margin-top: 6px; font-family: var(--font-mono); }
+  .day-phase { font-size: 10px; font-weight: 600; color: var(--phase-color, var(--text)); margin-top: 10px; padding: 2px 6px; border-radius: 3px; background: rgba(255,255,255,0.04); display: inline-block; letter-spacing: 0.04em; }
+  .day-events { font-size: 11px; color: var(--text); margin-top: 8px; line-height: 1.4; min-height: 30px; }
+
+  .movement-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .movement { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; position: relative; overflow: hidden; transition: all 0.2s; }
+  .movement:hover { border-color: var(--border-strong); }
+  .movement::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 0% 0%, var(--mvt-color, var(--amber)) 0%, transparent 60%); opacity: 0.06; pointer-events: none; }
+  .movement-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .movement-code { font-weight: 700; font-size: 22px; letter-spacing: -0.01em; line-height: 1; }
+  .movement-shift { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-dim); padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; }
+  .movement-shift[data-shift="NIGHT"] { color: #93C5FD; border-color: rgba(147,197,253,0.2); }
+  .movement-shift[data-shift="DAY"] { color: var(--amber-glow); border-color: rgba(245,158,11,0.2); }
+  .movement-shift[data-shift="MIXED"] { color: #C084FC; border-color: rgba(192,132,252,0.2); }
+  .movement-label { font-size: 12px; color: var(--text-dim); margin-bottom: 14px; min-height: 32px; line-height: 1.5; }
+  .movement-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .movement-stat-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; color: var(--text-faint); text-transform: uppercase; margin-bottom: 4px; }
+  .movement-stat-value { font-weight: 600; font-size: 18px; letter-spacing: -0.01em; }
+  .movement-stat-value-mono { font-family: var(--font-mono); font-size: 13px; font-weight: 500; }
+
+  .card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px; }
+  .card-title { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; margin-bottom: 4px; }
+  .card-subtitle { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); letter-spacing: 0.04em; margin-bottom: 18px; }
+  .chart-container { position: relative; height: 280px; }
+  .chart-container.tall { height: 380px; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .three-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 1100px) { .two-col, .three-col { grid-template-columns: 1fr; } }
+
+  .ctrl-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+  .ctrl-select, .ctrl-toggle { background: var(--bg-elevated); color: var(--text); border: 1px solid var(--border); padding: 7px 12px; border-radius: 5px; font-size: 12px; font-family: var(--font-mono); cursor: pointer; transition: all 0.15s; }
+  .ctrl-select:hover, .ctrl-select:focus { border-color: var(--border-strong); outline: none; }
+  .ctrl-toggle-group { display: inline-flex; gap: 0; }
+  .ctrl-toggle { border-radius: 0; border-right-width: 0; }
+  .ctrl-toggle:first-child { border-radius: 5px 0 0 5px; }
+  .ctrl-toggle:last-child { border-radius: 0 5px 5px 0; border-right-width: 1px; }
+  .ctrl-toggle.active { background: rgba(217,119,6,0.15); color: var(--amber); border-color: rgba(217,119,6,0.4); }
+  .ctrl-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-faint); text-transform: uppercase; }
+
+  .heatmap { display: grid; gap: 2px; font-family: var(--font-mono); font-size: 10px; }
+  .heat-cell { padding: 8px 4px; text-align: center; color: var(--text); border-radius: 2px; min-height: 26px; line-height: 1.4; }
+  .heat-label { color: var(--text-dim); padding: 8px 4px; text-align: right; border-right: 1px solid var(--border); font-weight: 600; }
+  .heat-header { color: var(--text-dim); padding: 8px 4px; text-align: center; font-weight: 600; border-bottom: 1px solid var(--border); }
+
+  .table-wrap { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 10px 14px; text-align: left; }
+  th { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); background: var(--bg-elevated); border-bottom: 1px solid var(--border); font-weight: 500; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+  tbody tr:hover { background: rgba(255,255,255,0.02); }
+  tbody tr:last-child { border-bottom: none; }
+  td.mono { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); }
+  td strong { font-weight: 500; color: var(--text); }
+  td.num-cell { font-family: var(--font-mono); text-align: right; }
+
+  .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 4px; font-family: var(--font-mono); font-size: 10px; font-weight: 500; letter-spacing: 0.06em; }
+  .status-pill::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .status-pill[data-s="Vacant"] { color: var(--vacant); background: rgba(220,38,38,0.1); }
+  .status-pill[data-s="Filled"] { color: var(--filled); background: rgba(16,185,129,0.1); }
+  .status-pill[data-s="Planned"] { color: var(--standby); background: rgba(234,179,8,0.1); }
+
+  .slot-legend { display: flex; gap: 16px; margin: 12px 0; font-size: 11px; color: var(--text-dim); font-family: var(--font-mono); }
+  .slot-legend-item { display: flex; align-items: center; gap: 6px; }
+  .slot-swatch { width: 10px; height: 10px; border-radius: 2px; }
+  .slot-grid { display: grid; grid-template-columns: repeat(20, 1fr); gap: 3px; padding: 14px; background: var(--bg-elevated); border-radius: 8px; }
+  .slot { aspect-ratio: 1; background: var(--vacant); opacity: 0.65; border-radius: 2px; transition: all 0.15s; }
+  .slot.filled { background: var(--filled); opacity: 0.85; }
+  .slot:hover { transform: scale(1.5); opacity: 1; z-index: 5; }
+
+  .aug-flow { display: grid; grid-template-columns: 70px 1fr 70px 80px; align-items: center; gap: 12px; padding: 10px 14px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 5px; font-size: 13px; }
+  .aug-mvt { font-weight: 600; }
+  .aug-arrow { display: flex; align-items: center; gap: 10px; font-family: var(--font-mono); font-size: 12px; }
+  .aug-arrow-line { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--text-faint), transparent); position: relative; }
+  .aug-arrow-line::after { content: '→'; position: absolute; left: 50%; top: -8px; transform: translateX(-50%); color: var(--amber); font-size: 14px; }
+  .aug-from { color: var(--standby); }
+  .aug-to { color: var(--filled); }
+  .aug-count { font-weight: 600; font-size: 16px; text-align: center; }
+
+  .mvt-timeline { background: var(--bg-elevated); border-radius: 8px; padding: 16px; }
+  .mvt-bar { display: flex; align-items: center; padding: 6px 12px; border-radius: 4px; margin-bottom: 4px; font-size: 12px; gap: 14px; transition: all 0.15s; }
+  .mvt-bar:hover { background: rgba(255,255,255,0.02); }
+  .mvt-bar-code { font-family: var(--font-mono); font-weight: 600; min-width: 56px; }
+  .mvt-bar-time { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); min-width: 200px; }
+  .mvt-bar-shift { font-family: var(--font-mono); font-size: 10px; padding: 2px 8px; border-radius: 3px; background: rgba(255,255,255,0.05); }
+
+  footer { margin-top: 48px; padding: 28px 0 24px; border-top: 1px solid var(--border); color: var(--text-dim); font-size: 12px; }
+  .footer-grid { display: grid; grid-template-columns: 1fr auto; gap: 32px; align-items: end; }
+  .footer-meta { font-family: var(--font-mono); }
+  .footer-meta strong { color: var(--text); font-weight: 500; }
+  .footer-brand { font-weight: 600; color: var(--text-dim); font-family: var(--font-mono); font-size: 13px; }
+
+  @media (max-width: 768px) {
+    .container { padding: 0 16px; }
+    .countdown-strip { grid-template-columns: 1fr; }
+    .countdown-detail { text-align: left; }
+    .section-head { flex-direction: column; align-items: flex-start; }
+    .section-blurb { text-align: left; }
+    .countdown-value { font-size: 36px; }
+    .slot-grid { grid-template-columns: repeat(12, 1fr); }
+    .day-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* ===== PRINT STYLESHEET ===== */
+  @media print {
+    body { background:#fff !important; color:#000 !important; }
+    nav, .tabs-strip, .nav-status-dot, #nav-time, .countdown-strip, footer { display:none !important; }
+    .tab-panel { display:block !important; page-break-after:always; padding:20px 0; }
+    .tab-panel:last-child { page-break-after:auto; }
+    .card { border:1px solid #ccc !important; background:#fff !important; box-shadow:none !important; break-inside:avoid; }
+    .hero { padding:20px 0 !important; }
+    .hero-title, .section-title { color:#000 !important; }
+    .accent { color:#c01f2d !important; }
+    .chart-container, canvas { max-height:280px !important; page-break-inside:avoid; }
+    .container { max-width:none !important; padding:0 20px !important; }
+    a { color:#000 !important; text-decoration:underline; }
+    button, select, input { display:none !important; }
+    th, td { color:#000 !important; }
+    .accent, [style*="color:#"]:not([style*="#000"]) { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  }
+
+  /* ===== MOBILE RESPONSIVE ===== */
+  @media (max-width: 768px) {
+    .container { padding:0 16px; }
+    .hero-title { font-size:32px !important; line-height:1.1; }
+    .hero-subtitle { font-size:13px !important; }
+    .countdown-strip { flex-direction:column; gap:12px; align-items:flex-start; }
+    .tabs-strip { overflow-x:auto; padding-bottom:8px; -webkit-overflow-scrolling:touch; }
+    .two-col, .three-col { grid-template-columns:1fr !important; }
+    .footer-grid { grid-template-columns:1fr; gap:16px; }
+    .chart-container { height:240px !important; }
+    .chart-container.tall { height:300px !important; }
+    .movement-grid { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)) !important; }
+    table { font-size:11px !important; }
+    .section-title { font-size:24px !important; }
+    .card { padding:14px !important; }
+  }
+
+  @media (max-width: 480px) {
+    .hero-title { font-size:26px !important; }
+    .tab-btn { font-size:12px !important; padding:6px 8px !important; }
+    .tab-btn-num { display:none; }
+    h2.section-title { font-size:20px !important; }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     v11.8 polish — theme system, mobile responsive, new components
+     ═══════════════════════════════════════════════════════════════ */
+  :root {
+    --theme-transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+  }
+  body, .nav, .kpi, .card, .table-wrap, .day-card, .movement, .tabbar, .ctrl-select, .ctrl-toggle, .heat-cell, .mvt-timeline, .slot-grid, .aug-flow, th { transition: var(--theme-transition); }
+
+  /* Light theme overrides */
+  [data-theme="light"] {
+    --bg-deep: #FAFAF7; --bg-surface: #FFFFFF; --bg-elevated: #F4F4F0;
+    --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.16);
+    --text: #1A1F2E; --text-dim: #5B6478; --text-faint: #9CA3AF;
+  }
+  [data-theme="light"] body { background-image: radial-gradient(circle at 15% 0%, rgba(217,119,6,0.05) 0%, transparent 40%), radial-gradient(circle at 85% 100%, rgba(8,145,178,0.05) 0%, transparent 40%); }
+  [data-theme="light"] body::before { opacity: 0.015; }
+  [data-theme="light"] .nav { background: rgba(255,255,255,0.85); }
+  [data-theme="light"] .tab-btn.active { background: rgba(217,119,6,0.08); }
+  [data-theme="light"] tbody tr:hover { background: rgba(0,0,0,0.02); }
+  [data-theme="light"] .nav-brand-mark { color: #FFFFFF; }
+  [data-theme="light"] .heat-cell { color: #1A1F2E; }
+
+  /* Theme toggle button */
+  .theme-toggle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: 6px; cursor: pointer; color: var(--text-dim); transition: all 0.15s;
+    font-size: 14px; margin-right: 8px;
+  }
+  .theme-toggle:hover { color: var(--amber); border-color: var(--border-strong); }
+
+  /* Settings button */
+  .settings-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: 6px; cursor: pointer; color: var(--text-dim); transition: all 0.15s;
+    font-size: 14px; margin-right: 8px;
+  }
+  .settings-btn:hover { color: var(--amber); border-color: var(--border-strong); }
+
+  /* Settings modal */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+    z-index: 1000; display: none; align-items: center; justify-content: center;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    background: var(--bg-surface); border: 1px solid var(--border-strong); border-radius: 12px;
+    padding: 28px; width: min(560px, 92vw); max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  }
+  .modal-title { font-weight: 600; font-size: 18px; margin-bottom: 6px; letter-spacing: -0.01em; }
+  .modal-subtitle { font-size: 12px; color: var(--text-dim); margin-bottom: 20px; line-height: 1.5; }
+  .modal-section { margin-bottom: 20px; }
+  .modal-label { display: block; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; }
+  .modal-input { width: 100%; padding: 10px 12px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: var(--font-mono); font-size: 12px; }
+  .modal-input:focus { border-color: var(--amber); outline: none; }
+  .modal-help { font-size: 11px; color: var(--text-dim); margin-top: 8px; line-height: 1.5; }
+  .modal-help code { font-family: var(--font-mono); background: var(--bg-elevated); padding: 1px 6px; border-radius: 3px; font-size: 10px; color: var(--amber); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+  .modal-btn { padding: 8px 16px; border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text); border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.15s; }
+  .modal-btn:hover { border-color: var(--border-strong); }
+  .modal-btn.primary { background: var(--amber); color: #FFFFFF; border-color: var(--amber); }
+  .modal-btn.primary:hover { background: var(--amber-glow); border-color: var(--amber-glow); }
+
+  /* PCR / Census tab styling */
+  .pcr-status-banner {
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 18px; margin-bottom: 20px;
+    display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--text-dim);
+  }
+  .pcr-status-banner.ok { border-left: 3px solid var(--filled); }
+  .pcr-status-banner.warn { border-left: 3px solid var(--standby); }
+  .pcr-status-banner.err { border-left: 3px solid var(--vacant); }
+  .pcr-status-banner strong { color: var(--text); font-weight: 600; }
+
+  .pcr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+
+  .pcr-empty {
+    background: var(--bg-surface); border: 1px dashed var(--border-strong); border-radius: 10px;
+    padding: 40px 24px; text-align: center; color: var(--text-dim);
+  }
+  .pcr-empty-title { font-weight: 600; font-size: 16px; color: var(--text); margin-bottom: 8px; }
+  .pcr-empty-hint { font-size: 12px; line-height: 1.6; max-width: 480px; margin: 0 auto; }
+
+  .pcr-encounter-row { display: grid; grid-template-columns: 80px 100px 1fr 100px 80px; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 12px; align-items: center; }
+  .pcr-encounter-row:last-child { border-bottom: none; }
+  .pcr-encounter-row .mono { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); }
+
+  .acuity-pill { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.05em; }
+  .acuity-pill[data-a="critical"] { color: #FFFFFF; background: var(--surge); }
+  .acuity-pill[data-a="urgent"] { color: var(--amber); background: rgba(217,119,6,0.15); }
+  .acuity-pill[data-a="standard"] { color: var(--filled); background: rgba(16,185,129,0.15); }
+  .acuity-pill[data-a="minor"] { color: var(--text-dim); background: var(--bg-elevated); }
+
+  /* Live OCC view styling */
+  .live-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .live-card-h { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+  .live-card-title { font-weight: 600; font-size: 14px; }
+  .live-card-sub { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
+  .live-station-row { display: grid; grid-template-columns: 60px 1fr auto; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); align-items: center; }
+  .live-station-row:last-child { border-bottom: none; }
+  .live-station-bar { height: 6px; background: var(--bg-elevated); border-radius: 3px; overflow: hidden; }
+  .live-station-bar-fill { height: 100%; background: var(--filled); transition: width 0.4s ease; }
+  .live-station-bar-fill[data-w="warn"] { background: var(--standby); }
+  .live-station-bar-fill[data-w="alert"] { background: var(--vacant); }
+  .live-station-pct { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); min-width: 40px; text-align: right; }
+
+  /* Mobile responsive */
+  @media (max-width: 768px) {
+    .container { padding: 0 16px; }
+    .nav { padding: 10px 0; }
+    .nav-inner { gap: 12px; }
+    .nav-brand-text { font-size: 13px; }
+    .nav-brand-sub { display: none; }
+    .nav-status { font-size: 10px; gap: 6px; }
+    #role-view-selector { font-size: 10px !important; padding: 4px 8px !important; }
+    .hero { padding: 20px 0 16px; }
+    .hero-eyebrow { font-size: 10px; margin-bottom: 10px; }
+    .hero-title { font-size: 24px; }
+    .hero-subtitle { font-size: 12px; }
+    .countdown-strip { grid-template-columns: 1fr; gap: 12px; padding-top: 16px; margin-top: 16px; }
+    .countdown-detail { text-align: left; font-size: 11px; }
+    .countdown-value { font-size: 36px; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 18px; }
+    .kpi { padding: 12px 14px; }
+    .kpi-value { font-size: 22px; }
+    .tabbar { margin-top: 20px; padding: 4px; }
+    .tab-btn { padding: 7px 12px; font-size: 11px; }
+    .tab-panel { padding: 18px 0 12px; }
+    .section-head { gap: 12px; margin-bottom: 16px; }
+    .section-title { font-size: 20px; }
+    .section-blurb { text-align: left; font-size: 12px; }
+    .day-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .movement-grid { grid-template-columns: 1fr; }
+    .two-col, .three-col { grid-template-columns: 1fr; gap: 12px; }
+    .card { padding: 16px; }
+    .chart-container { height: 220px; }
+    .chart-container.tall { height: 280px; }
+    table { font-size: 11px; }
+    th, td { padding: 6px 8px; }
+    .slot-grid { grid-template-columns: repeat(15, 1fr); }
+    .footer-grid { grid-template-columns: 1fr; gap: 16px; }
+    .footer-meta { font-size: 11px; }
+    .pcr-encounter-row { grid-template-columns: 70px 1fr 80px; }
+    .pcr-encounter-row > *:nth-child(3), .pcr-encounter-row > *:nth-child(5) { display: none; }
+    .live-station-row { grid-template-columns: 50px 1fr auto; }
+  }
+  @media (max-width: 480px) {
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+    .day-grid { grid-template-columns: 1fr 1fr; }
+    .countdown-value { font-size: 30px; }
+    .hero-title { font-size: 20px; }
+  }
+
+  /* Print styles */
+  @media print {
+    body { background: white !important; color: black !important; }
+    .nav, .tabbar, .ctrl-row, .footer-brand { display: none !important; }
+    .tab-panel { display: block !important; page-break-inside: avoid; }
+    .card, .kpi { border: 1px solid #ccc !important; background: white !important; box-shadow: none !important; }
+  }
+
+  </style>
+</head>
+<body>
+
+<div id="boot-status">STATUS: <span id="boot-status-text">initializing…</span></div>
+
+<nav class="nav">
+  <div class="container nav-inner">
+    <div class="nav-brand">
+      <img src="./hmg-logo.png?v=2" alt="HMG" style="height: 38px; width: auto; background: #ffffff; padding: 5px 12px; border-radius: 7px; box-shadow: 0 0 0 1px rgba(255,255,255,0.08);">
+      <div>
+        <span class="nav-brand-text">Hajj Operations</span>
+        <span class="nav-brand-sub">// 1447 AH</span>
+      </div>
+    </div>
+    <div class="nav-status">
+      <button id="theme-toggle" class="theme-toggle" title="Toggle theme" aria-label="Toggle theme">◐</button>
+      <button id="settings-btn" class="settings-btn" title="Settings" aria-label="Open settings">⚙</button>
+      <select id="role-view-selector" style="background: var(--bg-2, #1a1f2e); border: 1px solid var(--border, #2a3245); color: var(--text, #e2e8f0); padding: 5px 10px; border-radius: 5px; font-size: 11px; font-family: var(--font-mono); margin-right: 10px;">
+        <option value="all">▣ All views</option>
+        <option value="executive">⌘ Executive</option>
+        <option value="pm">◇ PM</option>
+        <option value="chief">◆ Chief</option>
+        <option value="supervisor">▲ Supervisor</option>
+        <option value="paramedic">● Paramedic</option>
+      </select>
+      <span class="nav-status-dot"></span>
+      <span id="nav-time">LOADING…</span>
+    </div>
+  </div>
+</nav>
+
+<header class="hero container">
+  <div class="hero-eyebrow">SAR · MMMP-SL · Operations Dashboard</div>
+  <h1 class="hero-title">Hajj 1447 <span class="accent">medical</span> mobilization.</h1>
+  <p class="hero-subtitle">SAR Mecca Mass-transit Medical Plan · Sub-Lead operations. <strong>277 medical personnel</strong> · <strong>138 units</strong> · <strong>25 ALS ambulances</strong> · <strong>10 sites</strong> (9 clinical platforms across Arafat, Muzdalifah, Mina + OCC team housed primarily at ARF3/MUZ3) · 12 movement phases over 6 ops days · ~294K pilgrims served.</p>
+
+  <div class="countdown-strip">
+    <div>
+      <div class="countdown-label">T-minus to Tarwiyah deployment</div>
+      <div class="countdown-value" id="countdown-days">—<span class="countdown-value-unit">days</span></div>
+    </div>
+    <div class="countdown-detail">
+      <div>Deployment <strong>25 May 2026</strong> · 8 Dhul-Hijjah</div>
+      <div>First movement <strong>B1A</strong> · NIGHT shift 20:00</div>
+      <div>Operations end <strong>30 May 2026</strong> · 13 Dhul-Hijjah</div>
+    </div>
+  </div>
+
+  <div class="kpi-grid" id="kpi-grid"></div>
+
+  <div class="tabbar" id="tabbar">
+    <button class="tab-btn active" data-tab="home"><span class="tab-btn-num">00</span> Home</button>
+    <button class="tab-btn" data-tab="live"><span class="tab-btn-num">⚡</span> Live OCC</button>
+    <button class="tab-btn" data-tab="pcr"><span class="tab-btn-num">⚕</span> PCR &amp; Census</button>
+    <button class="tab-btn" data-tab="calendar"><span class="tab-btn-num">01</span> Calendar</button>
+    <button class="tab-btn" data-tab="mobilization"><span class="tab-btn-num">02</span> Mobilization</button>
+    <button class="tab-btn" data-tab="hourly"><span class="tab-btn-num">03</span> Hourly</button>
+    <button class="tab-btn" data-tab="day-view"><span class="tab-btn-num">04</span> Day View</button>
+    <button class="tab-btn" data-tab="schedule"><span class="tab-btn-num">05</span> Schedule</button>
+    <button class="tab-btn" data-tab="roster"><span class="tab-btn-num">06</span> Roster</button>
+    <button class="tab-btn" data-tab="stations"><span class="tab-btn-num">07</span> Stations</button>
+    <button class="tab-btn" data-tab="units"><span class="tab-btn-num">08</span> Units</button>
+    <button class="tab-btn" data-tab="ambulances"><span class="tab-btn-num">09</span> Ambulances</button>
+    <button class="tab-btn" data-tab="augmentations"><span class="tab-btn-num">10</span> Augmentations</button>
+    <button class="tab-btn" data-tab="assets"><span class="tab-btn-num">11</span> Org &amp; Assets</button>
+    <button class="tab-btn" data-tab="timeline"><span class="tab-btn-num">12</span> Timeline</button>
+    <button class="tab-btn" data-tab="staffing"><span class="tab-btn-num">13</span> Staffing</button>
+    <button class="tab-btn" data-tab="insights"><span class="tab-btn-num">14</span> Insights</button>
+    <button class="tab-btn" data-tab="tasks"><span class="tab-btn-num">15</span> Tasks</button>
+  </div>
+</header>
+
+<main class="container">
+
+<section id="tab-home" class="tab-panel active">
+  <div class="section-head">
+    <div><div class="section-num">/00 — HOME</div><h2 class="section-title" id="home-title">Operations <span class="accent">overview</span></h2></div>
+    <p class="section-blurb" id="home-blurb">Quick KPIs and shortcuts. Use the role selector top-right to switch perspectives.</p>
+  </div>
+  <div id="home-content"></div>
+</section>
+
+<section id="tab-live" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/⚡ — LIVE OCC</div><h2 class="section-title">Operations <span class="accent">live</span></h2></div>
+    <p class="section-blurb">Real-time view for OCC dispatchers. Auto-refreshes every 15 seconds during operational windows.</p>
+  </div>
+  <div id="live-occ-content"></div>
+</section>
+
+<section id="tab-pcr" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/⚕ — PCR &amp; CENSUS</div><h2 class="section-title">Patient <span class="accent">flow</span></h2></div>
+    <p class="section-blurb">Patient encounters and census from the field. Connects to a Google Apps Script endpoint that reads PCR sheets in Drive.</p>
+  </div>
+  <div id="pcr-content"></div>
+</section>
+
+<section id="tab-calendar" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/01 — CALENDAR</div><h2 class="section-title">Operations <span class="accent">timeline</span></h2></div>
+    <p class="section-blurb">Day-by-day phase progression from Site Prep through Demob. 15 days · 4 phases.</p>
+  </div>
+  <div class="day-grid" id="day-grid"></div>
+</section>
+
+<section id="tab-mobilization" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/02 — MOBILIZATION</div><h2 class="section-title">Movement <span class="accent">plan</span></h2></div>
+    <p class="section-blurb">Per-movement staffing across stations. 12 movement phases over Hajj week.</p>
+  </div>
+  <div class="movement-grid" id="movement-grid"></div>
+  <div class="two-col" style="margin-top: 24px;">
+    <div class="card"><div class="card-title">Staff distribution by movement</div><div class="card-subtitle">SUM(Total Staff) per movement</div><div class="chart-container"><canvas id="chart-movement"></canvas></div></div>
+    <div class="card"><div class="card-title">Roster status mix</div><div class="card-subtitle">Filled / Vacant / Backup / On-Leave from Staff sheet</div><div class="chart-container"><canvas id="chart-status"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-top: 20px;">
+    <div class="card-title">Zone × Movement</div><div class="card-subtitle">Total staff per zone, by movement (excludes pre-ops setup)</div>
+    <div class="chart-container tall"><canvas id="chart-zone"></canvas></div>
+  </div>
+
+  <div class="card" style="margin-top: 20px;">
+    <div class="card-title">Wave plan · 5 deployment waves</div>
+    <div class="card-subtitle">How the 277-person team rotates across Hajj week. Mike units stay at home stations throughout. Alpha + Romeo + TRN-1 redeploy via 85 augmentation movements.</div>
+    <div id="wave-plan" style="margin-top:18px; display:grid; gap:10px;"></div>
+  </div>
+</section>
+
+<section id="tab-hourly" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/03 — HOURLY STAFFING</div><h2 class="section-title">Live <span class="accent">deployment</span> curve</h2></div>
+    <p class="section-blurb">180 hours of operational data. Filter by movement, switch view between line and heatmap.</p>
+  </div>
+  <div class="card">
+    <div class="ctrl-row">
+      <span class="ctrl-label">Movement</span>
+      <select class="ctrl-select" id="hourly-mvt">
+        <option value="all">All Operations</option>
+        <option value="GAP">GAP</option>
+        <option value="B1A">B1A</option>
+        <option value="B1B">B1B</option>
+        <option value="B2A">B2A</option>
+        <option value="B2B">B2B</option>
+        <option value="C">C — CRITICAL</option>
+        <option value="D">D</option>
+        <option value="E">E</option>
+        <option value="MAINT">MAINT</option>
+      </select>
+      <span class="ctrl-label" style="margin-left:14px">Granularity</span>
+      <div class="ctrl-toggle-group">
+        <button class="ctrl-toggle" data-gran="zone">Zone (3)</button>
+        <button class="ctrl-toggle active" data-gran="station">Station (9)</button>
+      </div>
+      <span class="ctrl-label" style="margin-left:14px">View</span>
+      <div class="ctrl-toggle-group">
+        <button class="ctrl-toggle" data-view="line">Line</button>
+        <button class="ctrl-toggle active" data-view="heatmap">Heatmap</button>
+      </div>
+    </div>
+    <div class="card-title" id="hourly-title">Zone staffing over time</div>
+    <div class="card-subtitle" id="hourly-subtitle">Day shift: 127 para · Night: 124 · Ambulances: always 25</div>
+    <div id="hourly-line-wrap" style="display:none"><div class="chart-container tall"><canvas id="chart-hourly"></canvas></div></div>
+    <div id="hourly-heat-wrap"><div id="heatmap-grid" style="margin-top: 8px;"></div></div>
+  </div>
+</section>
+
+<section id="tab-day-view" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/04 — DAY VIEW</div><h2 class="section-title">Daily <span class="accent">summary</span></h2></div>
+    <p class="section-blurb">One day at a time. Pick a Dhul-Hijjah day and see who's on duty, where, and on which shifts.</p>
+  </div>
+  <div class="card">
+    <div style="display:flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px;">
+      <label style="font-size: 12px; color: var(--text-dim);">Day:</label>
+      <select id="day-view-selector" style="background: var(--bg-2); border: 1px solid var(--border); padding: 8px 14px; border-radius: 6px; color: var(--text); font-family: var(--font-mono); font-size: 12px;"></select>
+      <span id="day-view-headline" style="margin-left: auto; font-size: 12px; color: var(--text-dim);"></span>
+    </div>
+    <div id="day-view-summary" class="three-col" style="margin-bottom: 14px;"></div>
+    <div class="three-col">
+      <div class="card" style="background: var(--bg-2);">
+        <div class="card-title">Zones</div>
+        <div class="chart-container"><canvas id="chart-day-zones"></canvas></div>
+      </div>
+      <div class="card" style="background: var(--bg-2);">
+        <div class="card-title">Unit types</div>
+        <div class="chart-container"><canvas id="chart-day-types"></canvas></div>
+      </div>
+      <div class="card" style="background: var(--bg-2);">
+        <div class="card-title">Shifts in use</div>
+        <div id="day-shifts-list" style="font-size: 11px; padding-top: 8px;"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="tab-schedule" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/05 — SCHEDULE</div><h2 class="section-title">Schedule <span class="accent">grid</span></h2></div>
+    <p class="section-blurb">Per-station schedule across all 11 days. Each cell shows units on duty during that day's slot 1 (day) and slot 2 (night/late). Color intensity scales with headcount.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Station × Day grid</div>
+    <div class="card-subtitle">Top number = day shift units · Bottom number = night/late shift units</div>
+    <div id="schedule-grid-wrap" style="margin-top: 14px; overflow-x: auto;"></div>
+  </div>
+  <div class="card" style="margin-top: 20px;">
+    <div class="card-title">Schedule by unit</div>
+    <div class="card-subtitle">All 130 units · their shifts across the 11 days</div>
+    <div style="margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap;">
+      <input id="schedule-search" placeholder="Filter unit ID..." style="background: var(--bg-2); border: 1px solid var(--border); padding: 7px 11px; border-radius: 5px; color: var(--text); font-size: 12px; min-width: 200px;">
+      <select id="schedule-type" style="background: var(--bg-2); border: 1px solid var(--border); padding: 7px 11px; border-radius: 5px; color: var(--text); font-size: 12px;">
+        <option value="">All types</option>
+        <option value="Medical">Mike (Medical)</option>
+        <option value="Ambulance">Alpha (Ambulance)</option>
+        <option value="Foot-Runner">Romeo (Foot-Runner)</option>
+        <option value="Supervisor">Supervisor</option>
+        <option value="Logistics">Logistics</option>
+        <option value="Dispatch OCC">Dispatch</option>
+        <option value="SRCA Dispatch">SRCA</option>
+        <option value="Training">Training</option>
+      </select>
+    </div>
+    <div id="schedule-unit-table-wrap" style="margin-top: 14px; overflow-x: auto;"></div>
+  </div>
+</section>
+
+<section id="tab-roster" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/06 — ROSTER</div><h2 class="section-title">Personnel <span class="accent">roster</span></h2></div>
+    <p class="section-blurb">277 named slots awaiting assignment (253 paramedic + 20 GP + 4 leadership · mandate ops paramedics = 250). Each tile = one person-slot.</p>
+  </div>
+  <div class="card">
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+      <div>
+        <div class="card-title">Vacancy map · <span id="vacancy-count">277</span> <span id="vacancy-unit-label">slots</span></div>
+        <div class="card-subtitle">Confirmed assignments turn green</div>
+      </div>
+      <div style="display:flex; gap:6px; background: var(--bg-2); border-radius: 6px; padding: 3px;">
+        <button class="roster-toggle active" data-roster="humans" style="padding: 5px 11px; border-radius: 4px; border: 0; background: var(--accent, #d97706); color: #0a0e1a; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font-mono);">Humans</button>
+        <button class="roster-toggle" data-roster="units" style="padding: 5px 11px; border-radius: 4px; border: 0; background: transparent; color: var(--text-dim); font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font-mono);">Units</button>
+      </div>
+    </div>
+    <div class="slot-legend" style="margin-top: 10px;">
+      <div class="slot-legend-item"><span class="slot-swatch" style="background:var(--filled);opacity:.85"></span>Filled</div>
+      <div class="slot-legend-item"><span class="slot-swatch" style="background:var(--vacant);opacity:.65"></span>Vacant</div>
+      <div class="slot-legend-item" id="unit-color-legend" style="display:none">
+        <span class="slot-swatch" style="background:#ef4444"></span>Mike &nbsp;
+        <span class="slot-swatch" style="background:#3b82f6"></span>Alpha &nbsp;
+        <span class="slot-swatch" style="background:#10b981"></span>Romeo &nbsp;
+        <span class="slot-swatch" style="background:#a855f7"></span>Other
+      </div>
+    </div>
+    <div class="slot-grid" id="slot-grid"></div>
+  </div>
+  <div class="two-col" style="margin-top: 20px;">
+    <div class="card"><div class="card-title">Vacancy by sub-role</div><div class="card-subtitle">Where to focus recruitment</div><div class="chart-container"><canvas id="chart-subrole"></canvas></div></div>
+    <div class="card"><div class="card-title">GP coverage</div><div class="card-subtitle">Day / night physician per station</div>
+      <div class="table-wrap" style="margin-top: 12px;">
+        <table><thead><tr><th>Station</th><th>GP Day</th><th>GP Night</th></tr></thead><tbody id="gp-table"></tbody></table>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top: 20px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+      <div>
+        <div class="card-title">Day vs Night per station</div>
+        <div class="card-subtitle">Cumulative count across all 11 days (sum of person-shifts per shift type)</div>
+      </div>
+      <div style="display:flex; gap:6px; background: var(--bg-2); border-radius: 6px; padding: 3px;">
+        <button class="dn-toggle active" data-dn="paras" style="padding: 5px 11px; border-radius: 4px; border: 0; background: var(--accent, #d97706); color: #0a0e1a; font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font-mono);">Paras</button>
+        <button class="dn-toggle" data-dn="units" style="padding: 5px 11px; border-radius: 4px; border: 0; background: transparent; color: var(--text-dim); font-size: 11px; font-weight: 600; cursor: pointer; font-family: var(--font-mono);">Units</button>
+      </div>
+    </div>
+    <div class="chart-container" style="margin-top:8px;"><canvas id="chart-day-night"></canvas></div>
+  </div>
+</section>
+
+<section id="tab-stations" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/07 — STATIONS</div><h2 class="section-title">Station <span class="accent">scorecards</span></h2></div>
+    <p class="section-blurb">Every station at a glance: day/night headcount, fill rate, ambulance count, coverage ratio, and the unit roster. Three zone summaries at the top.</p>
+  </div>
+  <div class="card" style="margin-bottom: 16px;">
+    <div class="card-title">Zone roll-up</div>
+    <div class="card-subtitle">Aggregate for Arafat, Muzdalifah, Mina</div>
+    <div id="zone-rollup" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-top: 14px;"></div>
+  </div>
+  <div class="card" style="margin-bottom: 20px;">
+    <div class="card-title">Station scorecards</div>
+    <div class="card-subtitle">Day vs night load, fill %, coverage health, top-3 unit types</div>
+    <div id="station-scorecards" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 14px;"></div>
+  </div>
+  <div class="two-col" style="margin-bottom: 20px;">
+    <div class="card"><div class="card-title">Unit type per station</div><div class="card-subtitle">Mike + Alpha + Romeo stacked</div><div class="chart-container"><canvas id="chart-station-mix"></canvas></div></div>
+    <div class="card"><div class="card-title">Headcount per station</div><div class="card-subtitle">Total paramedics + GPs based at each station</div><div class="chart-container"><canvas id="chart-station-paras"></canvas></div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Station <span class="accent">roster</span></div>
+    <div class="card-subtitle">Click any unit chip to see its current fill status. Color = unit type. Bordered chips = unit has unfilled slots.</div>
+    <div class="slot-legend" style="margin-top: 10px;">
+      <div class="slot-legend-item"><span class="slot-swatch" style="background:#ef4444;opacity:.85"></span>Mike (Medical)</div>
+      <div class="slot-legend-item"><span class="slot-swatch" style="background:#3b82f6;opacity:.85"></span>Alpha (Ambulance)</div>
+      <div class="slot-legend-item"><span class="slot-swatch" style="background:#10b981;opacity:.85"></span>Romeo (Foot-Runner)</div>
+      <div class="slot-legend-item"><span class="slot-swatch" style="background:#a855f7;opacity:.85"></span>Leadership/Command</div>
+    </div>
+    <div id="stations-detail-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-top: 18px;"></div>
+  </div>
+</section>
+
+<section id="tab-units" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/08 — UNITS</div><h2 class="section-title">Unit <span class="accent">breakdown &amp; call signs</span></h2></div>
+    <p class="section-blurb">All 130 units with home station, members, and radio call signs. Filter by category or type. Click a unit to see member detail.</p>
+  </div>
+  <div class="card">
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom: 14px;">
+      <input id="units-search" placeholder="Search unit ID, member name, or call sign…" style="flex:1; min-width:240px; background: var(--bg-2); border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px; color: var(--text); font-size: 13px;">
+      <select id="units-filter-cat" style="background: var(--bg-2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 6px; color: var(--text); font-size: 12px;">
+        <option value="">All categories</option>
+        <option value="Leadership">Leadership</option>
+        <option value="Command">Command</option>
+        <option value="Operational">Operational</option>
+      </select>
+      <select id="units-filter-type" style="background: var(--bg-2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 6px; color: var(--text); font-size: 12px;">
+        <option value="">All types</option>
+        <option value="Medical">Mike (Medical)</option>
+        <option value="Ambulance">Alpha (Ambulance)</option>
+        <option value="Foot-Runner">Romeo (Foot-Runner)</option>
+      </select>
+      <span id="units-count" style="font-size: 12px; color: var(--text-dim); margin-left: auto;"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Unit ID</th>
+            <th>Type</th>
+            <th>Category</th>
+            <th class="num-cell">Size</th>
+            <th>Home</th>
+            <th class="num-cell">Filled</th>
+            <th>Members &amp; Call Signs</th>
+          </tr>
+        </thead>
+        <tbody id="units-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="tab-ambulances" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/09 — AMBULANCES</div><h2 class="section-title">Fleet <span class="accent">deployment</span></h2></div>
+    <p class="section-blurb">25 ambulances always manned. 10 Essential ALS · 9 Backup BLS · 6 Roving ALS. Each ambulance has a Day and Night Alpha crew.</p>
+  </div>
+  <div class="three-col">
+    <div class="card"><div class="card-title">Fleet composition</div><div class="card-subtitle">25 vehicles by type</div><div class="chart-container"><canvas id="chart-fleet"></canvas></div></div>
+    <div class="card"><div class="card-title">Crew headcount</div><div class="card-subtitle">96 paramedics · 48 Alpha units · 25 ambulances (10 ALS · 9 BLS · 6 Roving)</div><div class="chart-container"><canvas id="chart-crew"></canvas></div></div>
+    <div class="card"><div class="card-title">Ambulances per station</div><div class="card-subtitle">Where each vehicle is based</div><div class="chart-container"><canvas id="chart-amb-station"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-top: 20px;">
+    <div class="card-title">Ambulance roster · 25 vehicles</div>
+    <div class="card-subtitle">Each row shows Day + Night Alpha crew and home station</div>
+    <div id="ambulance-roster" style="margin-top: 16px;"></div>
+  </div>
+
+  <!-- Four ambulance dashboards -->
+  <div class="two-col" style="margin-top: 20px;">
+    <div class="card">
+      <div class="card-title">Scheduled hours per ambulance</div>
+      <div class="card-subtitle">Total hours scheduled across the 11 days · sorted by load</div>
+      <div class="chart-container tall"><canvas id="chart-amb-hours"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Ambulance availability over time</div>
+      <div class="card-subtitle">Active ambulances per Dhul-Hijjah day, by type</div>
+      <div class="chart-container tall"><canvas id="chart-amb-availability"></canvas></div>
+    </div>
+  </div>
+  <div class="two-col" style="margin-top: 20px;">
+    <div class="card">
+      <div class="card-title">Day vs Night by zone</div>
+      <div class="card-subtitle">How ambulance presence shifts between day and night across zones</div>
+      <div class="chart-container"><canvas id="chart-amb-day-night"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Crew assignment Gantt</div>
+      <div class="card-subtitle">Each ambulance · day/night crew shifts plotted across 11 days (first 25 shown)</div>
+      <div id="amb-gantt-wrap" style="margin-top: 8px; max-height: 380px; overflow-y: auto;"></div>
+    </div>
+  </div>
+</section>
+
+<section id="tab-augmentations" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/10 — AUGMENTATIONS</div><h2 class="section-title">Inter-station <span class="accent">flow</span></h2></div>
+    <p class="section-blurb">Planned redeployments during operations. Move paramedics from low-pressure to surge stations.</p>
+  </div>
+  <div class="two-col">
+    <div class="card"><div class="card-title">By movement</div><div class="card-subtitle">Where flexibility is concentrated</div><div class="chart-container"><canvas id="chart-aug-mvt"></canvas></div></div>
+    <div class="card"><div class="card-title">Donor stations</div><div class="card-subtitle">Para count contributed FROM each station</div><div class="chart-container"><canvas id="chart-aug-from"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-top: 20px;">
+    <div class="card-title">Donor → Recipient matrix</div>
+    <div class="card-subtitle">Paramedics moved from each donor station (rows) to each recipient station (columns), per movement. Cell values are para counts.</div>
+    <div style="margin-top:14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <label style="font-size:11px; opacity:.7;">MOVEMENT FILTER</label>
+      <select id="aug-matrix-mvt" class="role-select" style="min-width:140px;"><option value="">All movements</option></select>
+      <span id="aug-matrix-summary" style="font-size:12px; opacity:.6; margin-left:auto;"></span>
+    </div>
+    <div id="aug-matrix" style="margin-top:16px; overflow-x:auto;"></div>
+  </div>
+
+  <div class="card" style="margin-top: 20px;">
+    <div class="card-title">Sample flow · 24 of <span id="aug-total">114</span> augmentations</div>
+    <div class="card-subtitle">From → To · Para Moved</div>
+    <div id="aug-flow-list" style="margin-top: 16px;"></div>
+  </div>
+</section>
+
+<section id="tab-assets" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/11 — ORG &amp; ASSETS</div><h2 class="section-title">Org &amp; <span class="accent">assets</span></h2></div>
+    <p class="section-blurb">Hierarchical reporting tree, accommodation across sites, and the day/night staffing breakdown by category.</p>
+  </div>
+  <div class="card" style="margin-bottom: 16px;">
+    <div class="card-title">Reporting hierarchy</div>
+    <div class="card-subtitle">PM → Chief → Deputy → Supervisors → operational units. Click any node to expand or collapse.</div>
+    <div id="org-tree-wrap" style="margin-top: 14px;"></div>
+  </div>
+  <div class="two-col">
+    <div class="card"><div class="card-title">Accommodation by location</div><div class="card-subtitle">Beds per site</div><div class="chart-container"><canvas id="chart-accom"></canvas></div></div>
+    <div class="card"><div class="card-title">Org structure summary</div><div class="card-subtitle">Day vs night staffing by category</div><div class="chart-container"><canvas id="chart-org"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-top: 20px;">
+    <div class="card-title">Org structure detail</div>
+    <div class="card-subtitle">Each role / station with day, night, and total counts</div>
+    <div class="table-wrap" style="margin-top: 16px;">
+      <table>
+        <thead><tr><th>Category</th><th>Role / Station</th><th class="num-cell">Day</th><th class="num-cell">Night</th><th class="num-cell">Total</th><th>Notes</th></tr></thead>
+        <tbody id="org-detail-table"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="tab-timeline" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/12 — MOVEMENT PHASES</div><h2 class="section-title">Operational <span class="accent">timeline</span></h2></div>
+    <p class="section-blurb">Hour-by-hour movement transitions across 6 operational days.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Movement phases · <span id="phase-count">16</span> transitions</div>
+    <div class="card-subtitle">From start to end of each operational phase</div>
+    <div class="mvt-timeline" id="mvt-timeline" style="margin-top: 16px;"></div>
+  </div>
+  <div class="card" style="margin-top: 20px;">
+    <div class="card-title">Phase activities</div><div class="card-subtitle">High-level project timeline · Phase × Activity × Owner</div>
+    <div class="table-wrap" style="margin-top: 16px;">
+      <table><thead><tr><th>Phase</th><th>Activity</th><th>Date DH</th><th>Greg</th><th>Owner</th></tr></thead><tbody id="timeline-table"></tbody></table>
+    </div>
+  </div>
+</section>
+
+<section id="tab-staffing" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/13 — STAFFING</div><h2 class="section-title">Whole <span class="accent">staffing view</span></h2></div>
+    <p class="section-blurb">All 277 person-slots in one place. Search, filter, see who's filled and who isn't, what unit and station they belong to.</p>
+  </div>
+  <div class="card">
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom: 14px;">
+      <input id="staffing-search" placeholder="Search name, unit, role, station..." style="flex:1; min-width:240px; background: var(--bg-2); border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px; color: var(--text); font-size: 13px;">
+      <select id="staffing-status" style="background: var(--bg-2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 6px; color: var(--text); font-size: 12px;">
+        <option value="">All status</option>
+        <option value="Filled">Filled only</option>
+        <option value="Vacant">Vacant only</option>
+        <option value="Backup">Backup</option>
+        <option value="On-Leave">On-Leave</option>
+      </select>
+      <select id="staffing-station" style="background: var(--bg-2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 6px; color: var(--text); font-size: 12px;">
+        <option value="">All stations</option>
+      </select>
+      <select id="staffing-role" style="background: var(--bg-2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 6px; color: var(--text); font-size: 12px;">
+        <option value="">All roles</option>
+      </select>
+      <span id="staffing-count" style="font-size: 12px; color: var(--text-dim); margin-left: auto;"></span>
+    </div>
+    <div id="staffing-summary" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 10px; margin-bottom: 16px;"></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Status</th><th>Name</th><th>Role</th><th>Unit</th><th>Station</th><th>Call Sign</th><th>Contact</th></tr></thead>
+        <tbody id="staffing-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="tab-insights" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/14 — INSIGHTS</div><h2 class="section-title">Operational <span class="accent">health</span></h2></div>
+    <p class="section-blurb">Two operational lenses: para-to-ambulance coverage ratio per station, and where peak movement load exceeds station capacity.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Coverage Health</div>
+    <div class="card-subtitle">Paramedic-to-ambulance ratio per station. Industry sweet spot ≤ 6:1 (good) · 6–10 (fair) · &gt;10 (stretched).</div>
+    <div id="coverage-cards" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 16px;"></div>
+  </div>
+  <div class="card" style="margin-top: 20px;">
+    <div class="card-title">Stress Map</div>
+    <div class="card-subtitle">Peak hourly load per station × movement. Cell shows peak/capacity. Color: green = under 70%, yellow = 70–100%, red = exceeds capacity.</div>
+    <div id="stress-grid" style="margin-top: 16px; overflow-x: auto;"></div>
+  </div>
+</section>
+
+<section id="tab-tasks" class="tab-panel">
+  <div class="section-head">
+    <div><div class="section-num">/15 — TASKS</div><h2 class="section-title">Master <span class="accent">tasks</span></h2></div>
+    <p class="section-blurb">Live tracker. 9 phases · pre-deployment readiness through demobilization. Filter by phase, status, or owner. Auto-refreshed from Smartsheet.</p>
+  </div>
+
+  <!-- KPI strip -->
+  <div id="tasks-kpis" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 12px; margin-bottom: 20px;"></div>
+
+  <!-- Filters -->
+  <div class="card" style="margin-bottom:20px;">
+    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+      <div>
+        <label style="font-size:11px; opacity:.7; display:block; margin-bottom:4px;">PHASE</label>
+        <select id="tasks-filter-phase" class="role-select"><option value="">All phases</option></select>
+      </div>
+      <div>
+        <label style="font-size:11px; opacity:.7; display:block; margin-bottom:4px;">STATUS</label>
+        <select id="tasks-filter-status" class="role-select"><option value="">All statuses</option></select>
+      </div>
+      <div>
+        <label style="font-size:11px; opacity:.7; display:block; margin-bottom:4px;">OWNER</label>
+        <select id="tasks-filter-owner" class="role-select"><option value="">All owners</option></select>
+      </div>
+      <div>
+        <label style="font-size:11px; opacity:.7; display:block; margin-bottom:4px;">VIEW</label>
+        <select id="tasks-filter-view" class="role-select">
+          <option value="all">All tasks</option>
+          <option value="sar">SAR-visible only</option>
+          <option value="hmg">HMG-internal only</option>
+          <option value="overdue">Overdue only</option>
+          <option value="urgent">Due ≤ 5 days</option>
+        </select>
+      </div>
+      <div style="flex:1;"></div>
+      <div style="font-size:12px; opacity:.7;" id="tasks-meta">—</div>
+    </div>
+  </div>
+
+  <!-- Phase-grouped task list -->
+  <div id="tasks-list"></div>
+</section>
+
+<footer class="container">
+  <div class="footer-grid">
+    <div class="footer-meta">
+      <div>Data source · <strong id="footer-source">Google Drive · Mobilization_Plan.xlsx</strong></div>
+      <div>Last refresh · <strong id="footer-refresh">—</strong></div>
+      <div>Build · <strong id="footer-build">v11.8 schema · 138 units · 277 staff · 10 sites · mandate 250 ops paramedics</strong></div>
+      <div>Auto-refresh every 30 minutes via GitHub Actions · <a href="https://github.com/ahmedalshudukhi/hajj-ops" style="color: var(--text-dim); text-decoration:underline;">view source</a></div>
+    </div>
+    <div class="footer-brand">
+      hajj.shuki.tech
+      <div style="font-size:10px; opacity:.5; margin-top:4px; font-weight:400;">Hajj 1447 · MMMP-SL</div>
+    </div>
+  </div>
+</footer>
+
+</main>
+
+<script>
+const mvtColors = {
+  "PRE-B": "#6366F1", "GAP": "#A78BFA", "B1A": "#D97706", "B1B": "#D97706",
+  "B2A": "#F59E0B", "B2B": "#F59E0B", "C": "#DC2626", "D": "#0891B2", "E": "#0891B2", "MAINT": "#6B7280"
+};
+const stationColors = {
+  ARF1:'#fbbf24', ARF2:'#f59e0b', ARF3:'#d97706',
+  MUZ1:'#34d399', MUZ2:'#10b981', MUZ3:'#059669',
+  MIN1:'#a78bfa', MIN2:'#8b5cf6', MIN3:'#7c3aed'
+};
+const tooltipStyle = {
+  backgroundColor: '#0F1729', borderColor: 'rgba(255,255,255,0.14)', borderWidth: 1,
+  titleFont: { family: 'Inter', weight: 600, size: 12 },
+  bodyFont: { family: 'JetBrains Mono', size: 11 },
+  padding: 10, cornerRadius: 6, displayColors: true, boxPadding: 6
+};
+if (typeof Chart !== 'undefined') {
+  Chart.defaults.font.family = "Inter, system-ui, sans-serif";
+  Chart.defaults.font.size = 11;
+  Chart.defaults.color = "#8B92A4";
+  Chart.defaults.borderColor = "rgba(255,255,255,0.07)";
+}
+
+let DATA = null;
+let hourlyChart = null;
+let hourlyState = { mvt: 'all', gran: 'station', view: 'heatmap' };
+
+function status(msg, kind) {
+  const el = document.getElementById('boot-status');
+  const txt = document.getElementById('boot-status-text');
+  if (!el || !txt) return;
+  txt.textContent = msg;
+  el.className = 'show' + (kind === 'success' ? ' success' : '');
+  if (kind === 'success') setTimeout(() => el.classList.remove('show'), 2500);
+}
+function safeRender(name, fn) {
+  try { fn(); } catch (e) {
+    console.error(`Render failed: ${name}`, e);
+    status(`ERR ${name}: ${e.message}`);
+  }
+}
+
+function renderKPIs(d) {
+  const tiles = [
+    { label: "Personnel", value: d.personnel.total, meta: `<strong>${d.personnel.paramedics}</strong> para · ${d.personnel.gps} GPs · ${d.personnel.leadership_admin} lead`, color: "warm" },
+    { label: "Day Shift", value: d.personnel.day_para, meta: "paramedics on duty", color: "warning" },
+    { label: "Night Shift", value: d.personnel.night_para, meta: "paramedics on duty", color: "cool" },
+    { label: "Ambulances", value: d.personnel.ambulances, meta: `9E · 9B · 4R · 2F · 1D`, color: "danger" },
+    { label: "Roster Fill", value: `${d.roster.all_fill_pct}%`, meta: `<strong>${d.roster.all_vacant} vacant</strong> of ${d.roster.all_total}`, color: d.roster.all_vacant > 0 ? "danger" : "success" },
+    { label: "Peak Arafat", value: d.hourly.peak_arafat, meta: "max staff zone", color: "arf" },
+    { label: "Peak Muz", value: d.hourly.peak_muzdalifah, meta: "max staff zone", color: "muz" },
+    { label: "Peak Mina", value: d.hourly.peak_mina, meta: "max staff zone", color: "min" },
+  ];
+  document.getElementById('kpi-grid').innerHTML = tiles.map(t => `
+    <div class="kpi" data-c="${t.color}">
+      <div class="kpi-label">${t.label}</div>
+      <div class="kpi-value accent-color">${t.value}</div>
+      <div class="kpi-meta">${t.meta}</div>
+    </div>
+  `).join('');
+}
+function renderCountdown() {
+  const target = new Date('2026-05-25T00:00:00');
+  const days = Math.max(0, Math.ceil((target - new Date()) / 86400000));
+  document.getElementById('countdown-days').innerHTML = `${days}<span class="countdown-value-unit">days</span>`;
+}
+function renderCalendar(d) {
+  document.getElementById('day-grid').innerHTML = d.calendar.map(day => `
+    <div class="day-card" data-phase="${day.phase}">
+      <div><span class="day-num">${day.dh}</span><span class="day-num-label">DH · ${day.day}</span></div>
+      <div class="day-greg">${day.greg}</div>
+      <div class="day-phase">${day.phase}</div>
+      <div class="day-events">${day.events || '—'}</div>
+    </div>`).join('');
+}
+function renderMovements(d) {
+  document.getElementById('movement-grid').innerHTML = d.movements.map(m => `
+    <div class="movement" style="--mvt-color: ${mvtColors[m.code] || '#888'};">
+      <div class="movement-head">
+        <div class="movement-code">${m.code}</div>
+        <div class="movement-shift" data-shift="${m.shift}">${m.shift}</div>
+      </div>
+      <div class="movement-label">${m.label}</div>
+      <div class="movement-stats">
+        <div><div class="movement-stat-label">Staff</div><div class="movement-stat-value">${m.staff}</div></div>
+        <div><div class="movement-stat-label">Para</div><div class="movement-stat-value">${m.para}</div></div>
+        <div><div class="movement-stat-label">Vehicles</div><div class="movement-stat-value">${m.amb}</div></div>
+        <div><div class="movement-stat-label">Day</div><div class="movement-stat-value-mono">${m.dh}</div></div>
+      </div>
+    </div>`).join('');
+  renderWavePlan(d);
+}
+
+function renderWavePlan(d) {
+  const wrap = document.getElementById('wave-plan');
+  if (!wrap) return;
+  const waves = [
+    {id:'W1', name:'Wave 1 — Pre-Boarding', dh:'4-7 DH', greg:'21-24 May', staff:248, focus:'Site occupation, training drills, equipment check, all 10 sites manned',
+     color:'#3b82f6', actions:'Full team mobilizes to home stations · 4 days familiarization · MMMP final test'},
+    {id:'W2A', name:'Wave 2A — Boarding (B1A → B2B)', dh:'8-9 DH', greg:'25-26 May', staff:248, focus:'Pilgrim arrival flow · 4 boarding waves over 14 hrs (20:00 → 10:00 next day)',
+     color:'#22c55e', actions:'All Mike + Alpha + Romeo on standby at home · Alpha roving begins'},
+    {id:'W2B', name:'Wave 2B — Arafat day (GAP → C)', dh:'9 DH', greg:'26 May', staff:248, focus:'Day of Arafat · ~294K pilgrims served · Nafra at 22:00 (movement C)',
+     color:'#ef4444', actions:'CRITICAL · Pre-C reinforcement at 13:00 GAP · C movement = 38 augmentations cascading'},
+    {id:'W3', name:'Wave 3 — Muz→Mina (D + E1)', dh:'10 DH', greg:'27 May Eid', staff:248, focus:'D movement (00:00-08:00) · E1 evacuation (09:00-12:00) · 47 augmentations',
+     color:'#f59e0b', actions:'After E1: ARF1/ARF2/MUZ1/MUZ2 reduced to 2 Mike + 1 Alpha + LOG/SUP only'},
+    {id:'W4', name:'Wave 4 — Jamarat sustain (E2 → E3)', dh:'10-13 DH', greg:'27-30 May', staff:160, focus:'Mina ops sustain · 88 staff demobilized · 3 days of Jamarat coverage',
+     color:'#a855f7', actions:'Footprint shrinks to MIN1/MIN2/MIN3 + OCC · Roving fleet supports'},
+  ];
+  wrap.innerHTML = waves.map(w => `
+    <div style="display:grid; grid-template-columns: 64px 1fr auto; gap:14px; align-items:center; padding:14px; background:rgba(255,255,255,0.02); border-radius:8px; border-left:4px solid ${w.color};">
+      <div style="text-align:center;">
+        <div style="font-size:11px; opacity:.6; letter-spacing:1px;">${w.dh}</div>
+        <div style="font-size:24px; font-weight:700; color:${w.color}; line-height:1.1;">${w.id}</div>
+      </div>
+      <div>
+        <div style="font-weight:600; font-size:14px;">${w.name}</div>
+        <div style="font-size:12px; opacity:.7; margin-top:3px; line-height:1.4;">${w.focus}</div>
+        <div style="font-size:11px; opacity:.55; margin-top:4px; font-style:italic;">${w.actions}</div>
+      </div>
+      <div style="text-align:right; min-width:80px;">
+        <div style="font-size:11px; opacity:.6;">${w.greg}</div>
+        <div style="font-size:18px; font-weight:700; color:${w.color};">${w.staff}<span style="font-size:11px; opacity:.6; font-weight:400;"> staff</span></div>
+      </div>
+    </div>`).join('');
+}
+function renderRoster(d) {
+  const TYPE_COLORS = { 'Medical':'#ef4444','Ambulance':'#3b82f6','Foot-Runner':'#10b981' };
+  function renderHumans() {
+    document.getElementById('vacancy-count').textContent = d.roster.all_total;
+    document.getElementById('vacancy-unit-label').textContent = 'slots';
+    document.getElementById('unit-color-legend').style.display = 'none';
+    let html = '';
+    for (let i = 0; i < d.roster.all_total; i++) {
+      const filled = i < d.roster.all_filled;
+      html += `<div class="slot ${filled ? 'filled' : ''}" title="Slot ${i+1} · ${filled ? 'Filled' : 'Vacant'}"></div>`;
+    }
+    document.getElementById('slot-grid').innerHTML = html;
+  }
+  function renderUnits() {
+    const units = d.units_detail || [];
+    document.getElementById('vacancy-count').textContent = units.length;
+    document.getElementById('vacancy-unit-label').textContent = 'units';
+    document.getElementById('unit-color-legend').style.display = 'inline-flex';
+    const html = units.map(u => {
+      const fillPct = u.total_count ? u.filled_count / u.total_count : 0;
+      const color = TYPE_COLORS[u.type] || '#a855f7';
+      const isFull = fillPct >= 0.99;
+      const opacity = isFull ? 1 : 0.25 + fillPct * 0.5;
+      return `<div class="slot" style="background:${color}; opacity:${opacity}; border:${isFull?'1px solid #0f0':'1px solid transparent'};" title="${u.id} · ${u.filled_count}/${u.total_count} filled · ${u.home||'no home'}"></div>`;
+    }).join('');
+    document.getElementById('slot-grid').innerHTML = html;
+  }
+  renderHumans();
+  document.getElementById('gp-table').innerHTML = d.gp_coverage.map(g => `
+    <tr><td><strong>${g.station}</strong></td><td class="mono">${g.gp_day}</td><td class="mono">${g.gp_night}</td></tr>`).join('');
+  document.querySelectorAll('.roster-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.roster-toggle').forEach(b => {
+        const isActive = b === btn;
+        b.classList.toggle('active', isActive);
+        b.style.background = isActive ? 'var(--accent, #d97706)' : 'transparent';
+        b.style.color = isActive ? '#0a0e1a' : 'var(--text-dim)';
+      });
+      const mode = btn.getAttribute('data-roster');
+      if (mode === 'humans') renderHumans();
+      else renderUnits();
+    });
+  });
+}
+function renderAccommodation(d) {
+  if (d.accommodation_live && d.accommodation_live.length) d = Object.assign({}, d, { accommodation: d.accommodation_live });
+  const tbl = document.getElementById('org-detail-table');
+  if (tbl && d.org_structure) {
+    tbl.innerHTML = d.org_structure.map(o => `
+      <tr>
+        <td>${o.category}</td>
+        <td><strong>${o.role}</strong></td>
+        <td class="num-cell mono">${o.day}</td>
+        <td class="num-cell mono">${o.night}</td>
+        <td class="num-cell mono"><strong>${o.total}</strong></td>
+        <td style="opacity:0.7;font-size:11px">${o.notes||''}</td>
+      </tr>`).join('');
+  }
+}
+function renderAugmentations(d) {
+  document.getElementById('aug-total').textContent = d.augmentations.total;
+  document.getElementById('aug-flow-list').innerHTML = d.augmentations.sample.map(a => `
+    <div class="aug-flow">
+      <div class="aug-mvt">${a.mvt || a.Movement || ''}</div>
+      <div class="aug-arrow">
+        <span class="aug-from">${a.from || a['From Unit'] || a['From Station'] || ''}</span>
+        <span class="aug-arrow-line"></span>
+        <span class="aug-to">${a.to || a['To Station'] || ''}</span>
+      </div>
+      <div class="aug-count">${a.para || a.Paras || 1}</div>
+      <div><span class="status-pill" data-s="${a.status || a.Status || ''}">${a.status || a.Status || ''}</span></div>
+    </div>`).join('');
+  renderAugMatrix(d);
+}
+
+function renderAugMatrix(d) {
+  const matrix = (d.augmentations || {}).matrix;
+  const sel = document.getElementById('aug-matrix-mvt');
+  const wrap = document.getElementById('aug-matrix');
+  const summary = document.getElementById('aug-matrix-summary');
+  if (!matrix || !sel || !wrap) return;
+
+  // Populate movement filter from movements list
+  if (sel.options.length <= 1) {
+    Object.keys(matrix).filter(k => k !== 'all').sort().forEach(m => {
+      sel.insertAdjacentHTML('beforeend', `<option value="${m}">${m}</option>`);
+    });
+    sel.addEventListener('change', () => paintMatrix());
+  }
+
+  function paintMatrix() {
+    const mvt = sel.value || 'all';
+    const m = matrix[mvt];
+    if (!m || Object.keys(m).length === 0) {
+      wrap.innerHTML = `<div style="opacity:.5; padding:20px; text-align:center;">No augmentation data for ${mvt === 'all' ? 'any movement' : mvt}.</div>`;
+      summary.textContent = '';
+      return;
+    }
+    // Collect all donors and recipients
+    const donors = Object.keys(m).sort();
+    const recipientSet = new Set();
+    donors.forEach(d => Object.keys(m[d]).forEach(r => recipientSet.add(r)));
+    const recipients = [...recipientSet].sort();
+    // Find max for color scaling
+    let maxVal = 0;
+    donors.forEach(d => recipients.forEach(r => {
+      const v = m[d][r] || 0; if (v > maxVal) maxVal = v;
+    }));
+    // Compute totals
+    let total = 0;
+    donors.forEach(d => recipients.forEach(r => total += (m[d][r] || 0)));
+
+    let html = '<table style="border-collapse:collapse; font-size:12px; min-width:100%;">';
+    html += '<thead><tr><th style="text-align:left; padding:6px 10px; font-weight:600; opacity:.7; border-bottom:1px solid var(--border,#2a3245);">FROM ↓ / TO →</th>';
+    recipients.forEach(r => {
+      html += `<th style="text-align:center; padding:6px 8px; font-weight:600; opacity:.7; border-bottom:1px solid var(--border,#2a3245); white-space:nowrap;">${r}</th>`;
+    });
+    html += `<th style="text-align:center; padding:6px 8px; font-weight:600; opacity:.7; border-bottom:1px solid var(--border,#2a3245); border-left:1px solid var(--border,#2a3245);">Σ</th></tr></thead><tbody>`;
+    donors.forEach(d => {
+      let rowSum = 0;
+      html += `<tr><th style="text-align:left; padding:6px 10px; font-weight:600;">${d}</th>`;
+      recipients.forEach(r => {
+        const v = m[d][r] || 0; rowSum += v;
+        const intensity = maxVal > 0 ? v / maxVal : 0;
+        const bg = v > 0 ? `rgba(59,130,246,${0.15 + intensity * 0.55})` : 'transparent';
+        const color = v > 0 ? (intensity > 0.5 ? '#fff' : 'inherit') : 'rgba(255,255,255,0.15)';
+        html += `<td style="text-align:center; padding:6px 8px; background:${bg}; color:${color}; font-variant-numeric:tabular-nums;">${v || '·'}</td>`;
+      });
+      html += `<td style="text-align:center; padding:6px 8px; font-weight:600; border-left:1px solid var(--border,#2a3245); opacity:.8;">${rowSum}</td></tr>`;
+    });
+    // Column totals
+    html += `<tr style="border-top:1px solid var(--border,#2a3245);"><th style="text-align:left; padding:6px 10px; opacity:.6;">Σ</th>`;
+    recipients.forEach(r => {
+      let colSum = 0;
+      donors.forEach(d => colSum += (m[d][r] || 0));
+      html += `<td style="text-align:center; padding:6px 8px; font-weight:600; opacity:.8;">${colSum}</td>`;
+    });
+    html += `<td style="text-align:center; padding:6px 8px; font-weight:700; border-left:1px solid var(--border,#2a3245);">${total}</td></tr>`;
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+    summary.textContent = `${total} para movements · ${donors.length} donors → ${recipients.length} recipients`;
+  }
+  paintMatrix();
+}
+function renderStations(d) {
+  if (!d.stations_detail) return;
+  const order = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3',
+                 'OCC','Logistics','Training','Mobile'];
+  const TYPE_COLOR = {
+    'Medical': '#ef4444', 'Ambulance': '#3b82f6', 'Foot-Runner': '#10b981',
+  };
+  const grid = document.getElementById('stations-detail-grid');
+  if (!grid) return;
+  const html = order.filter(st => d.stations_detail[st] && d.stations_detail[st].total_units > 0).map(st => {
+    const data = d.stations_detail[st];
+    const isClinical = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'].includes(st);
+    const zone = st.startsWith('ARF') ? 'Arafat' : st.startsWith('MUZ') ? 'Muzdalifah' : st.startsWith('MIN') ? 'Mina' : 'Support';
+    const types = data.by_type;
+    const fillPct = data.total_size > 0 ? Math.round(data.total_filled_paras / data.total_size * 100) : 0;
+    const chips = data.units.map(u => {
+      let color = '#a855f7';
+      if (TYPE_COLOR[u.type]) color = TYPE_COLOR[u.type];
+      const isFull = u.filled === u.total && u.total > 0;
+      const opacity = isFull ? '1' : '0.6';
+      const border = isFull ? '0' : '1.5px dashed currentColor';
+      const fillIndicator = u.total > 0 ? `${u.filled}/${u.total}` : '';
+      return `<span class="unit-chip" title="${u.id} · ${u.type} · ${u.filled}/${u.total} filled${u.ready ? ' · Ready: '+u.ready : ''}" style="background:${color}; opacity:${opacity}; color:#fff; border:${border}; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:600; display:inline-flex; align-items:center; gap:4px;">${u.id}<span style="opacity:.75; font-weight:400; font-size:10px;">${fillIndicator}</span></span>`;
+    }).join(' ');
+    const typeBadges = Object.entries(types).map(([t, c]) =>
+      `<span style="background:${TYPE_COLOR[t] || '#a855f7'}; color:#fff; padding:2px 7px; border-radius:4px; font-size:10px; font-weight:600;">${c} ${t.split('-')[0]}</span>`
+    ).join(' ');
+    return `
+      <div class="card" style="background: var(--bg-2, #111827); padding: 14px;">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom: 6px;">
+          <div>
+            <div style="font-size: 18px; font-weight: 700; letter-spacing: 0.04em;">${st}</div>
+            <div style="font-size: 11px; opacity: 0.6;">${zone} · ${isClinical ? 'Clinical' : 'Support'}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size: 22px; font-weight: 700;">${data.total_units}</div>
+            <div style="font-size: 10px; opacity: 0.6;">units</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom: 10px;">
+          ${typeBadges || '<span style="font-size:10px; opacity:0.5;">No type breakdown</span>'}
+        </div>
+        <div style="font-size: 11px; opacity: 0.7; margin-bottom: 8px;">
+          ${data.total_size} paras · <span style="color:${fillPct >= 80 ? '#10b981' : fillPct >= 40 ? '#f59e0b' : '#ef4444'}; font-weight:600;">${data.total_filled_paras}/${data.total_size} filled (${fillPct}%)</span>
+        </div>
+        <div style="display:flex; gap:4px; flex-wrap:wrap;">${chips}</div>
+      </div>`;
+  }).join('');
+  grid.innerHTML = html || '<div style="opacity:0.6; padding: 30px; text-align:center;">No station data available. Make sure units have Home Station assigned.</div>';
+
+  // Charts at top of tab — stacked unit-mix per station + headcount per station
+  const clinicalSt = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+  const mikeData = clinicalSt.map(st => (d.stations_detail[st]?.by_type?.['Medical']) || 0);
+  const alphaData = clinicalSt.map(st => (d.stations_detail[st]?.by_type?.['Ambulance']) || 0);
+  const romeoData = clinicalSt.map(st => (d.stations_detail[st]?.by_type?.['Foot-Runner']) || 0);
+  const headcountData = clinicalSt.map(st => (d.stations_detail[st]?.total_size) || 0);
+  const stationMixCanvas = document.getElementById('chart-station-mix');
+  if (stationMixCanvas && window.Chart) {
+    new Chart(stationMixCanvas, {
+      type: 'bar',
+      data: { labels: clinicalSt,
+        datasets: [
+          { label: 'Mike (Medical)', data: mikeData, backgroundColor: '#ef4444' },
+          { label: 'Alpha (Ambulance)', data: alphaData, backgroundColor: '#3b82f6' },
+          { label: 'Romeo (Foot-Runner)', data: romeoData, backgroundColor: '#10b981' },
+        ] },
+      options: { responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, font: {size: 10} } } },
+        scales: { x: { stacked: true, grid: { display: false } },
+                  y: { stacked: true, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true, ticks: { stepSize: 2 } } } }
+    });
+  }
+  const headcountCanvas = document.getElementById('chart-station-paras');
+  if (headcountCanvas && window.Chart) {
+    new Chart(headcountCanvas, {
+      type: 'bar',
+      data: { labels: clinicalSt,
+        datasets: [{ label: 'People', data: headcountData,
+          backgroundColor: clinicalSt.map(st => st.startsWith('ARF') ? '#F59E0BCC' : st.startsWith('MUZ') ? '#10B981CC' : '#8B5CF6CC'),
+          borderRadius: 3 }] },
+      options: { responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false } },
+                  y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true } } }
+    });
+  }
+}
+function renderUnits(d) {
+  if (!d.units_detail || !d.units_detail.length) return;
+  const tbody = document.getElementById('units-table-body');
+  const search = document.getElementById('units-search');
+  const filterCat = document.getElementById('units-filter-cat');
+  const filterType = document.getElementById('units-filter-type');
+  const countEl = document.getElementById('units-count');
+  if (!tbody || !search || !filterCat || !filterType) return;
+  const TYPE_COLOR = { 'Medical': '#ef4444', 'Ambulance': '#3b82f6', 'Foot-Runner': '#10b981' };
+  function categoryOrder(c) {
+    return c === 'Leadership' ? 0 : c === 'Command' ? 1 : 2;
+  }
+  function render() {
+    const q = (search.value || '').trim().toLowerCase();
+    const cat = filterCat.value;
+    const typ = filterType.value;
+    const filtered = d.units_detail.filter(u => {
+      if (cat && u.category !== cat) return false;
+      if (typ && u.type !== typ) return false;
+      if (!q) return true;
+      if ((u.id || '').toLowerCase().includes(q)) return true;
+      return (u.members || []).some(m =>
+        (m.name||'').toLowerCase().includes(q) ||
+        (m.call_sign||'').toLowerCase().includes(q));
+    }).sort((a,b) => categoryOrder(a.category) - categoryOrder(b.category) || a.id.localeCompare(b.id));
+    countEl.textContent = `${filtered.length} unit${filtered.length===1?'':'s'} · ${d.units_detail.length} total`;
+    tbody.innerHTML = filtered.map(u => {
+      const color = TYPE_COLOR[u.type] || '#a855f7';
+      const fillPct = u.total_count ? Math.round(u.filled_count / u.total_count * 100) : 0;
+      const fillColor = fillPct >= 80 ? '#10b981' : fillPct >= 40 ? '#f59e0b' : fillPct > 0 ? '#ef4444' : 'var(--text-dim)';
+      const memberPills = (u.members || []).map(m => {
+        const filled = m.status === 'Filled' && m.name;
+        const label = m.name ? `${m.name} <span style="opacity:.6">· ${m.call_sign}</span>` : `<span style="opacity:.5">vacant</span> <span style="opacity:.5">· ${m.call_sign}</span>`;
+        return `<div style="display:flex; gap:6px; align-items:center; padding:2px 0; font-size:11px;">
+          <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:${filled?'#10b981':'#6b7280'};"></span>
+          <span class="mono" style="opacity:.7; min-width:60px;">${m.role || ''}</span>
+          <span>${label}</span>
+        </div>`;
+      }).join('');
+      return `<tr>
+        <td><span class="mono" style="background:${color}; color:#fff; padding:2px 8px; border-radius:4px; font-weight:600; font-size:11px;">${u.id}</span></td>
+        <td><span style="font-size:11px;">${u.type}</span></td>
+        <td style="font-size:11px; opacity:.7;">${u.category}</td>
+        <td class="num-cell mono">${u.size}</td>
+        <td class="mono" style="font-size:11px;">${u.home || '<span style="opacity:.4">—</span>'}</td>
+        <td class="num-cell mono"><span style="color:${fillColor}; font-weight:600;">${u.filled_count}/${u.total_count}</span></td>
+        <td>${memberPills || '<span style="opacity:.4; font-size:11px;">no members</span>'}</td>
+      </tr>`;
+    }).join('');
+  }
+  search.addEventListener('input', render);
+  filterCat.addEventListener('change', render);
+  filterType.addEventListener('change', render);
+  render();
+}
+function renderDayView(d) {
+  if (!d.daily_view || !d.daily_view.length) return;
+  const sel = document.getElementById('day-view-selector');
+  const summary = document.getElementById('day-view-summary');
+  const headline = document.getElementById('day-view-headline');
+  const shiftsList = document.getElementById('day-shifts-list');
+  if (!sel) return;
+  sel.innerHTML = d.daily_view.map(dv =>
+    `<option value="${dv.dh}">${dv.label} · ${dv.active_units} units · ${dv.active_paras} paras</option>`).join('');
+  let zoneChart = null, typeChart = null;
+  function pickColor(zone) {
+    return zone === 'Arafat' ? '#F59E0B' : zone === 'Muzdalifah' ? '#10B981' : zone === 'Mina' ? '#8B5CF6' : '#6B7280';
+  }
+  function paint() {
+    const dh = parseInt(sel.value);
+    const day = d.daily_view.find(x => x.dh === dh) || d.daily_view[0];
+    const calendarEntry = (d.calendar || []).find(c => c.dh === dh);
+    headline.textContent = calendarEntry ? `${calendarEntry.greg} · ${calendarEntry.phase} · ${calendarEntry.events || ''}` : '';
+    const totalParas = day.active_paras || 1;
+    summary.innerHTML = `
+      <div class="card" style="background: var(--bg-2);"><div class="card-title">Active units</div><div style="font-size: 36px; font-weight: 700; padding: 8px 0;">${day.active_units}<span style="font-size: 14px; opacity: .6;"> / 130</span></div></div>
+      <div class="card" style="background: var(--bg-2);"><div class="card-title">People on duty</div><div style="font-size: 36px; font-weight: 700; padding: 8px 0; color: ${day.active_paras >= 200 ? '#10B981' : '#F59E0B'};">${day.active_paras}<span style="font-size: 14px; opacity: .6;"> / 277</span></div></div>
+      <div class="card" style="background: var(--bg-2);"><div class="card-title">Total person-hours</div><div style="font-size: 36px; font-weight: 700; padding: 8px 0;">${day.total_hours.toLocaleString()}<span style="font-size: 14px; opacity: .6;"> hrs</span></div></div>`;
+    if (zoneChart) zoneChart.destroy();
+    if (typeChart) typeChart.destroy();
+    const zoneCanvas = document.getElementById('chart-day-zones');
+    const typeCanvas = document.getElementById('chart-day-types');
+    if (zoneCanvas && window.Chart) {
+      zoneChart = new Chart(zoneCanvas, {
+        type: 'doughnut',
+        data: { labels: Object.keys(day.zones), datasets: [{ data: Object.values(day.zones),
+          backgroundColor: Object.keys(day.zones).map(pickColor), borderColor: '#0F1729', borderWidth: 3 }] },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '60%',
+          plugins: { legend: { position: 'bottom', labels: { padding: 8, usePointStyle: true, font: {size: 10} } } } }
+      });
+    }
+    if (typeCanvas && window.Chart) {
+      typeChart = new Chart(typeCanvas, {
+        type: 'doughnut',
+        data: { labels: Object.keys(day.types), datasets: [{ data: Object.values(day.types),
+          backgroundColor: ['#ef4444','#3b82f6','#10b981','#a855f7'], borderColor: '#0F1729', borderWidth: 3 }] },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '60%',
+          plugins: { legend: { position: 'bottom', labels: { padding: 8, usePointStyle: true, font: {size: 10} } } } }
+      });
+    }
+    shiftsList.innerHTML = Object.entries(day.shifts || {}).map(([code, count]) =>
+      `<div style="display:flex; justify-content:space-between; padding: 4px 0; border-bottom: 1px solid var(--border, #2a3245);"><span class="mono" style="opacity:.8;">${code}</span><span class="mono" style="font-weight:600;">${count} paras</span></div>`).join('') || '<div style="opacity:.5;">No shifts assigned this day</div>';
+  }
+  sel.addEventListener('change', paint);
+  paint();
+}
+
+function renderSchedule(d) {
+  if (!d.schedule_grid) return;
+  const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3','OCC','Logistics','Training','Mobile'];
+  const DAYS = ['4','5','6','7','8','9','10','11','12','13','14'];
+  const wrap = document.getElementById('schedule-grid-wrap');
+  if (!wrap) return;
+  let maxParas = 0;
+  STATIONS.forEach(st => DAYS.forEach(dh => {
+    const s1 = (d.schedule_grid[dh]?.slot1?.[st]?.paras) || 0;
+    const s2 = (d.schedule_grid[dh]?.slot2?.[st]?.paras) || 0;
+    if (s1 > maxParas) maxParas = s1;
+    if (s2 > maxParas) maxParas = s2;
+  }));
+  function intensity(n) {
+    if (!n || maxParas === 0) return 0;
+    return Math.min(1, n / maxParas);
+  }
+  let html = '<table class="schedule-grid-table" style="border-collapse: collapse; font-size: 11px; min-width: 100%;">';
+  html += '<thead><tr><th style="text-align:left; padding: 8px; border-bottom: 1px solid var(--border, #2a3245); position: sticky; left: 0; background: var(--bg, #0a0e1a);">Station</th>';
+  DAYS.forEach(dh => { html += `<th style="padding: 6px 8px; text-align: center; border-bottom: 1px solid var(--border, #2a3245); font-family: var(--font-mono); opacity: .8;">${dh} DH</th>`; });
+  html += '</tr></thead><tbody>';
+  STATIONS.forEach(st => {
+    const hasAny = DAYS.some(dh => (d.schedule_grid[dh]?.slot1?.[st]?.units || d.schedule_grid[dh]?.slot2?.[st]?.units));
+    if (!hasAny) return;
+    html += `<tr><td class="mono" style="padding: 8px; font-weight: 600; border-bottom: 1px solid var(--border, #2a3245); position: sticky; left: 0; background: var(--bg, #0a0e1a);">${st}</td>`;
+    DAYS.forEach(dh => {
+      const s1 = d.schedule_grid[dh]?.slot1?.[st] || {units:0, paras:0};
+      const s2 = d.schedule_grid[dh]?.slot2?.[st] || {units:0, paras:0};
+      const i1 = intensity(s1.paras);
+      const i2 = intensity(s2.paras);
+      html += `<td style="padding: 4px 6px; text-align: center; border-bottom: 1px solid var(--border, #2a3245);">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div title="Day shift: ${s1.units} units, ${s1.paras} paras" style="background: rgba(245, 158, 11, ${i1}); padding: 4px 6px; border-radius: 3px; font-family: var(--font-mono); font-weight: 600;">${s1.units || '—'}</div>
+          <div title="Night/late shift: ${s2.units} units, ${s2.paras} paras" style="background: rgba(139, 92, 246, ${i2}); padding: 4px 6px; border-radius: 3px; font-family: var(--font-mono); font-weight: 600;">${s2.units || '—'}</div>
+        </div>
+      </td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+
+  // Per-unit schedule table
+  const unitWrap = document.getElementById('schedule-unit-table-wrap');
+  const search = document.getElementById('schedule-search');
+  const typeFilter = document.getElementById('schedule-type');
+  if (!unitWrap || !d.units_detail) return;
+  function renderUnitTable() {
+    const q = (search.value || '').toLowerCase().trim();
+    const tf = typeFilter.value;
+    let html = '<table style="border-collapse: collapse; font-size: 11px; min-width: 100%;">';
+    html += '<thead><tr><th style="padding: 6px 10px; text-align: left; position: sticky; left: 0; background: var(--bg, #0a0e1a);">Unit</th><th style="padding: 6px 8px; text-align: left;">Type</th><th style="padding: 6px 8px;">Home</th>';
+    for (let dh = 4; dh <= 14; dh++) {
+      html += `<th style="padding: 6px 6px; text-align: center; font-family: var(--font-mono); opacity: .7;">${dh}</th>`;
+    }
+    html += '</tr></thead><tbody>';
+    const filtered = d.units_detail.filter(u =>
+      (!q || u.id.toLowerCase().includes(q)) && (!tf || u.type === tf)
+    );
+    filtered.forEach(u => {
+      const TYPE_COLOR = { 'Medical': '#ef4444', 'Ambulance': '#3b82f6', 'Foot-Runner': '#10b981' };
+      const color = TYPE_COLOR[u.type] || '#a855f7';
+      html += `<tr style="border-bottom: 1px solid var(--border, #2a3245);"><td style="padding: 5px 10px; position: sticky; left: 0; background: var(--bg, #0a0e1a);"><span class="mono" style="background:${color};color:#fff;padding:1px 6px;border-radius:3px;font-weight:600;font-size:10px">${u.id}</span></td><td style="padding: 5px 8px; opacity: .7;">${u.type}</td><td style="padding: 5px 8px; opacity: .7;" class="mono">${u.home || '—'}</td>`;
+      // Schedule cells: We don't have per-unit per-day shift codes in units_detail, so show generic dot if active in schedule_grid
+      // Since the grid is by station, use a placeholder
+      for (let dh = 4; dh <= 14; dh++) {
+        // Look up via grid: is this unit's home active that day?
+        const s1 = d.schedule_grid[dh]?.slot1?.[u.home];
+        const s2 = d.schedule_grid[dh]?.slot2?.[u.home];
+        const hasD = s1 && s1.units > 0;
+        const hasN = s2 && s2.units > 0;
+        html += `<td style="padding: 4px; text-align: center;">
+          <span title="Day" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${hasD?'#F59E0B':'#1f2937'}; margin-right: 2px;"></span>
+          <span title="Night" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${hasN?'#8B5CF6':'#1f2937'};"></span>
+        </td>`;
+      }
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    unitWrap.innerHTML = html;
+  }
+  search.addEventListener('input', renderUnitTable);
+  typeFilter.addEventListener('change', renderUnitTable);
+  renderUnitTable();
+}
+
+const ROLE_TABS = {
+  'all': null,
+  'executive': ['home','calendar','day-view','mobilization'],
+  'pm': null,
+  'chief': ['home','mobilization','hourly','day-view','schedule','roster','stations','ambulances','augmentations','staffing'],
+  'supervisor': ['home','day-view','schedule','roster','stations','units','staffing'],
+  'paramedic': ['home','calendar','day-view','schedule','units','ambulances'],
+};
+let currentRole = 'all';
+
+function setupRoleView() {
+  const sel = document.getElementById('role-view-selector');
+  if (!sel) return;
+  function applyView(role) {
+    currentRole = role;
+    const tabs = ROLE_TABS[role];
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      const tab = btn.getAttribute('data-tab');
+      btn.style.display = (tabs === null || tabs.includes(tab)) ? '' : 'none';
+    });
+    const activeBtn = document.querySelector('.tab-btn.active');
+    if (activeBtn && activeBtn.style.display === 'none') {
+      const firstVisible = document.querySelector('.tab-btn:not([style*="display: none"])');
+      if (firstVisible) firstVisible.click();
+    }
+    renderHome(DATA);
+  }
+  sel.addEventListener('change', e => applyView(e.target.value));
+}
+
+function renderHome(d) {
+  const wrap = document.getElementById('home-content');
+  const titleEl = document.getElementById('home-title');
+  const blurbEl = document.getElementById('home-blurb');
+  if (!wrap) return;
+  const role = currentRole;
+  const totalPpl = (d.units_detail || []).reduce((s,u) => s + u.size, 0);
+  const totalUnits = (d.units_detail || []).length;
+  const ambCount = (d.ambulance_roster || []).length;
+  const filledCount = (d.status_live?.by_status?.Filled) || 0;
+  const fillPct = totalPpl ? Math.round(filledCount/totalPpl*100) : 0;
+  const todayDH = (d.calendar || []).find(c => c.is_today)?.dh || 8;
+  const todayData = (d.daily_view || []).find(x => x.dh === todayDH) || (d.daily_view||[])[0] || {active_units:0,active_paras:0,total_hours:0};
+
+  function kpi(label, value, sub, color) {
+    return `<div class="card" style="background: var(--bg-2); padding: 18px;">
+      <div style="font-size: 10px; opacity:.6; text-transform: uppercase; letter-spacing:.08em; font-family:var(--font-mono);">${label}</div>
+      <div style="font-size: 32px; font-weight: 700; padding: 6px 0; color: ${color||'inherit'};">${value}</div>
+      <div style="font-size: 11px; opacity:.6;">${sub||''}</div>
+    </div>`;
+  }
+  function quickLinks(tabs) {
+    const NAMES = {home:'Home',calendar:'Calendar',mobilization:'Mobilization',hourly:'Hourly',
+      'day-view':'Day View',schedule:'Schedule',roster:'Roster',stations:'Stations',units:'Units',
+      ambulances:'Ambulances',augmentations:'Augmentations',assets:'Org & Assets',timeline:'Timeline',staffing:'Staffing'};
+    return tabs.map(t => `<button onclick="document.querySelector('.tab-btn[data-tab=\"'+'${t}'+'\"]').click()" style="background:var(--bg-2); border:1px solid var(--border); padding:10px 16px; border-radius:6px; color:var(--text); cursor:pointer; font-family:var(--font-mono); font-size:12px;">${NAMES[t]||t} →</button>`).join(' ');
+  }
+
+  let html = '';
+  const greeting = role==='executive'?'Executive view':
+                   role==='pm'?'Project manager view':
+                   role==='chief'?'Chief paramedic view':
+                   role==='supervisor'?'Station supervisor view':
+                   role==='paramedic'?'Paramedic view':'All views';
+  titleEl.innerHTML = `${greeting} · <span class="accent">overview</span>`;
+
+  if (role === 'executive') {
+    blurbEl.textContent = 'High-level metrics for leadership briefings. No operational detail.';
+    html += '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 14px; margin-bottom: 20px;">';
+    html += kpi('TOTAL PEOPLE', totalPpl, `${totalUnits} units · ${ambCount} ambulances`);
+    html += kpi('STAFFING FILL', fillPct + '%', `${filledCount} of ${totalPpl} confirmed`, fillPct>=80?'#10b981':fillPct>=40?'#f59e0b':'#ef4444');
+    html += kpi('OPERATIONAL DAYS', '11', '4 DH → 14 DH (Hajj 2026)');
+    html += kpi('SITES', '10', '9 clinical + OCC');
+    html += '</div>';
+    html += `<div class="card"><div class="card-title">What to look at</div><div class="card-subtitle">Tabs available in this view</div><div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">${quickLinks(['calendar','day-view','mobilization'])}</div></div>`;
+  } else if (role === 'paramedic') {
+    blurbEl.textContent = 'Personal view: see your unit, your schedule, your station.';
+    html += '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 14px; margin-bottom: 20px;">';
+    html += kpi('YOUR DEPLOYMENT', '11 days', '25-30 May 2026');
+    html += kpi('ROUTE BRIEFING', 'Calendar', 'Phase progression');
+    html += kpi('YOUR UNIT', 'Units tab', 'Find your call sign');
+    html += '</div>';
+    html += `<div class="card"><div class="card-title">Where to start</div><div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">${quickLinks(['calendar','day-view','units','schedule','ambulances'])}</div></div>`;
+  } else if (role === 'supervisor') {
+    blurbEl.textContent = 'Station-level view: who reports to you, what units are at your station, fill status.';
+    html += '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 14px; margin-bottom: 20px;">';
+    html += kpi('TODAY · ' + todayDH + ' DH', todayData.active_units, `${todayData.active_paras} paras on duty`);
+    html += kpi('YOUR SITES', '10 sites (9 clinical + OCC)', 'See Stations tab for detail');
+    html += kpi('TOTAL UNITS', totalUnits, 'Mike · Alpha · Romeo');
+    html += '</div>';
+    html += `<div class="card"><div class="card-title">Supervisor workflow</div><div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">${quickLinks(['stations','units','day-view','schedule','roster','staffing'])}</div></div>`;
+  } else if (role === 'chief') {
+    blurbEl.textContent = 'Operations-wide command view. Look at staffing fill, hourly load, augmentations, ambulance readiness.';
+    html += '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 14px; margin-bottom: 20px;">';
+    html += kpi('FILL STATUS', `${filledCount}/${totalPpl}`, fillPct + '% confirmed', fillPct>=80?'#10b981':fillPct>=40?'#f59e0b':'#ef4444');
+    html += kpi('TODAY · ' + todayDH + ' DH', todayData.active_units, `${todayData.active_paras} paras · ${todayData.total_hours.toLocaleString()} hrs`);
+    html += kpi('AMBULANCES', ambCount, '25 vehicles');
+    html += kpi('UNITS DEPLOYED', totalUnits, '20 Mike · 48 Alpha · 49 Romeo');
+    html += '</div>';
+    html += `<div class="card"><div class="card-title">Command shortcuts</div><div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">${quickLinks(['hourly','day-view','schedule','roster','stations','ambulances','augmentations','staffing'])}</div></div>`;
+  } else {
+    // PM and 'all' — full view
+    blurbEl.textContent = 'Master view: everything. Use the role selector to filter to a specific stakeholder perspective.';
+    html += '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 14px; margin-bottom: 20px;">';
+    html += kpi('PEOPLE', totalPpl, `${filledCount} filled (${fillPct}%)`);
+    html += kpi('UNITS', totalUnits, '20 M · 48 A · 48 R + 17 cmd');
+    html += kpi('SITES', '10', '9 clinical + OCC');
+    html += kpi('AMBULANCES', ambCount, '10 E · 9 B · 6 R');
+    html += kpi('TODAY', todayDH + ' DH', `${todayData.active_units} units active`);
+    html += '</div>';
+    html += `<div class="card"><div class="card-title">All tabs</div><div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">${quickLinks(['calendar','mobilization','hourly','day-view','schedule','roster','stations','units','ambulances','augmentations','assets','timeline','staffing'])}</div></div>`;
+  }
+  wrap.innerHTML = html;
+}
+
+function renderStaffing(d) {
+  const tbody = document.getElementById('staffing-table-body');
+  if (!tbody) return;
+  // Build the staffing list from units_detail (which has members per unit)
+  const rows = [];
+  (d.units_detail || []).forEach(u => {
+    (u.members || []).forEach(m => {
+      rows.push({
+        status: m.status || 'Vacant',
+        name: m.name || '',
+        role: m.role || '',
+        unit: u.id,
+        station: u.home || '',
+        call_sign: m.call_sign || u.id,
+        phone: m.phone || '',
+        email: m.email || '',
+        unit_type: u.type,
+      });
+    });
+  });
+  // Populate filter dropdowns
+  const stations = Array.from(new Set(rows.map(r=>r.station).filter(Boolean))).sort();
+  const roles = Array.from(new Set(rows.map(r=>r.role).filter(Boolean))).sort();
+  const stSel = document.getElementById('staffing-station');
+  const roleSel = document.getElementById('staffing-role');
+  if (stSel.options.length <= 1) stations.forEach(s => stSel.add(new Option(s,s)));
+  if (roleSel.options.length <= 1) roles.forEach(r => roleSel.add(new Option(r,r)));
+  const search = document.getElementById('staffing-search');
+  const statusSel = document.getElementById('staffing-status');
+  const summary = document.getElementById('staffing-summary');
+  const countEl = document.getElementById('staffing-count');
+
+  function statusColor(s) {
+    return s === 'Filled' ? '#10b981' : s === 'Backup' ? '#3b82f6' : s === 'On-Leave' ? '#f59e0b' : '#6b7280';
+  }
+  function render() {
+    const q = (search.value||'').toLowerCase().trim();
+    const fStatus = statusSel.value;
+    const fStation = stSel.value;
+    const fRole = roleSel.value;
+    const filtered = rows.filter(r => {
+      if (fStatus && r.status !== fStatus) return false;
+      if (fStation && r.station !== fStation) return false;
+      if (fRole && r.role !== fRole) return false;
+      if (!q) return true;
+      const blob = [r.name,r.role,r.unit,r.station,r.call_sign].join(' ').toLowerCase();
+      return blob.includes(q);
+    });
+    countEl.textContent = `${filtered.length} of ${rows.length}`;
+    // summary cards
+    const counts = filtered.reduce((acc,r) => { acc[r.status]=(acc[r.status]||0)+1; return acc; }, {});
+    summary.innerHTML = ['Filled','Vacant','Backup','On-Leave'].map(st => {
+      const n = counts[st] || 0;
+      const pct = filtered.length ? Math.round(n/filtered.length*100) : 0;
+      return `<div class="card" style="background: var(--bg-2); padding: 12px;"><div style="font-size:10px; opacity:.6; text-transform:uppercase; font-family:var(--font-mono);">${st}</div><div style="font-size:24px; font-weight:700; color:${statusColor(st)}; padding: 4px 0;">${n}</div><div style="font-size:10px; opacity:.5;">${pct}%</div></div>`;
+    }).join('');
+    tbody.innerHTML = filtered.slice(0, 500).map(r => {
+      const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${statusColor(r.status)};margin-right:6px;"></span>`;
+      const name = r.name || '<span style="opacity:.4">— vacant —</span>';
+      const contact = [r.phone, r.email].filter(Boolean).join(' · ') || '<span style="opacity:.3">—</span>';
+      return `<tr><td>${dot}<span style="font-size:10px; opacity:.7;">${r.status}</span></td><td>${name}</td><td style="font-size:11px;opacity:.8;">${r.role}</td><td><span class="mono" style="font-size:10px; background: var(--bg-2); padding:2px 6px; border-radius:3px;">${r.unit}</span></td><td class="mono" style="font-size:11px;opacity:.8;">${r.station}</td><td class="mono" style="font-size:11px;opacity:.7;">${r.call_sign}</td><td style="font-size:10px;opacity:.6;">${contact}</td></tr>`;
+    }).join('') + (filtered.length > 500 ? `<tr><td colspan="7" style="text-align:center; padding:14px; opacity:.5; font-size:11px;">Showing first 500 of ${filtered.length}. Use filters to narrow.</td></tr>` : '');
+  }
+  search.addEventListener('input', render);
+  statusSel.addEventListener('change', render);
+  stSel.addEventListener('change', render);
+  roleSel.addEventListener('change', render);
+  render();
+}
+
+function renderAmbulanceDashboards(d) {
+  if (!d.amb_dashboards) return;
+  const ad = d.amb_dashboards;
+  const TYPE_COLORS = { 'Essential': '#DC2626', 'Backup': '#F97316', 'Roving': '#EAB308' };
+
+  // a) Scheduled hours per ambulance — horizontal bar
+  const hoursList = Object.entries(ad.amb_hours || {})
+    .map(([aid, dhMap]) => {
+      const total = Object.values(dhMap).reduce((s, x) => s + x, 0);
+      return { id: aid, total, type: ad.amb_meta?.[aid]?.type || '' };
+    })
+    .sort((a, b) => b.total - a.total);
+  const ambHoursCanvas = document.getElementById('chart-amb-hours');
+  if (ambHoursCanvas && window.Chart && hoursList.length) {
+    new Chart(ambHoursCanvas, {
+      type: 'bar',
+      data: {
+        labels: hoursList.map(x => x.id),
+        datasets: [{
+          label: 'Hours scheduled',
+          data: hoursList.map(x => x.total),
+          backgroundColor: hoursList.map(x => TYPE_COLORS[x.type] || '#6B7280'),
+          borderRadius: 2
+        }]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: tooltipStyle },
+        scales: { x: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }, y: { grid: { display: false }, ticks: { font: { size: 9 } } } }
+      }
+    });
+  }
+
+  // b) Availability over time — stacked bar by type
+  const days = Object.keys(ad.daily_by_type || {}).sort((a, b) => +a - +b);
+  const ambAvailCanvas = document.getElementById('chart-amb-availability');
+  if (ambAvailCanvas && window.Chart && days.length) {
+    new Chart(ambAvailCanvas, {
+      type: 'bar',
+      data: {
+        labels: days.map(d => d + ' DH'),
+        datasets: ['Essential','Backup','Roving'].map(t => ({
+          label: t,
+          data: days.map(d => ad.daily_by_type[d]?.[t] || 0),
+          backgroundColor: TYPE_COLORS[t]
+        }))
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, font: { size: 11 } } }, tooltip: tooltipStyle },
+        scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true } }
+      }
+    });
+  }
+
+  // c) Day vs Night by zone — grouped bar
+  const ambDnCanvas = document.getElementById('chart-amb-day-night');
+  if (ambDnCanvas && window.Chart && ad.day_by_zone) {
+    const zones = ['Arafat','Muzdalifah','Mina','Support'];
+    new Chart(ambDnCanvas, {
+      type: 'bar',
+      data: {
+        labels: zones,
+        datasets: [
+          { label: 'Day', data: zones.map(z => ad.day_by_zone[z] || 0), backgroundColor: '#F59E0BCC' },
+          { label: 'Night', data: zones.map(z => ad.night_by_zone[z] || 0), backgroundColor: '#3B82F6CC' }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, font: { size: 11 } } }, tooltip: tooltipStyle },
+        scales: { x: { grid: { display: false } }, y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true, ticks: { stepSize: 1 } } }
+      }
+    });
+  }
+
+  // d) Gantt: Each row = ambulance, columns = days 4 DH..14 DH, segments shaded by shift type
+  const wrap = document.getElementById('amb-gantt-wrap');
+  if (wrap && ad.gantt) {
+    const SHIFT_COLOR = { 'DAY': '#F59E0B', 'NIGHT': '#3B82F6', '': '#6B7280' };
+    const days = [4,5,6,7,8,9,10,11,12,13,14];
+    let html = '<table style="width:100%; border-collapse:collapse; font-size:10px; font-family: var(--font-mono);">';
+    html += '<thead><tr><th style="text-align:left; padding:5px 8px;">Amb</th><th style="text-align:left; padding:5px 6px;">Type</th>';
+    days.forEach(dh => { html += `<th style="text-align:center; padding:5px 4px; opacity:.7;">${dh}</th>`; });
+    html += '</tr></thead><tbody>';
+    ad.gantt.forEach(amb => {
+      const segByDh = {};
+      (amb.segments || []).forEach(seg => {
+        if (!segByDh[seg.dh]) segByDh[seg.dh] = [];
+        segByDh[seg.dh].push(seg);
+      });
+      html += `<tr style="border-bottom:1px solid var(--border, #2a3245);">`;
+      html += `<td style="padding:4px 8px; font-weight:600;">${amb.id}</td>`;
+      html += `<td style="padding:4px 6px;"><span style="background:${TYPE_COLORS[amb.type]||'#6B7280'};color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;">${amb.type||'?'}</span></td>`;
+      days.forEach(dh => {
+        const segs = segByDh[dh] || [];
+        if (segs.length === 0) {
+          html += `<td style="padding:3px; text-align:center; color: var(--text-dim, #888);">·</td>`;
+        } else {
+          // Up to 2 stripes (slot1, slot2)
+          const stripeHtml = segs.map(seg => {
+            const c = SHIFT_COLOR[(seg.type||'').toUpperCase()] || SHIFT_COLOR[''];
+            return `<div title="${seg.code} (${seg.role})" style="height:7px; background:${c}; border-radius:1px; margin: 1px 0;"></div>`;
+          }).join('');
+          html += `<td style="padding:2px 3px;">${stripeHtml}</td>`;
+        }
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    html += '<div style="font-size:10px; opacity:.6; margin-top:8px;">Each stripe = one shift. <span style="display:inline-block;width:10px;height:8px;background:#F59E0B;vertical-align:middle;border-radius:2px;"></span> Day · <span style="display:inline-block;width:10px;height:8px;background:#3B82F6;vertical-align:middle;border-radius:2px;"></span> Night</div>';
+    wrap.innerHTML = html;
+  }
+}
+function renderInsights(d) {
+  const ins = d.insights || {};
+  // Coverage Health cards
+  const wrap = document.getElementById('coverage-cards');
+  if (wrap && ins.coverage_health) {
+    const HEALTH = {
+      'good':      { color: '#10b981', label: 'Good',       bg: 'rgba(16,185,129,0.12)' },
+      'fair':      { color: '#f59e0b', label: 'Fair',       bg: 'rgba(245,158,11,0.12)' },
+      'stretched': { color: '#ef4444', label: 'Stretched',  bg: 'rgba(239,68,68,0.12)' },
+      'no-amb':    { color: '#6b7280', label: 'No amb',     bg: 'rgba(107,114,128,0.10)' },
+    };
+    wrap.innerHTML = ins.coverage_health.map(c => {
+      const h = HEALTH[c.health] || HEALTH['no-amb'];
+      const ratio = c.ratio === null ? '—' : c.ratio + ':1';
+      return `<div class="card" style="background:${h.bg}; border-left: 4px solid ${h.color}; padding: 14px;">
+        <div style="display:flex; justify-content:space-between; align-items:baseline;">
+          <div style="font-size: 17px; font-weight: 700; letter-spacing: 0.04em;">${c.station}</div>
+          <span style="background:${h.color}; color:#fff; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; text-transform:uppercase;">${h.label}</span>
+        </div>
+        <div style="font-size: 28px; font-weight:700; padding: 6px 0; color:${h.color};">${ratio}</div>
+        <div style="font-size: 11px; opacity:.7;">${c.paras} paras · ${c.ambulances} ambulance${c.ambulances===1?'':'s'}</div>
+        <div style="font-size: 10px; opacity:.55; margin-top: 4px; font-family: var(--font-mono);">Day ${c.day_paras} · Night ${c.night_paras}</div>
+      </div>`;
+    }).join('');
+  }
+  // Stress Map
+  const grid = document.getElementById('stress-grid');
+  if (grid && ins.stress_map) {
+    const stations = Object.keys(ins.stress_map);
+    const movements = ins.movements || [];
+    let html = '<table style="width:100%; border-collapse:collapse; font-size:11px; font-family: var(--font-mono);">';
+    html += '<thead><tr><th style="text-align:left; padding:6px 10px; position:sticky; left:0; background:var(--bg, #0a0e1a); border-bottom:1px solid var(--border, #2a3245);">Station</th>';
+    html += '<th style="text-align:center; padding:6px 8px; opacity:.7; border-bottom:1px solid var(--border, #2a3245);">Capacity</th>';
+    movements.forEach(m => {
+      html += `<th style="text-align:center; padding:6px 8px; border-bottom:1px solid var(--border, #2a3245);">${m}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+    stations.forEach(st => {
+      const row = ins.stress_map[st];
+      html += `<tr style="border-bottom:1px solid var(--border, #2a3245);"><td style="padding:6px 10px; position:sticky; left:0; background:var(--bg, #0a0e1a); font-weight:600;">${st}</td>`;
+      html += `<td style="text-align:center; padding:6px 8px; opacity:.7;">${row.capacity}</td>`;
+      movements.forEach(m => {
+        const cell = row.by_mvt[m] || {peak:0, gap:0, pct:0};
+        let bg = 'transparent', fg = 'inherit';
+        if (cell.pct >= 100) { bg = 'rgba(239,68,68,0.30)'; fg = '#fca5a5'; }
+        else if (cell.pct >= 70) { bg = 'rgba(245,158,11,0.25)'; fg = '#fcd34d'; }
+        else if (cell.pct > 0) { bg = 'rgba(16,185,129,0.12)'; fg = '#86efac'; }
+        const title = `${st} during ${m}: peak ${cell.peak} of ${row.capacity} capacity (${cell.pct}%)`;
+        html += `<td title="${title}" style="text-align:center; padding:6px 8px; background:${bg}; color:${fg}; font-weight:600;">${cell.peak}<span style="opacity:.5; font-weight:400;">/${row.capacity}</span></td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    grid.innerHTML = html;
+  }
+}
+
+function renderOrgTree(d) {
+  const wrap = document.getElementById('org-tree-wrap');
+  if (!wrap || !d.org_tree) return;
+  const TYPE_COLOR = { 'Medical': '#ef4444', 'Ambulance': '#3b82f6', 'Foot-Runner': '#10b981' };
+  function nodeColor(n) {
+    if (n.category === 'Leadership') return '#a855f7';
+    if (n.category === 'Command') return '#06b6d4';
+    return TYPE_COLOR[n.type] || '#6b7280';
+  }
+  function renderNode(node, depth) {
+    const color = nodeColor(node);
+    const fillPct = node.size > 0 ? Math.round(node.filled / node.size * 100) : 0;
+    const fillColor = fillPct >= 80 ? '#10b981' : fillPct >= 40 ? '#f59e0b' : fillPct > 0 ? '#ef4444' : '#6b7280';
+    const hasChildren = node.children && node.children.length > 0;
+    const childIds = (node.children || []).map(c => c.id).join(',');
+    const childCount = hasChildren ? `<span style="opacity:.5; font-size:10px; margin-left:6px;">(${node.children.length})</span>` : '';
+    const homeBadge = node.home ? `<span style="background:rgba(255,255,255,0.06); padding:1px 6px; border-radius:3px; font-size:9px; opacity:.7; margin-left:6px;">${node.home}</span>` : '';
+    const fillBadge = node.size > 0 ? `<span style="color:${fillColor}; font-size:10px; font-weight:600; margin-left:8px;">${node.filled}/${node.size}</span>` : '';
+    const expandIcon = hasChildren ? `<span class="org-expand" style="display:inline-block; width:14px; cursor:pointer; user-select:none; opacity:.6;">▼</span>` : `<span style="display:inline-block; width:14px;"></span>`;
+    let html = `<div class="org-node" data-children-of="${node.id}" style="margin-left: ${depth * 22}px; padding: 4px 0; display:flex; align-items:center; gap:6px;">`;
+    html += expandIcon;
+    html += `<span class="mono" style="background:${color}; color:#fff; padding:2px 9px; border-radius:4px; font-weight:600; font-size:11px; min-width:60px; text-align:center; cursor:${hasChildren?'pointer':'default'};" onclick="${hasChildren ? `toggleOrgNode('${node.id}')` : ''}">${node.label || node.id}</span>`;
+    html += `<span style="font-size:11px; opacity:.85;">${node.type || node.category || ''}</span>`;
+    html += homeBadge + fillBadge + childCount;
+    html += '</div>';
+    if (hasChildren) {
+      html += `<div class="org-children" id="org-children-${node.id}">`;
+      node.children.forEach(c => { html += renderNode(c, depth + 1); });
+      html += '</div>';
+    }
+    return html;
+  }
+  wrap.innerHTML = renderNode(d.org_tree, 0);
+  // Toggle handler
+  window.toggleOrgNode = function(id) {
+    const child = document.getElementById('org-children-' + id);
+    if (!child) return;
+    child.style.display = child.style.display === 'none' ? '' : 'none';
+    // Flip arrow
+    const node = document.querySelector('.org-node[data-children-of="' + id + '"] .org-expand');
+    if (node) node.textContent = child.style.display === 'none' ? '▶' : '▼';
+  };
+}
+
+function renderStationScorecards(d) {
+  if (!d.stations_detail) return;
+  const wrap = document.getElementById('station-scorecards');
+  const zoneWrap = document.getElementById('zone-rollup');
+  if (!wrap) return;
+  const CLINICAL = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+  const TYPE_COLOR = { 'Medical': '#ef4444', 'Ambulance': '#3b82f6', 'Foot-Runner': '#10b981' };
+  const dn = d.day_night_station || {};
+  const ambByStation = d.amb_by_station || {};
+  const coverageMap = {};
+  (d.insights?.coverage_health || []).forEach(c => coverageMap[c.station] = c);
+
+  // Zone roll-ups
+  if (zoneWrap) {
+    const zones = {
+      'Arafat': ['ARF1','ARF2','ARF3'],
+      'Muzdalifah': ['MUZ1','MUZ2','MUZ3'],
+      'Mina': ['MIN1','MIN2','MIN3'],
+    };
+    zoneWrap.innerHTML = Object.entries(zones).map(([zone, sts]) => {
+      const totalPeople = sts.reduce((s,st) => s + (d.stations_detail[st]?.total_size || 0), 0);
+      const totalUnits = sts.reduce((s,st) => s + (d.stations_detail[st]?.total_units || 0), 0);
+      const totalAmb = sts.reduce((s,st) => s + (ambByStation[st] || 0), 0);
+      const totalDay = sts.reduce((s,st) => s + (dn[st]?.day_paras || 0), 0);
+      const totalNight = sts.reduce((s,st) => s + (dn[st]?.night_paras || 0), 0);
+      const ratio = totalAmb ? Math.round(totalPeople / totalAmb * 10) / 10 : '—';
+      const zColor = zone === 'Arafat' ? '#F59E0B' : zone === 'Muzdalifah' ? '#10B981' : '#8B5CF6';
+      return `<div class="card" style="background:var(--bg-2); border-left:4px solid ${zColor}; padding:14px;">
+        <div style="font-size:13px; font-weight:700; letter-spacing:0.05em; color:${zColor}; text-transform:uppercase;">${zone}</div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:8px;">
+          <div><div style="font-size:10px; opacity:.6;">Paras</div><div style="font-size:22px; font-weight:700;">${totalPeople}</div></div>
+          <div><div style="font-size:10px; opacity:.6;">Units</div><div style="font-size:22px; font-weight:700;">${totalUnits}</div></div>
+          <div><div style="font-size:10px; opacity:.6;">Ambulances</div><div style="font-size:22px; font-weight:700;">${totalAmb}</div></div>
+          <div><div style="font-size:10px; opacity:.6;">Para:Amb</div><div style="font-size:22px; font-weight:700; color:${zColor};">${ratio}:1</div></div>
+        </div>
+        <div style="font-size:10px; opacity:.6; margin-top:8px; font-family:var(--font-mono);">Day ${totalDay} · Night ${totalNight} (cum.)</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Per-station scorecards (clinical only)
+  wrap.innerHTML = CLINICAL.filter(st => d.stations_detail[st]).map(st => {
+    const sd = d.stations_detail[st];
+    const dnSt = dn[st] || {day_paras:0, night_paras:0, day_units:0, night_units:0};
+    const amb = ambByStation[st] || 0;
+    const cov = coverageMap[st] || {};
+    const fillPct = sd.total_size > 0 ? Math.round(sd.total_filled_paras / sd.total_size * 100) : 0;
+    const fillColor = fillPct >= 80 ? '#10b981' : fillPct >= 40 ? '#f59e0b' : fillPct > 0 ? '#ef4444' : '#6b7280';
+    const HEALTH = { 'good':'#10b981','fair':'#f59e0b','stretched':'#ef4444','no-amb':'#6b7280' };
+    const healthColor = HEALTH[cov.health] || '#6b7280';
+    const types = sd.by_type || {};
+    const topTypes = Object.entries(types).sort((a,b)=>b[1]-a[1]).slice(0,3);
+    const zone = st.startsWith('ARF') ? 'Arafat' : st.startsWith('MUZ') ? 'Muzdalifah' : 'Mina';
+    return `<div class="card" style="background: var(--bg-2); padding: 14px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 10px;">
+        <div>
+          <div style="font-size: 18px; font-weight: 700; letter-spacing: 0.04em;">${st}</div>
+          <div style="font-size: 10px; opacity: 0.6;">${zone}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size: 22px; font-weight: 700;">${sd.total_size}</div>
+          <div style="font-size: 10px; opacity: 0.6;">paras total</div>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 10px;">
+        <div style="background:rgba(245,158,11,0.10); padding: 6px; border-radius: 4px; text-align:center;">
+          <div style="font-size:9px; opacity:.7;">DAY</div>
+          <div style="font-size:16px; font-weight:700; color:#f59e0b;">${dnSt.day_paras}</div>
+          <div style="font-size:9px; opacity:.6;">${dnSt.day_units} units</div>
+        </div>
+        <div style="background:rgba(59,130,246,0.10); padding: 6px; border-radius: 4px; text-align:center;">
+          <div style="font-size:9px; opacity:.7;">NIGHT</div>
+          <div style="font-size:16px; font-weight:700; color:#3b82f6;">${dnSt.night_paras}</div>
+          <div style="font-size:9px; opacity:.6;">${dnSt.night_units} units</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.04); padding: 6px; border-radius: 4px; text-align:center;">
+          <div style="font-size:9px; opacity:.7;">AMB</div>
+          <div style="font-size:16px; font-weight:700;">${amb}</div>
+          <div style="font-size:9px; opacity:.6;">vehicles</div>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:space-between; padding: 6px 0; border-top: 1px solid var(--border, #2a3245); border-bottom: 1px solid var(--border, #2a3245); margin-bottom: 8px;">
+        <div><span style="font-size:10px; opacity:.6;">Fill</span> <span style="color:${fillColor}; font-weight:700; font-size:13px;">${sd.total_filled_paras}/${sd.total_size}</span> <span style="font-size:10px; color:${fillColor};">(${fillPct}%)</span></div>
+        <div><span style="font-size:10px; opacity:.6;">Health</span> <span style="color:${healthColor}; font-weight:700; font-size:13px;">${cov.ratio !== null && cov.ratio !== undefined ? cov.ratio + ':1' : '—'}</span></div>
+      </div>
+      <div style="display:flex; flex-wrap:wrap; gap: 4px;">
+        ${topTypes.map(([t, c]) => `<span style="background:${TYPE_COLOR[t] || '#a855f7'}; color:#fff; padding:2px 7px; border-radius:3px; font-size:10px; font-weight:600;">${c} ${t.split('-')[0]}</span>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderTimeline(d) {
+  document.getElementById('phase-count').textContent = d.movement_phases.length;
+  document.getElementById('mvt-timeline').innerHTML = d.movement_phases.map(p => `
+    <div class="mvt-bar" style="border-left: 3px solid ${mvtColors[p.mvt] || '#888'}; padding-left: 9px;">
+      <span class="mvt-bar-code" style="color: ${mvtColors[p.mvt] || '#888'}">${p.mvt}</span>
+      <span class="mvt-bar-time">${p.start_dh} ${p.start_hour} → ${p.end_dh} ${p.end_hour}</span>
+      <span class="mvt-bar-shift">${p.shift}</span>
+    </div>`).join('');
+  document.getElementById('timeline-table').innerHTML = d.timeline.map(t => `
+    <tr>
+      <td class="mono">P${t.phase}</td>
+      <td><strong>${t.activity}</strong></td>
+      <td class="mono">${t.date_dh}</td>
+      <td class="mono">${t.greg}</td>
+      <td class="mono">${t.owner}</td>
+    </tr>`).join('');
+}
+
+function renderHeatmap() {
+  // v3.2-style: row per (DH, hour); cols = stations OR zones depending on gran
+  const stations = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+  const filterMvt = hourlyState.mvt;
+  const granZone = hourlyState.gran === 'zone';
+  // Filter hours: hide PRE-B unless explicitly selected
+  let rows = DATA.hourly.hours.filter(h => filterMvt === 'all' ? h.mvt !== 'PRE-B' : h.mvt === filterMvt);
+  if (rows.length === 0) {
+    document.getElementById('heatmap-grid').innerHTML = '<div style="text-align:center; padding: 30px; opacity:.5;">No hours match this filter</div>';
+    return;
+  }
+  // Compute max for color scaling
+  let maxVal = 0;
+  rows.forEach(r => {
+    if (granZone) {
+      maxVal = Math.max(maxVal, r.arf_s||0, r.muz_s||0, r.min_s||0);
+    } else {
+      stations.forEach(st => { maxVal = Math.max(maxVal, (r.stations||{})[st] || 0); });
+    }
+  });
+  function cellColor(v, isNight) {
+    if (!v) return 'rgba(255,255,255,0.02)';
+    const a = 0.15 + (v / Math.max(maxVal, 1)) * 0.7;
+    return isNight
+      ? `rgba(59, 130, 246, ${a.toFixed(2)})`
+      : `rgba(245, 158, 11, ${a.toFixed(2)})`;
+  }
+
+  let html = '<table style="width:100%; border-collapse:collapse; font-size:11px; font-family: var(--font-mono);">';
+  html += '<thead><tr><th style="text-align:left; padding:6px 8px; position:sticky; left:0; background:var(--bg, #0a0e1a); z-index:2; border-bottom:1px solid var(--border, #2a3245);">Hour</th>';
+  html += '<th style="text-align:left; padding:6px 8px; border-bottom:1px solid var(--border, #2a3245);">Mvt</th>';
+  html += '<th style="text-align:left; padding:6px 8px; border-bottom:1px solid var(--border, #2a3245);">Shift</th>';
+  if (granZone) {
+    ['Arafat','Muzdalifah','Mina','Support'].forEach(c =>
+      html += `<th style="text-align:center; padding:6px 8px; border-bottom:1px solid var(--border, #2a3245);">${c}</th>`);
+    html += '<th style="text-align:center; padding:6px 8px; border-bottom:1px solid var(--border, #2a3245); font-weight:700;">Total</th>';
+  } else {
+    stations.forEach(st =>
+      html += `<th style="text-align:center; padding:6px 6px; border-bottom:1px solid var(--border, #2a3245);">${st}</th>`);
+    html += '<th style="text-align:center; padding:6px 8px; border-bottom:1px solid var(--border, #2a3245); font-weight:700;">Total</th>';
+  }
+  html += '</tr></thead><tbody>';
+
+  let prevDh = null;
+  rows.forEach(r => {
+    const isNight = (r.shift || '').toUpperCase() === 'NIGHT';
+    const isCritical = (r.mvt === 'C' || r.mvt === 'B1A');
+    const dhChanged = (r.dh !== prevDh);
+    prevDh = r.dh;
+    const rowBg = dhChanged ? 'border-top:2px solid var(--border-strong, #3a4255);' : '';
+    html += `<tr style="${rowBg}">`;
+    html += `<td style="padding:4px 8px; position:sticky; left:0; background:var(--bg, #0a0e1a); border-bottom:1px solid var(--border, #2a3245); white-space:nowrap;"><span style="opacity:.6">${r.dh}</span> <strong>${r.hour}</strong></td>`;
+    html += `<td style="padding:4px 8px; border-bottom:1px solid var(--border, #2a3245); font-weight:600; color:${isCritical ? '#ef4444' : (window.mvtColors?.[r.mvt] || 'inherit')};">${r.mvt}</td>`;
+    html += `<td style="padding:4px 8px; border-bottom:1px solid var(--border, #2a3245); color:${isNight ? '#3b82f6' : '#f59e0b'}; font-size:10px;">${r.shift}</td>`;
+    if (granZone) {
+      [['arf_s','arf_a'],['muz_s','muz_a'],['min_s','min_a']].forEach(([sk, ak]) => {
+        const v = r[sk] || 0; const a = r[ak] || 0;
+        html += `<td style="text-align:center; padding:4px 8px; border-bottom:1px solid var(--border, #2a3245); background:${cellColor(v, isNight)};">${v}<span style="opacity:.4">/${a}</span></td>`;
+      });
+      html += `<td style="text-align:center; padding:4px 8px; border-bottom:1px solid var(--border, #2a3245); background:rgba(255,255,255,0.04); font-weight:600;">${r.support||0}</td>`;
+      html += `<td style="text-align:center; padding:4px 8px; border-bottom:1px solid var(--border, #2a3245); font-weight:700;">${r.grand_s || 0}</td>`;
+    } else {
+      stations.forEach(st => {
+        const v = (r.stations || {})[st] || 0;
+        html += `<td style="text-align:center; padding:4px 6px; border-bottom:1px solid var(--border, #2a3245); background:${cellColor(v, isNight)};">${v || '—'}</td>`;
+      });
+      html += `<td style="text-align:center; padding:4px 8px; border-bottom:1px solid var(--border, #2a3245); font-weight:700;">${r.grand_s || 0}</td>`;
+    }
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('heatmap-grid').innerHTML = html;
+}
+
+function buildHourlyChart() {
+  if (typeof Chart === 'undefined') return;
+  const d = DATA;
+  const hours = d.hourly.hours.filter(h => hourlyState.mvt === 'all' ? h.mvt !== 'PRE-B' : h.mvt === hourlyState.mvt);
+  const labels = hours.map(h => h.label);
+  document.getElementById('hourly-title').textContent =
+    (hourlyState.gran === 'zone' ? 'Zone' : 'Station') + ' staffing — ' +
+    (hourlyState.mvt === 'all' ? 'all operations' : `movement ${hourlyState.mvt}`);
+
+  let datasets = [];
+  if (hourlyState.gran === 'zone') {
+    datasets = [
+      { label: 'Arafat', data: hours.map(h => h.arf_s), borderColor: '#F59E0B', backgroundColor: 'transparent', borderWidth: 2, tension: 0.3, pointRadius: 0 },
+      { label: 'Muzdalifah', data: hours.map(h => h.muz_s), borderColor: '#10B981', backgroundColor: 'transparent', borderWidth: 2, tension: 0.3, pointRadius: 0 },
+      { label: 'Mina', data: hours.map(h => h.min_s), borderColor: '#8B5CF6', backgroundColor: 'transparent', borderWidth: 2, tension: 0.3, pointRadius: 0 }
+    ];
+  } else {
+    const stns = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+    datasets = stns.map(st => ({
+      label: st, data: hours.map(h => h.stations[st] || 0),
+      borderColor: stationColors[st], backgroundColor: 'transparent', borderWidth: 1.8, tension: 0.3, pointRadius: 0
+    }));
+  }
+  if (hourlyChart) hourlyChart.destroy();
+  hourlyChart = new Chart(document.getElementById('chart-hourly'), {
+    type: 'line', data: { labels, datasets },
+    options: { responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'bottom', labels: { padding: 14, usePointStyle: true } }, tooltip: tooltipStyle },
+      scales: { y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true },
+                x: { grid: { display: false }, ticks: { maxTicksLimit: 14, autoSkip: true, font: { size: 10 } } } } }
+  });
+}
+
+function renderCharts(d) {
+  if (typeof Chart === 'undefined') {
+    status('Chart.js not loaded — text rendered, charts unavailable');
+    return;
+  }
+  // Use live accommodation if computed (derived from Home Station)
+  if (d.accommodation_live && d.accommodation_live.length) {
+    d = Object.assign({}, d, { accommodation: d.accommodation_live });
+  }
+  new Chart(document.getElementById('chart-movement'), {
+    type: 'bar',
+    data: { labels: d.movements.map(m => m.code),
+      datasets: [{ label: 'Total staff', data: d.movements.map(m => m.staff),
+        backgroundColor: d.movements.map(m => (mvtColors[m.code] || '#888') + 'CC'),
+        borderColor: d.movements.map(m => mvtColors[m.code] || '#888'),
+        borderWidth: 1.5, borderRadius: 4 }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: tooltipStyle },
+      scales: { y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }, x: { grid: { display: false } } } }
+  });
+  new Chart(document.getElementById('chart-status'), {
+    type: 'doughnut',
+    data: { labels: Object.keys(d.status_live?.by_status || d.status_counts || {}),
+      datasets: [{ data: Object.values(d.status_live?.by_status || d.status_counts || {}),
+      backgroundColor: ['#10B981','#EF4444','#3B82F6','#F59E0B'], borderColor: '#0F1729', borderWidth: 3 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '65%',
+      plugins: { legend: { position: 'right', labels: { padding: 12, usePointStyle: true } }, tooltip: tooltipStyle } }
+  });
+  // Zone × Movement — use live zone_movement if available, fallback to old zone_by_mvt
+  const zmData = d.zone_movement || d.zone_by_mvt || {};
+  const zmLabels = Object.keys(zmData);
+  const zoneNames = ['Arafat','Muzdalifah','Mina','Support'];
+  new Chart(document.getElementById('chart-zone'), {
+    type: 'bar',
+    data: { labels: zmLabels,
+      datasets: zoneNames.map((zone, i) => ({
+        label: zone,
+        data: zmLabels.map(mvt => zmData[mvt]?.[zone] || 0),
+        backgroundColor: ['#F59E0B','#10B981','#8B5CF6','#6B7280'][i],
+      }))
+    },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, font: {size: 10} } } },
+      scales: { x: { stacked: true, grid: { display: false } },
+                y: { stacked: true, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true } } }
+  });
+  // Skip the duplicate chart-zone block below by guarding
+  if (false) {
+      const _z = {datasets: [
+        { label: 'Arafat', data: [], backgroundColor: '#F59E0BCC', borderRadius: 2 },
+        { label: 'Muzdalifah', data: [], backgroundColor: '#10B981CC', borderRadius: 2 },
+        { label: 'Mina', data: [], backgroundColor: '#8B5CF6CC', borderRadius: 2 },
+        { label: 'Support', data: [], backgroundColor: '#6B7280CC', borderRadius: 2 }
+      ]};
+  }
+  new Chart(document.getElementById('chart-subrole'), {
+    type: 'bar',
+    data: { labels: Object.keys(d.roster.by_subrole),
+      datasets: [
+        { label: 'Vacant', data: Object.keys(d.roster.by_subrole).map(k => (d.roster.by_subrole_status[k] || {vacant:0}).vacant), backgroundColor: '#DC2626CC', borderRadius: 3 },
+        { label: 'Filled', data: Object.keys(d.roster.by_subrole).map(k => (d.roster.by_subrole_status[k] || {filled:0}).filled), backgroundColor: '#10B981CC', borderRadius: 3 }
+      ] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { padding: 14, usePointStyle: true } }, tooltip: tooltipStyle },
+      scales: { x: { stacked: true, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }, y: { stacked: true, grid: { display: false } } } }
+  });
+  const peakDay = {}, peakNight = {};
+  d.hourly.hours.forEach(h => {
+    Object.entries(h.stations).forEach(([st, v]) => {
+      if (h.shift === 'DAY' && v > (peakDay[st] || 0)) peakDay[st] = v;
+      if (h.shift === 'NIGHT' && v > (peakNight[st] || 0)) peakNight[st] = v;
+    });
+  });
+  const stns = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+  let chartDayNight = null;
+  function buildDayNightChart(metric) {
+    const data = DATA.day_night_station || {};
+    const stations = Object.keys(data).filter(st => st && (data[st].day_paras || data[st].night_paras)).sort();
+    const dayKey = metric === 'units' ? 'day_units' : 'day_paras';
+    const nightKey = metric === 'units' ? 'night_units' : 'night_paras';
+    if (chartDayNight) chartDayNight.destroy();
+    chartDayNight = new Chart(document.getElementById('chart-day-night'), {
+      type: 'bar',
+      data: { labels: stations, datasets: [
+        { label: 'Day', data: stations.map(st => data[st][dayKey] || 0), backgroundColor: '#F59E0BCC', borderRadius: 3 },
+        { label: 'Night', data: stations.map(st => data[st][nightKey] || 0), backgroundColor: '#3B82F6CC', borderRadius: 3 }
+      ] },
+      options: { responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position:'bottom', labels: { padding: 12, usePointStyle: true, font:{size:11} } }, tooltip: tooltipStyle },
+        scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' } }, x: { grid: { display:false } } } }
+    });
+  }
+  buildDayNightChart('paras');
+  document.querySelectorAll('.dn-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.dn-toggle').forEach(b => {
+        b.classList.toggle('active', b === btn);
+        const isActive = b === btn;
+        b.style.background = isActive ? 'var(--accent, #d97706)' : 'transparent';
+        b.style.color = isActive ? '#0a0e1a' : 'var(--text-dim)';
+      });
+      buildDayNightChart(btn.getAttribute('data-dn'));
+    });
+  });
+  new Chart(document.getElementById('chart-aug-mvt'), {
+    type: 'bar',
+    data: { labels: Object.keys(d.augmentations.by_movement),
+      datasets: [{ label: 'Augmentations', data: Object.values(d.augmentations.by_movement), backgroundColor: '#EAB308CC', borderRadius: 4 }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: tooltipStyle },
+      scales: { y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }, x: { grid: { display: false } } } }
+  });
+  new Chart(document.getElementById('chart-aug-from'), {
+    type: 'bar',
+    data: { labels: Object.keys(d.augmentations.by_donor),
+      datasets: [{ label: 'Para', data: Object.values(d.augmentations.by_donor),
+        backgroundColor: Object.keys(d.augmentations.by_donor).map(s => {
+          if (s.startsWith('ARF')) return '#F59E0BCC';
+          if (s.startsWith('MUZ')) return '#10B981CC';
+          if (s.startsWith('MIN')) return '#8B5CF6CC';
+          return '#6B7280CC';
+        }), borderRadius: 3 }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: tooltipStyle },
+      scales: { x: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }, y: { grid: { display: false } } } }
+  });
+  new Chart(document.getElementById('chart-fleet'), {
+    type: 'doughnut',
+    data: { labels: ['Essential (E) ALS', 'Backup (B) BLS', 'Roving (R) ALS'],
+      datasets: [{ data: [10,9,6], backgroundColor: ['#DC2626','#F97316','#EAB308'], borderColor: '#0F1729', borderWidth: 3 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '60%',
+      plugins: { legend: { position: 'bottom', labels: { padding: 10, usePointStyle: true, font: {size: 10} } }, tooltip: tooltipStyle } }
+  });
+  new Chart(document.getElementById('chart-crew'), {
+    type: 'doughnut',
+    data: { labels: ['Day crews (Alpha-01..25)','Night crews (Alpha-26..50)'],
+      datasets: [{ data: [50,50], backgroundColor: ['#3B82F6','#8B5CF6'], borderColor: '#0F1729', borderWidth: 3 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '60%',
+      plugins: { legend: { position: 'bottom', labels: { padding: 10, usePointStyle: true, font: {size: 10} } }, tooltip: tooltipStyle } }
+  });
+  // Ambulances per station — stacked by type (Essential / Backup / Roving)
+  const ambByType = d.amb_by_station_type || {};
+  const ambStLabels = Object.keys(ambByType).filter(k => {
+    const t = ambByType[k]; return (t.Essential||0) + (t.Backup||0) + (t.Roving||0) > 0;
+  });
+  if (ambStLabels.length === 0 && d.amb_by_station) {
+    Object.keys(d.amb_by_station).forEach(k => { if (d.amb_by_station[k]>0) ambStLabels.push(k); });
+  }
+  new Chart(document.getElementById('chart-amb-station'), {
+    type: 'bar',
+    data: { labels: ambStLabels,
+      datasets: [
+        { label: 'Essential ALS', data: ambStLabels.map(s => (ambByType[s]?.Essential)||0), backgroundColor: '#DC2626' },
+        { label: 'Backup BLS',    data: ambStLabels.map(s => (ambByType[s]?.Backup)||0),    backgroundColor: '#F97316' },
+        { label: 'Roving ALS',    data: ambStLabels.map(s => (ambByType[s]?.Roving)||0),    backgroundColor: '#EAB308' },
+      ] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { padding: 10, usePointStyle: true, font: {size: 10} } }, tooltip: tooltipStyle },
+      scales: { x: { stacked: true, grid: { display: false } },
+                y: { stacked: true, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true, ticks: { stepSize: 1 } } } }
+  });
+  // Ambulance roster table
+  if (d.ambulance_roster && d.ambulance_roster.length) {
+    const typeColor = { 'Essential': '#DC2626', 'Backup': '#F97316', 'Roving': '#EAB308' };
+    const rosterEl = document.getElementById('ambulance-roster');
+    if (rosterEl) {
+      rosterEl.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Ambulance</th><th>Type</th><th>Class</th><th>Day Crew</th><th>Night Crew</th><th>Home</th><th>Status</th></tr></thead>
+            <tbody>${d.ambulance_roster.map(a => `
+              <tr>
+                <td class="mono"><strong>${a.id}</strong></td>
+                <td><span style="background:${typeColor[a.type]||'#6B7280'};color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">${a.type}</span></td>
+                <td class="mono">${a.cls||''}</td>
+                <td class="mono">${a.day_crew||'<span style="opacity:.4">—</span>'}</td>
+                <td class="mono">${a.night_crew||'<span style="opacity:.4">—</span>'}</td>
+                <td class="mono">${a.home||'<span style="opacity:.4">—</span>'}</td>
+                <td><span class="status-pill" data-s="${a.status}">${a.status||'—'}</span></td>
+              </tr>`).join('')}</tbody>
+          </table>
+        </div>`;
+    }
+  }
+  new Chart(document.getElementById('chart-accom'), {
+    type: 'bar',
+    data: { labels: d.accommodation.map(a => a.location),
+      datasets: [{ label: 'Beds', data: d.accommodation.map(a => a.total_beds),
+        backgroundColor: d.accommodation.map(a => {
+          const l = a.location.toLowerCase();
+          if (l.includes('arafat')) return '#F59E0BCC';
+          if (l.includes('muz')) return '#10B981CC';
+          if (l.includes('mina')) return '#8B5CF6CC';
+          return '#6B7280CC';
+        }), borderRadius: 3 }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: tooltipStyle },
+      scales: { x: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }, y: { grid: { display: false } } } }
+  });
+  const cats = {};
+  d.org_structure.forEach(o => {
+    if (!cats[o.category]) cats[o.category] = {day: 0, night: 0};
+    cats[o.category].day += o.day;
+    cats[o.category].night += o.night;
+  });
+  new Chart(document.getElementById('chart-org'), {
+    type: 'bar',
+    data: { labels: Object.keys(cats),
+      datasets: [
+        { label: 'Day', data: Object.values(cats).map(c => c.day), backgroundColor: '#F59E0BCC', borderRadius: 3 },
+        { label: 'Night', data: Object.values(cats).map(c => c.night), backgroundColor: '#3B82F6CC', borderRadius: 3 }
+      ] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { padding: 14, usePointStyle: true } }, tooltip: tooltipStyle },
+      scales: { x: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }, y: { grid: { display: false } } } }
+  });
+}
+
+function setupTabs() {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.getAttribute('data-tab');
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
+      window.location.hash = tab;
+      window.dispatchEvent(new Event('resize'));
+    });
+  });
+  const initial = (window.location.hash || '').replace('#','');
+  if (initial) {
+    const btn = document.querySelector(`.tab-btn[data-tab="${initial}"]`);
+    if (btn) btn.click();
+  }
+}
+function setupHourlyControls() {
+  document.getElementById('hourly-mvt').addEventListener('change', e => {
+    hourlyState.mvt = e.target.value; updateHourly();
+  });
+  document.querySelectorAll('[data-gran]').forEach(b => {
+    b.addEventListener('click', () => {
+      hourlyState.gran = b.getAttribute('data-gran');
+      document.querySelectorAll('[data-gran]').forEach(x => x.classList.toggle('active', x === b));
+      updateHourly();
+    });
+  });
+  document.querySelectorAll('[data-view]').forEach(b => {
+    b.addEventListener('click', () => {
+      hourlyState.view = b.getAttribute('data-view');
+      document.querySelectorAll('[data-view]').forEach(x => x.classList.toggle('active', x === b));
+      document.getElementById('hourly-line-wrap').style.display = hourlyState.view === 'line' ? 'block' : 'none';
+      document.getElementById('hourly-heat-wrap').style.display = hourlyState.view === 'heatmap' ? 'block' : 'none';
+      updateHourly();
+    });
+  });
+}
+function updateHourly() {
+  if (hourlyState.view === 'line') buildHourlyChart();
+  else renderHeatmap();
+}
+
+async function boot() {
+  status('loading data…');
+  try {
+    if (window.__INLINE_DATA__) {
+      DATA = window.__INLINE_DATA__;
+      status('data loaded (inline)');
+    } else {
+      const r = await fetch('./data.json?t=' + Date.now());
+      DATA = await r.json();
+      window.__data = data;
+      status('data loaded (fetch)');
+    }
+  } catch (e) {
+    status(`Data load failed: ${e.message}`);
+    return;
+  }
+  safeRender('countdown', renderCountdown);
+  safeRender('kpis', () => renderKPIs(DATA));
+  safeRender('calendar', () => renderCalendar(DATA));
+  safeRender('movements', () => renderMovements(DATA));
+  safeRender('roster', () => renderRoster(DATA));
+  safeRender('stations', () => renderStations(DATA));
+  safeRender('units', () => renderUnits(DATA));
+  safeRender('day-view', () => renderDayView(DATA));
+  safeRender('schedule', () => renderSchedule(DATA));
+  safeRender('amb-dashboards', () => renderAmbulanceDashboards(DATA));
+  safeRender('role-view', setupRoleView);
+  safeRender('home', () => renderHome(DATA));
+  safeRender('staffing', () => renderStaffing(DATA));
+  safeRender('insights', () => renderInsights(DATA));
+  safeRender('tasks', () => loadAndRenderTasks());
+  safeRender('org-tree', () => renderOrgTree(DATA));
+  safeRender('station-scorecards', () => renderStationScorecards(DATA));
+  safeRender('accommodation', () => renderAccommodation(DATA));
+  safeRender('augmentations', () => renderAugmentations(DATA));
+  safeRender('timeline', () => renderTimeline(DATA));
+  safeRender('charts', () => renderCharts(DATA));
+  safeRender('hourly', updateHourly);
+  safeRender('hourly-controls', setupHourlyControls);
+  safeRender('tabs', setupTabs);
+
+  document.getElementById('nav-time').textContent = `LIVE · ${DATA.refreshed_at}`;
+  document.getElementById('footer-refresh').textContent = DATA.refreshed_at;
+  document.getElementById('footer-source').textContent = DATA.source;
+  status('ready', 'success');
+}
+
+// ===== TASKS TAB =====
+let TASKS_DATA = null;
+async function loadAndRenderTasks() {
+  try {
+    const r = await fetch('./tasks.json?t=' + Date.now());
+    if (!r.ok) throw new Error('tasks.json not found');
+    TASKS_DATA = await r.json();
+    renderTasks();
+    setupTasksFilters();
+  } catch (e) {
+    const list = document.getElementById('tasks-list');
+    if (list) list.innerHTML = `<div class="card" style="text-align:center; padding:40px 20px; opacity:.6;">tasks.json not yet generated. Run <code>build_tasks.py</code> in the repo, then push.<br><span style="font-size:11px;">${e.message}</span></div>`;
+  }
+}
+
+function setupTasksFilters() {
+  const t = TASKS_DATA; if (!t) return;
+  const phaseSel = document.getElementById('tasks-filter-phase');
+  const statusSel = document.getElementById('tasks-filter-status');
+  const ownerSel = document.getElementById('tasks-filter-owner');
+  const viewSel = document.getElementById('tasks-filter-view');
+  const phases = [...new Set(t.tasks.map(x => x.phase))].sort();
+  const statuses = [...new Set(t.tasks.map(x => x.status).filter(Boolean))];
+  const owners = [...new Set(t.tasks.map(x => x.owner).filter(Boolean))].sort();
+  phases.forEach(p => phaseSel.insertAdjacentHTML('beforeend', `<option value="${p}">${p}</option>`));
+  statuses.forEach(s => statusSel.insertAdjacentHTML('beforeend', `<option value="${s}">${s}</option>`));
+  owners.forEach(o => ownerSel.insertAdjacentHTML('beforeend', `<option value="${o}">${o}</option>`));
+  [phaseSel, statusSel, ownerSel, viewSel].forEach(el => el.addEventListener('change', renderTasks));
+}
+
+function renderTasks() {
+  const t = TASKS_DATA; if (!t) return;
+  const phaseFilter = document.getElementById('tasks-filter-phase')?.value || '';
+  const statusFilter = document.getElementById('tasks-filter-status')?.value || '';
+  const ownerFilter = document.getElementById('tasks-filter-owner')?.value || '';
+  const viewFilter = document.getElementById('tasks-filter-view')?.value || 'all';
+
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  // Filter
+  let filtered = t.tasks.filter(x => {
+    if (phaseFilter && x.phase !== phaseFilter) return false;
+    if (statusFilter && x.status !== statusFilter) return false;
+    if (ownerFilter && x.owner !== ownerFilter) return false;
+    if (viewFilter === 'sar' && !x.sar_visible) return false;
+    if (viewFilter === 'hmg' && x.sar_visible) return false;
+    if (viewFilter === 'overdue') {
+      if (!x.due) return false;
+      if (['Done','Later','Closed'].includes(x.status)) return false;
+      const due = new Date(x.due); due.setHours(0,0,0,0);
+      if (due >= today) return false;
+    }
+    if (viewFilter === 'urgent') {
+      if (!x.due) return false;
+      if (['Done','Later','Closed'].includes(x.status)) return false;
+      const due = new Date(x.due); due.setHours(0,0,0,0);
+      const days = Math.floor((due - today) / 86400000);
+      if (days < 0 || days > 5) return false;
+    }
+    return x.is_header !== true;
+  });
+
+  // KPIs (always over full set, not filtered)
+  const all = t.tasks.filter(x => !x.is_header);
+  const byStatus = {};
+  all.forEach(x => { if (x.status) byStatus[x.status] = (byStatus[x.status]||0) + 1; });
+  const overdue = all.filter(x => {
+    if (!x.due || ['Done','Later','Closed'].includes(x.status)) return false;
+    const due = new Date(x.due); due.setHours(0,0,0,0);
+    return due < today;
+  }).length;
+  const urgent = all.filter(x => {
+    if (!x.due || ['Done','Later','Closed'].includes(x.status)) return false;
+    const due = new Date(x.due); due.setHours(0,0,0,0);
+    const days = Math.floor((due - today) / 86400000);
+    return days >= 0 && days <= 5;
+  }).length;
+  const sar = all.filter(x => x.sar_visible).length;
+
+  const kpiHtml = [
+    {label:'TOTAL', value: all.length, sub:`${t.tasks.length - all.length} phase headers`},
+    {label:'IN PROCESS', value: byStatus['In Process']||0, sub:'actively worked'},
+    {label:'OPEN', value: byStatus['Open']||0, sub:'not started', color:'#f59e0b'},
+    {label:'DONE', value: byStatus['Done']||0, sub:'complete', color:'#10b981'},
+    {label:'OVERDUE', value: overdue, sub:'past due', color: overdue>0?'#ef4444':null},
+    {label:'≤5 DAYS', value: urgent, sub:'urgent', color: urgent>0?'#f59e0b':null},
+    {label:'SAR-VIS', value: sar, sub:`${all.length-sar} HMG-internal`},
+  ].map(k => `<div class="card" style="text-align:center; padding:14px 12px;">
+    <div style="font-size:10px; opacity:.6; letter-spacing:.5px;">${k.label}</div>
+    <div style="font-size:28px; font-weight:700; line-height:1.2; color:${k.color || 'var(--text)'};">${k.value}</div>
+    <div style="font-size:11px; opacity:.6;">${k.sub}</div>
+  </div>`).join('');
+  document.getElementById('tasks-kpis').innerHTML = kpiHtml;
+
+  // Group by phase
+  const byPhase = {};
+  filtered.forEach(x => { (byPhase[x.phase] = byPhase[x.phase] || []).push(x); });
+  const phaseOrder = Object.keys(byPhase).sort();
+
+  const PHASE_LABELS = {
+    'Phase 0':'Governance & Contractual','Phase 1':'Permits & Administration','Phase 2':'Logistics & Facilities',
+    'Phase 3':'Equipment & Procurement','Phase 4':'Staffing & Recruitment','Phase 5':'Plans & Documentation',
+    'Phase 6':'Testing & Readiness','Phase 7':'Operations (DH 8–13)','Phase 8':'Demobilization',
+  };
+  const PHASE_COLORS = {
+    'Phase 0':'#ef4444','Phase 1':'#f59e0b','Phase 2':'#f97316','Phase 3':'#eab308',
+    'Phase 4':'#22c55e','Phase 5':'#3b82f6','Phase 6':'#6366f1','Phase 7':'#a855f7','Phase 8':'#ec4899',
+  };
+  const STATUS_STYLE = {
+    'Done':'background:#064e3b;color:#6ee7b7;', 'In Process':'background:#1e3a8a;color:#93c5fd;',
+    'Open':'background:#78350f;color:#fcd34d;', 'Later':'background:#374151;color:#9ca3af;',
+    'Closed':'background:#1f2937;color:#6b7280;',
+  };
+
+  let html = '';
+  phaseOrder.forEach(p => {
+    const tasks = byPhase[p];
+    const color = PHASE_COLORS[p] || '#6b7280';
+    const label = PHASE_LABELS[p] || p;
+    html += `<div class="card" style="margin-bottom:16px; border-left:4px solid ${color};">
+      <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px;">
+        <div>
+          <div style="font-size:11px; opacity:.5; letter-spacing:.5px;">${p.toUpperCase()}</div>
+          <div style="font-size:18px; font-weight:600;">${label}</div>
+        </div>
+        <div style="font-size:13px; opacity:.6;">${tasks.length} task${tasks.length===1?'':'s'}</div>
+      </div>
+      <div style="display:grid; gap:6px;">`;
+    tasks.sort((a,b) => (a.num||999) - (b.num||999)).forEach(x => {
+      let dueBadge = '';
+      if (x.due && !['Done','Later','Closed'].includes(x.status)) {
+        const due = new Date(x.due); due.setHours(0,0,0,0);
+        const days = Math.floor((due - today) / 86400000);
+        let txt, col;
+        if (days < 0) { txt = `${Math.abs(days)}d overdue`; col = '#ef4444'; }
+        else if (days === 0) { txt = 'due today'; col = '#f59e0b'; }
+        else if (days <= 5) { txt = `${days}d left`; col = '#f59e0b'; }
+        else { txt = `${days}d`; col = '#10b981'; }
+        dueBadge = `<span style="font-size:11px; color:${col}; font-weight:600; white-space:nowrap;">${txt}</span>`;
+      }
+      const sarPill = x.sar_visible
+        ? `<span style="font-size:10px; padding:2px 6px; background:#1e3a8a; color:#93c5fd; border-radius:3px;">SAR</span>`
+        : `<span style="font-size:10px; padding:2px 6px; background:#374151; color:#9ca3af; border-radius:3px;">HMG</span>`;
+      const priPill = x.priority
+        ? `<span style="font-size:10px; padding:2px 6px; background:${x.priority==='P1'?'#7f1d1d':'#78350f'}; color:${x.priority==='P1'?'#fca5a5':'#fcd34d'}; border-radius:3px; font-weight:600;">${x.priority}</span>`
+        : '';
+      html += `<div style="display:grid; grid-template-columns: 36px 1fr auto; gap:10px; padding:10px; background:rgba(255,255,255,0.02); border-radius:6px; align-items:center;">
+        <div style="font-family:var(--mono); font-size:12px; opacity:.5; text-align:center;">${x.num != null ? '#'+x.num : '—'}</div>
+        <div>
+          <div style="font-weight:500; line-height:1.3;">${escapeHtml(x.task)}</div>
+          ${x.notes ? `<div style="font-size:11px; opacity:.55; margin-top:2px; line-height:1.3;">${escapeHtml(x.notes)}</div>` : ''}
+          <div style="display:flex; gap:8px; align-items:center; margin-top:4px; flex-wrap:wrap;">
+            ${x.owner ? `<span style="font-size:11px; opacity:.7;">👤 ${escapeHtml(x.owner)}</span>` : ''}
+            ${x.category ? `<span style="font-size:11px; opacity:.5;">· ${escapeHtml(x.category)}</span>` : ''}
+            ${priPill}${sarPill}
+          </div>
+        </div>
+        <div style="text-align:right;">
+          ${x.status ? `<span style="font-size:11px; padding:3px 8px; border-radius:3px; font-weight:600; ${STATUS_STYLE[x.status]||''}">${x.status}</span>` : ''}
+          ${dueBadge ? `<div style="margin-top:4px;">${dueBadge}</div>` : ''}
+        </div>
+      </div>`;
+    });
+    html += `</div></div>`;
+  });
+
+  if (filtered.length === 0) {
+    html = `<div class="card" style="text-align:center; padding:40px; opacity:.5;">No tasks match the current filters.</div>`;
+  }
+  document.getElementById('tasks-list').innerHTML = html;
+  document.getElementById('tasks-meta').textContent = `${filtered.length} of ${all.length} shown · refreshed ${t.refreshed_at || '—'}`;
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ===== END TASKS =====
+
+
+// ═══════════════════════════════════════════════════════════════
+// v11.8 features — theme, settings, Live OCC, PCR/Census
+// ═══════════════════════════════════════════════════════════════
+
+// ─── Settings (localStorage) ─────────────────────────────────────
+const SETTINGS_KEY = 'hajj-ops-settings-v1';
+function getSettings() {
+  try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); } catch { return {}; }
+}
+function saveSettings(s) {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+}
+
+// ─── Theme toggle ────────────────────────────────────────────────
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = theme === 'light' ? '☀' : '◐';
+  const settings = getSettings();
+  settings.theme = theme;
+  saveSettings(settings);
+}
+function setupThemeToggle() {
+  const btn = document.getElementById('theme-toggle');
+  if (!btn) return;
+  const settings = getSettings();
+  const initial = settings.theme || 'dark';
+  applyTheme(initial);
+  btn.addEventListener('click', () => {
+    const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+    applyTheme(cur === 'light' ? 'dark' : 'light');
+  });
+}
+
+// ─── Settings modal ──────────────────────────────────────────────
+function openSettingsModal() {
+  const settings = getSettings();
+  const gasUrl = settings.gasUrl || '';
+  const refreshSec = settings.pcrRefreshSec || 30;
+  const html = `
+    <div class="modal-backdrop show" id="settings-modal">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-title">Settings</div>
+        <div class="modal-subtitle">Configure dashboard integrations and personal preferences. All settings are stored in your browser only.</div>
+
+        <div class="modal-section">
+          <label class="modal-label">Google Apps Script — PCR &amp; Census endpoint</label>
+          <input type="text" class="modal-input" id="setting-gas-url" placeholder="https://script.google.com/macros/s/.../exec" value="${gasUrl}" autocomplete="off" spellcheck="false">
+          <div class="modal-help">
+            Paste the deployed web-app URL for the Google Apps Script that reads your PCR and Patient Census Google Sheets and returns JSON. The script must respond to <code>GET /?endpoint=summary</code>, <code>GET /?endpoint=encounters</code>, and <code>GET /?endpoint=stations</code>.
+            <br><br>Setup guide: <a href="./gas-template.gs" style="color: var(--amber);" target="_blank">view template →</a>
+          </div>
+        </div>
+
+        <div class="modal-section">
+          <label class="modal-label">PCR auto-refresh (seconds)</label>
+          <input type="number" class="modal-input" id="setting-refresh-sec" min="10" max="600" value="${refreshSec}">
+          <div class="modal-help">How often the PCR &amp; Census tab refetches data. Lower = more current, higher = less load on GAS quotas.</div>
+        </div>
+
+        <div class="modal-section">
+          <label class="modal-label">Public read API</label>
+          <div class="modal-help">
+            <code>GET /api/v1/health.json</code> — service status<br>
+            <code>GET /api/v1/personnel.json</code> — staff totals<br>
+            <code>GET /api/v1/units.json</code> — units detail<br>
+            <code>GET /api/v1/stations.json</code> — stations detail<br>
+            <code>GET /api/v1/movements.json</code> — augmentations<br>
+            <code>GET /data.json</code> — full snapshot<br>
+            All endpoints CORS-enabled, edge-cached, regenerated every 30 min.
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button class="modal-btn" onclick="document.getElementById('settings-modal').remove()">Cancel</button>
+          <button class="modal-btn primary" onclick="saveAndCloseSettings()">Save</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', html);
+  document.getElementById('settings-modal').addEventListener('click', e => {
+    if (e.target.id === 'settings-modal') e.target.remove();
+  });
+}
+function saveAndCloseSettings() {
+  const url = document.getElementById('setting-gas-url').value.trim();
+  const refresh = parseInt(document.getElementById('setting-refresh-sec').value) || 30;
+  const settings = getSettings();
+  settings.gasUrl = url;
+  settings.pcrRefreshSec = Math.max(10, Math.min(600, refresh));
+  saveSettings(settings);
+  document.getElementById('settings-modal').remove();
+  // Re-render PCR tab if it's showing
+  if (document.querySelector('.tab-btn.active')?.dataset.tab === 'pcr') {
+    renderPCR(window.__data);
+  }
+}
+function setupSettingsBtn() {
+  const btn = document.getElementById('settings-btn');
+  if (btn) btn.addEventListener('click', openSettingsModal);
+}
+
+// ─── Live OCC view ───────────────────────────────────────────────
+function renderLiveOCC(d) {
+  const el = document.getElementById('live-occ-content');
+  if (!el || !d) return;
+
+  // Compute "current state" based on what's in the data
+  const stations = d.stations_detail || [];
+  const personnel = d.personnel || {};
+  const movements = d.movements || [];
+  const accommodation = d.accommodation_live || {};
+
+  // Find current/next movement based on now() — heuristic
+  const now = new Date();
+  const nextMvt = movements.find(m => m.start && new Date(m.start) > now) || movements[0];
+
+  // Station fill states
+  const stationCards = stations.map(st => {
+    const expected = st.staff_total || 0;
+    const filled = st.staff_filled || 0;
+    const pct = expected > 0 ? Math.round(filled / expected * 100) : 0;
+    const warnLvl = pct >= 90 ? '' : pct >= 70 ? 'warn' : 'alert';
+    return `
+      <div class="live-station-row">
+        <strong style="font-family: var(--font-mono); font-size: 12px;">${st.code}</strong>
+        <div class="live-station-bar"><div class="live-station-bar-fill" data-w="${warnLvl}" style="width: ${Math.min(100,pct)}%;"></div></div>
+        <span class="live-station-pct">${filled}/${expected} · ${pct}%</span>
+      </div>
+    `;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi" data-c="warm"><div class="kpi-label">Total roster</div><div class="kpi-value">${personnel.total || 277}</div><div class="kpi-meta">277 planned · 250 ops paramedics mandate</div></div>
+      <div class="kpi" data-c="cool"><div class="kpi-label">Operational units</div><div class="kpi-value">${personnel.units_total || 138}</div><div class="kpi-meta">20 M · 48 A · 49 R + cmd</div></div>
+      <div class="kpi" data-c="success"><div class="kpi-label">Sites active</div><div class="kpi-value">${stations.length}</div><div class="kpi-meta">9 clinical + OCC</div></div>
+      <div class="kpi" data-c="warning"><div class="kpi-label">Ambulances</div><div class="kpi-value">25</div><div class="kpi-meta">10 ess · 9 bkp · 6 rov</div></div>
+    </div>
+
+    <div class="three-col" style="margin-top: 24px;">
+      <div class="live-card">
+        <div class="live-card-h">
+          <div class="live-card-title">Station fill</div>
+          <div class="live-card-sub">9 clinical sites</div>
+        </div>
+        ${stationCards || '<div style="color: var(--text-dim); font-size: 12px;">Awaiting station data</div>'}
+      </div>
+
+      <div class="live-card">
+        <div class="live-card-h">
+          <div class="live-card-title">Next movement</div>
+          <div class="live-card-sub">augmentation</div>
+        </div>
+        ${nextMvt ? `
+          <div style="padding: 8px 0;">
+            <div style="font-weight: 700; font-size: 22px; line-height: 1;">${nextMvt.code || '—'}</div>
+            <div style="font-size: 11px; color: var(--text-dim); font-family: var(--font-mono); margin-top: 6px;">${nextMvt.start || ''}</div>
+            <div style="font-size: 12px; margin-top: 12px; line-height: 1.5;">${nextMvt.label || ''}</div>
+            <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); display: flex; gap: 16px;">
+              <div><div style="font-size: 9px; letter-spacing: 0.1em; color: var(--text-faint); font-family: var(--font-mono);">UNITS</div><div style="font-weight: 600; font-size: 18px;">${nextMvt.units_total || nextMvt.moves_total || '—'}</div></div>
+              <div><div style="font-size: 9px; letter-spacing: 0.1em; color: var(--text-faint); font-family: var(--font-mono);">SHIFT</div><div style="font-weight: 600; font-size: 18px;">${nextMvt.shift || '—'}</div></div>
+            </div>
+          </div>
+        ` : '<div style="color: var(--text-dim); font-size: 12px;">No upcoming movements</div>'}
+      </div>
+
+      <div class="live-card">
+        <div class="live-card-h">
+          <div class="live-card-title">OCC team housing</div>
+          <div class="live-card-sub">v11.8</div>
+        </div>
+        <div style="font-size: 12px; line-height: 1.6; color: var(--text-dim);">
+          OCC team housed at the closest available HMG sites <strong style="color: var(--text);">(primarily ARF3 and MUZ3)</strong>, pending SAR confirmation of rooms in the ABG building.
+        </div>
+        <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-faint); font-family: var(--font-mono);">
+          PM · 2 OCC Mgrs · HSE Mgr · CHF · DCH · 3 Dispatchers
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 24px;">
+      <div class="card-title">SAR ↔ HMG comms protocol</div>
+      <div class="card-subtitle">PATIENT SAFETY RULE</div>
+      <div style="font-size: 13px; line-height: 1.6; color: var(--text-dim);">
+        Patient care and safety are paramount. All SAR communication on the operational network — <strong style="color: var(--text);">SAR-to-field</strong> and <strong style="color: var(--text);">SAR-to-SAR</strong> — funnels through 3 HMG OCC Dispatchers. Direct radio contact between SAR Station Managers and field units (Mike / Alpha / Romeo / SUP) is not permitted.
+      </div>
+    </div>
+  `;
+}
+
+// ─── PCR / Census tab (Google Apps Script integration) ───────────
+let pcrInterval = null;
+
+async function fetchGAS(endpoint, params = {}) {
+  const settings = getSettings();
+  const base = settings.gasUrl;
+  if (!base) throw new Error('NO_GAS_URL');
+  const qs = new URLSearchParams({ endpoint, ...params }).toString();
+  const url = `${base}${base.includes('?') ? '&' : '?'}${qs}`;
+  const r = await fetch(url, { method: 'GET', mode: 'cors', cache: 'no-store' });
+  if (!r.ok) throw new Error(`GAS HTTP ${r.status}`);
+  return r.json();
+}
+
+async function renderPCR(d) {
+  const el = document.getElementById('pcr-content');
+  if (!el) return;
+
+  const settings = getSettings();
+  if (!settings.gasUrl) {
+    el.innerHTML = `
+      <div class="pcr-empty">
+        <div style="font-size: 32px; margin-bottom: 12px; opacity: 0.5;">⚕</div>
+        <div class="pcr-empty-title">Connect your PCR &amp; Census source</div>
+        <div class="pcr-empty-hint">
+          To see live patient encounters and station census, deploy a Google Apps Script that reads your PCR and Patient Census Google Sheets, then paste the Web App URL into Settings.
+          <br><br>
+          A ready-to-use template is at <a href="./gas-template.gs" style="color: var(--amber);" target="_blank">/gas-template.gs</a> — copy it into a new GAS project, update the sheet IDs, deploy as a Web App with "Anyone" access, then paste the URL into <strong>Settings → Google Apps Script endpoint</strong>.
+        </div>
+        <div style="margin-top: 24px;">
+          <button class="modal-btn primary" onclick="openSettingsModal()">Open settings</button>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  // Show loading state
+  el.innerHTML = `
+    <div class="pcr-status-banner">
+      <span style="font-family: var(--font-mono); font-size: 11px;">SYNCING…</span>
+      <span>Fetching from Google Apps Script endpoint</span>
+    </div>
+  `;
+
+  try {
+    const summary = await fetchGAS('summary');
+    const encounters = await fetchGAS('encounters', { limit: 50 });
+
+    const total = summary.total_encounters || 0;
+    const today = summary.today_encounters || 0;
+    const active = summary.active_patients || 0;
+    const critical = summary.critical_today || 0;
+    const byAcuity = summary.by_acuity || {};
+    const byStation = summary.by_station || {};
+
+    // Build encounter rows
+    const encRows = (encounters.encounters || []).slice(0, 25).map(e => `
+      <div class="pcr-encounter-row">
+        <span class="mono">${e.id || e.encounter_id || '—'}</span>
+        <span class="mono">${e.time || e.timestamp || '—'}</span>
+        <span><strong>${e.station || '—'}</strong> · ${e.complaint || e.chief_complaint || '—'}</span>
+        <span><span class="acuity-pill" data-a="${(e.acuity || 'standard').toLowerCase()}">${(e.acuity || 'STANDARD').toUpperCase()}</span></span>
+        <span class="mono">${e.disposition || e.status || '—'}</span>
+      </div>
+    `).join('');
+
+    // Build station census table
+    const stationRows = Object.entries(byStation).map(([code, count]) => `
+      <div class="live-station-row">
+        <strong style="font-family: var(--font-mono); font-size: 12px;">${code}</strong>
+        <div class="live-station-bar"><div class="live-station-bar-fill" style="width: ${Math.min(100, (count / Math.max(...Object.values(byStation), 1)) * 100)}%;"></div></div>
+        <span class="live-station-pct">${count}</span>
+      </div>
+    `).join('');
+
+    el.innerHTML = `
+      <div class="pcr-status-banner ok">
+        <span style="font-family: var(--font-mono); font-size: 11px; color: var(--filled);">CONNECTED</span>
+        <span>Last update: <strong>${summary.last_updated || new Date().toLocaleTimeString()}</strong> · auto-refresh in <span id="pcr-countdown">${settings.pcrRefreshSec || 30}</span>s</span>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi" data-c="warm"><div class="kpi-label">Encounters today</div><div class="kpi-value">${today}</div><div class="kpi-meta">${total} total this season</div></div>
+        <div class="kpi" data-c="cool"><div class="kpi-label">Active patients</div><div class="kpi-value">${active}</div><div class="kpi-meta">currently being seen</div></div>
+        <div class="kpi" data-c="danger"><div class="kpi-label">Critical today</div><div class="kpi-value">${critical}</div><div class="kpi-meta">red triage</div></div>
+        <div class="kpi" data-c="success"><div class="kpi-label">Standard</div><div class="kpi-value">${byAcuity.standard || 0}</div><div class="kpi-meta">routine encounters</div></div>
+      </div>
+
+      <div class="two-col" style="margin-top: 24px;">
+        <div class="card">
+          <div class="card-title">Census by station</div>
+          <div class="card-subtitle">PATIENT VOLUME · TODAY</div>
+          ${stationRows || '<div style="color: var(--text-dim); font-size: 12px;">No data</div>'}
+        </div>
+
+        <div class="card">
+          <div class="card-title">Acuity breakdown</div>
+          <div class="card-subtitle">TODAY · BY TRIAGE LEVEL</div>
+          <div style="display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 12px;">
+            <div class="live-station-row">
+              <span class="acuity-pill" data-a="critical">CRIT</span>
+              <div class="live-station-bar"><div class="live-station-bar-fill" data-w="alert" style="width: ${Math.min(100, (byAcuity.critical || 0) / Math.max(today, 1) * 100)}%;"></div></div>
+              <span class="live-station-pct">${byAcuity.critical || 0}</span>
+            </div>
+            <div class="live-station-row">
+              <span class="acuity-pill" data-a="urgent">URG</span>
+              <div class="live-station-bar"><div class="live-station-bar-fill" data-w="warn" style="width: ${Math.min(100, (byAcuity.urgent || 0) / Math.max(today, 1) * 100)}%;"></div></div>
+              <span class="live-station-pct">${byAcuity.urgent || 0}</span>
+            </div>
+            <div class="live-station-row">
+              <span class="acuity-pill" data-a="standard">STD</span>
+              <div class="live-station-bar"><div class="live-station-bar-fill" style="width: ${Math.min(100, (byAcuity.standard || 0) / Math.max(today, 1) * 100)}%;"></div></div>
+              <span class="live-station-pct">${byAcuity.standard || 0}</span>
+            </div>
+            <div class="live-station-row">
+              <span class="acuity-pill" data-a="minor">MIN</span>
+              <div class="live-station-bar"><div class="live-station-bar-fill" style="background: var(--text-faint); width: ${Math.min(100, (byAcuity.minor || 0) / Math.max(today, 1) * 100)}%;"></div></div>
+              <span class="live-station-pct">${byAcuity.minor || 0}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 24px;">
+        <div class="card-title">Recent encounters</div>
+        <div class="card-subtitle">LATEST 25 PCRs · LIVE FEED</div>
+        <div style="margin-top: 8px;">
+          ${encRows || '<div style="color: var(--text-dim); font-size: 12px; padding: 16px;">No encounters logged today</div>'}
+        </div>
+      </div>
+    `;
+
+    // Auto-refresh countdown
+    if (pcrInterval) clearInterval(pcrInterval);
+    let remaining = settings.pcrRefreshSec || 30;
+    pcrInterval = setInterval(() => {
+      remaining--;
+      const el2 = document.getElementById('pcr-countdown');
+      if (el2) el2.textContent = remaining;
+      if (remaining <= 0) {
+        clearInterval(pcrInterval);
+        if (document.querySelector('.tab-btn.active')?.dataset.tab === 'pcr') {
+          renderPCR(d);
+        }
+      }
+    }, 1000);
+
+  } catch (err) {
+    let banner;
+    if (err.message === 'NO_GAS_URL') {
+      banner = '<div class="pcr-status-banner err"><span style="font-family: var(--font-mono); font-size: 11px;">NOT CONFIGURED</span><span>Configure GAS endpoint in Settings</span></div>';
+    } else {
+      banner = `<div class="pcr-status-banner err"><span style="font-family: var(--font-mono); font-size: 11px;">FAILED</span><span>Could not reach GAS endpoint: ${err.message}. <a href="#" onclick="openSettingsModal();return false;" style="color: var(--amber);">Check settings</a></span></div>`;
+    }
+    el.innerHTML = banner + `
+      <div class="pcr-empty" style="margin-top: 16px;">
+        <div class="pcr-empty-title">Cannot fetch PCR data</div>
+        <div class="pcr-empty-hint">
+          Common causes: GAS deployment not "Anyone" access, sheet IDs incorrect in script, CORS blocked, or quota exceeded. Check the Apps Script execution log.
+        </div>
+      </div>
+    `;
+  }
+}
+
+// ─── Hook new tabs into existing tab switcher ─────────────────────
+function hookNewTabs() {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.getAttribute('data-tab');
+      const d = window.__data;
+      if (tab === 'live' && d) setTimeout(() => renderLiveOCC(d), 50);
+      if (tab === 'pcr' && d) setTimeout(() => renderPCR(d), 50);
+      if (tab !== 'pcr' && pcrInterval) { clearInterval(pcrInterval); pcrInterval = null; }
+    });
+  });
+}
+
+// ─── Boot — initialize all v11.8 features ─────────────────────────
+function bootV118() {
+  setupThemeToggle();
+  setupSettingsBtn();
+  hookNewTabs();
+  // Render Live OCC if it's the initial tab
+  if (window.__data) {
+    renderLiveOCC(window.__data);
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => { boot(); bootV118(); });
+} else {
+  boot(); bootV118();
+}
+</script>
+</body>
+</html>

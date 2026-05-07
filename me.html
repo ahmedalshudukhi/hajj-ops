@@ -288,6 +288,10 @@
     if (role === 'dispatcher' || role === 'leadership' || role === 'admin') {
       document.getElementById('lnkDispatch').hidden = false; any = true;
     }
+    // Leadership lobby: leadership + admin
+    if (role === 'leadership' || role === 'admin') {
+      document.getElementById('lnkLobby').hidden = false; any = true;
+    }
 
     wrap.hidden = !any;
   }
