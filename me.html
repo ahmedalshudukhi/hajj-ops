@@ -140,8 +140,8 @@
 
   <div class="card" id="quickLinks" hidden>
     <div class="card-title">Tools</div>
-    <a href="qpcr.html" class="quick-link" id="lnkQpcr" hidden>
-      <span>File a Q-PCR</span><span class="arrow">→</span>
+    <a href="#" class="quick-link" id="lnkQpcr" target="_blank" rel="noopener" hidden>
+      <span>File a Q-PCR</span><span class="arrow">↗</span>
     </a>
     <a href="dispatch.html" class="quick-link" id="lnkDispatch" hidden>
       <span>Open dispatch console</span><span class="arrow">→</span>
@@ -275,17 +275,18 @@
     const wrap = document.getElementById('quickLinks');
     let any = false;
 
-    // Q-PCR: anyone with clinical contact (everyone except pure dispatchers/admins)
-    if (role !== 'dispatcher' && role !== 'admin') {
-      document.getElementById('lnkQpcr').hidden = false; any = true;
+    // Q-PCR: anyone clinical (not pure dispatchers). Opens DCH's form in a new tab.
+    if (role !== 'dispatcher') {
+      const lnk = document.getElementById('lnkQpcr');
+      if (window.PCR_URL && window.PCR_URL.indexOf('PASTE_') === -1) {
+        lnk.href = window.PCR_URL;
+        lnk.hidden = false;
+        any = true;
+      }
     }
     // Dispatch console: dispatchers + leadership + admin
     if (role === 'dispatcher' || role === 'leadership' || role === 'admin') {
       document.getElementById('lnkDispatch').hidden = false; any = true;
-    }
-    // Admin can also file Q-PCRs (they may be on rotation)
-    if (role === 'admin') {
-      document.getElementById('lnkQpcr').hidden = false; any = true;
     }
 
     wrap.hidden = !any;
