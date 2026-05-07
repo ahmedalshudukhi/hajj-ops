@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#0f172a">
+<title>Active Insights · Hajj 2026</title>
+<link rel="stylesheet" href="assets/style.css">
+
+<style>
+  body { background: var(--bg); }
+  .topbar {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 10px 14px;
+    padding-top: calc(10px + env(safe-area-inset-top));
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px;
+  }
+  .topbar h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+  .topbar .live-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--success); margin-right: 6px;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  .topbar .live { font-size: 11px; color: var(--text-muted); }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .content { padding: 12px 14px 80px; max-width: 1280px; margin: 0 auto; }
+
+  /* ===== Hero stats ===== */
+  .hero {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .hero-stat {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    padding: 14px;
+    border-top: 3px solid var(--border);
+  }
+  .hero-stat--red    { border-top-color: var(--danger); }
+  .hero-stat--amber  { border-top-color: var(--warning); }
+  .hero-stat--green  { border-top-color: var(--success); }
+  .hero-stat--blue   { border-top-color: var(--info); }
+  .hero-num {
+    font-size: 30px; font-weight: 700; line-height: 1;
+    font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+  }
+  .hero-label {
+    margin-top: 4px;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--text-muted);
+  }
+  .hero-sub { margin-top: 8px; font-size: 12px; color: var(--text-dim); }
+
+  /* ===== Sections ===== */
+  .section-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 12px;
+  }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    padding: 16px;
+    overflow: hidden;
+  }
+  .panel-title {
+    font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-muted); margin: 0 0 12px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .panel-title .meta { font-weight: 500; color: var(--text-muted); text-transform: none; letter-spacing: 0; font-size: 11px; }
+
+  /* ===== Bar rows ===== */
+  .bar-row {
+    display: grid; grid-template-columns: 1fr auto;
+    align-items: center; gap: 10px;
+    margin-bottom: 8px;
+  }
+  .bar-row:last-child { margin-bottom: 0; }
+  .bar-name {
+    display: flex; flex-direction: column;
+    overflow: hidden; min-width: 0;
+  }
+  .bar-name strong { font-size: 13px; font-weight: 500; }
+  .bar-row .bar-track {
+    grid-column: 1 / -1;
+    height: 4px; background: var(--surface-2);
+    border-radius: 2px; overflow: hidden;
+    margin-top: 4px;
+  }
+  .bar-fill {
+    height: 100%; background: var(--info);
+    transition: width 0.3s ease;
+  }
+  .bar-fill--red    { background: var(--danger); }
+  .bar-fill--amber  { background: var(--warning); }
+  .bar-fill--green  { background: var(--success); }
+  .bar-count {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600; font-size: 14px;
+  }
+  .bar-count .sub { color: var(--text-muted); font-weight: 400; font-size: 11px; }
+
+  /* ===== Table-ish rows ===== */
+  .row-list { display: flex; flex-direction: column; gap: 8px; }
+  .row-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 0;
+    border-top: 1px solid var(--border-soft);
+    font-size: 13px;
+  }
+  .row-item:first-child { border-top: 0; padding-top: 0; }
+  .row-item .ts {
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+    font-size: 11px;
+    min-width: 38px;
+  }
+  .row-item .label { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row-item .label .meta { color: var(--text-muted); font-size: 11px; display: block; }
+  .row-item .pill {
+    font-size: 10px; font-weight: 600;
+    padding: 2px 8px; border-radius: 999px;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .pill-resus    { background: rgba(239, 68, 68, 0.15);  color: #fca5a5; }
+  .pill-urgent   { background: rgba(245, 158, 11, 0.15); color: #fcd34d; }
+  .pill-less     { background: rgba(34, 197, 94, 0.15);  color: #86efac; }
+  .pill-closed   { background: var(--surface-3); color: var(--text-dim); }
+  .pill-transfer { background: rgba(59, 130, 246, 0.15); color: #93c5fd; }
+
+  /* ===== Big number panels ===== */
+  .rt-panel {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    text-align: center;
+  }
+  .rt-cell { background: var(--surface-2); border-radius: var(--radius-sm); padding: 12px 8px; }
+  .rt-num { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+  .rt-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-top: 4px; }
+
+  .empty-panel {
+    text-align: center; color: var(--text-muted);
+    padding: 18px 0; font-size: 13px;
+  }
+
+  .skeleton-pulse { animation: skel 1.4s ease-in-out infinite; }
+  @keyframes skel { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.7; } }
+
+  .err-banner {
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    color: #fca5a5;
+    padding: 10px 14px; border-radius: var(--radius-sm);
+    font-size: 13px; margin-bottom: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Active Insights</h1>
+  <div class="live"><span class="live-dot"></span><span id="liveText">Connecting…</span></div>
+  <button class="btn btn--ghost btn--auto-width btn--small" id="logoutBtn">Sign out</button>
+</div>
+
+<div class="content">
+
+  <div id="errBanner" class="err-banner" hidden></div>
+
+  <!-- ====== HERO STATS ====== -->
+  <div class="hero">
+    <div class="hero-stat hero-stat--red">
+      <div class="hero-num" id="hOpen">—</div>
+      <div class="hero-label">Open incidents</div>
+      <div class="hero-sub"><span id="hResus">—</span> resus active</div>
+    </div>
+    <div class="hero-stat hero-stat--blue">
+      <div class="hero-num" id="hTransfer">—</div>
+      <div class="hero-label">In transfer</div>
+      <div class="hero-sub"><span id="hClosed">—</span> closed today</div>
+    </div>
+    <div class="hero-stat hero-stat--green">
+      <div class="hero-num" id="hPcrToday">—</div>
+      <div class="hero-label">Q-PCRs today</div>
+      <div class="hero-sub"><span id="hPcrTotal">—</span> total filed</div>
+    </div>
+    <div class="hero-stat hero-stat--amber">
+      <div class="hero-num" id="hMeanRt">—</div>
+      <div class="hero-label">Mean response</div>
+      <div class="hero-sub">P95: <span id="hP95Rt">—</span> · n=<span id="hRtCount">—</span></div>
+    </div>
+  </div>
+
+  <div class="section-grid">
+
+    <!-- ====== STATIONS ====== -->
+    <div class="panel">
+      <div class="panel-title">
+        <span>By station</span>
+        <span class="meta" id="stationsMeta"></span>
+      </div>
+      <div id="stationsBody"><div class="empty-panel skeleton-pulse">Loading…</div></div>
+    </div>
+
+    <!-- ====== RESPONSE TIME ====== -->
+    <div class="panel">
+      <div class="panel-title"><span>Response time</span><span class="meta" id="rtMeta"></span></div>
+      <div id="rtBody">
+        <div class="rt-panel">
+          <div class="rt-cell"><div class="rt-num" id="rtMean">—</div><div class="rt-label">Mean</div></div>
+          <div class="rt-cell"><div class="rt-num" id="rtP50">—</div><div class="rt-label">P50</div></div>
+          <div class="rt-cell"><div class="rt-num" id="rtP95">—</div><div class="rt-label">P95</div></div>
+        </div>
+        <div style="margin-top: 10px; font-size:11px; color: var(--text-muted); text-align:center;">
+          Dispatch → Patient contact, today
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== Q-PCR by acuity ====== -->
+    <div class="panel">
+      <div class="panel-title"><span>Q-PCR by acuity</span><span class="meta" id="acuityMeta"></span></div>
+      <div id="acuityBody"><div class="empty-panel">No PCRs filed yet.</div></div>
+    </div>
+
+    <!-- ====== Q-PCR by disposition ====== -->
+    <div class="panel">
+      <div class="panel-title"><span>Q-PCR by disposition</span><span class="meta"></span></div>
+      <div id="dispoBody"><div class="empty-panel">No PCRs filed yet.</div></div>
+    </div>
+
+    <!-- ====== Top complaints ====== -->
+    <div class="panel">
+      <div class="panel-title"><span>Top chief complaints</span></div>
+      <div id="complaintsBody"><div class="empty-panel">No complaints recorded yet.</div></div>
+    </div>
+
+    <!-- ====== Recent dispatch strip ====== -->
+    <div class="panel">
+      <div class="panel-title"><span>Today's dispatches</span><span class="meta" id="dispatchMeta"></span></div>
+      <div id="dispatchBody" class="row-list"><div class="empty-panel">Quiet so far.</div></div>
+    </div>
+
+    <!-- ====== Recent Q-PCR strip ====== -->
+    <div class="panel">
+      <div class="panel-title"><span>Today's Q-PCRs</span><span class="meta" id="pcrMeta"></span></div>
+      <div id="pcrBody" class="row-list"><div class="empty-panel">No PCRs yet.</div></div>
+    </div>
+
+  </div>
+
+</div>
+
+<script src="assets/config.js"></script>
+<script src="assets/auth.js"></script>
+<script>
+(function () {
+
+  if (!HAJJ.requireRole(['leadership', 'admin', 'cluster_supervisor'])) return;
+
+  document.getElementById('logoutBtn').addEventListener('click', HAJJ.logout);
+
+  let lastOk = null;
+  refresh();
+  setInterval(refresh, 10000); // 10s polling
+
+  async function refresh() {
+    const r = await HAJJ.authedCall('active_summary');
+    if (!r || !r.ok) {
+      setLive(false, (r && r.error) || 'unknown');
+      return;
+    }
+    setLive(true);
+    lastOk = new Date();
+    render(r);
+  }
+
+  function setLive(ok, err) {
+    const el = document.getElementById('liveText');
+    if (ok) {
+      el.textContent = 'Live · last sync ' + nowHM();
+      document.getElementById('errBanner').hidden = true;
+    } else {
+      el.textContent = 'Sync failed';
+      const banner = document.getElementById('errBanner');
+      banner.hidden = false;
+      banner.textContent = 'Could not refresh data: ' + err;
+    }
+  }
+
+  function nowHM() {
+    const d = new Date();
+    return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+
+  function render(r) {
+    renderHero(r);
+    renderStations(r.dispatch);
+    renderResponseTime(r.dispatch.response_time);
+    renderAcuity(r.pcr);
+    renderDispo(r.pcr);
+    renderComplaints(r.pcr);
+    renderRecentDispatch(r.dispatch.recent || []);
+    renderRecentPcr(r.pcr.recent || []);
+  }
+
+  function renderHero(r) {
+    const d = r.dispatch || {};
+    const p = r.pcr || {};
+    document.getElementById('hOpen').textContent     = d.open || 0;
+    document.getElementById('hResus').textContent    = d.resus_open || 0;
+    document.getElementById('hTransfer').textContent = d.in_transfer || 0;
+    document.getElementById('hClosed').textContent   = d.closed_today || 0;
+    document.getElementById('hPcrToday').textContent = p.today || 0;
+    document.getElementById('hPcrTotal').textContent = p.total || 0;
+    const rt = d.response_time || {};
+    document.getElementById('hMeanRt').textContent = msToMin(rt.mean_ms);
+    document.getElementById('hP95Rt').textContent  = msToMin(rt.p95_ms);
+    document.getElementById('hRtCount').textContent = rt.count || 0;
+  }
+
+  function msToMin(ms) {
+    if (!ms) return '—';
+    const min = ms / 60000;
+    if (min < 1) return Math.round(ms / 1000) + 's';
+    return min.toFixed(1) + 'm';
+  }
+
+  function renderStations(d) {
+    const body = document.getElementById('stationsBody');
+    const stations = d.by_station || {};
+    const keys = Object.keys(stations).sort();
+    if (!keys.length) { body.innerHTML = '<div class="empty-panel">No stations active.</div>'; return; }
+
+    const max = Math.max(1, ...keys.map(k => (stations[k].open || 0) + (stations[k].closed_today || 0)));
+    document.getElementById('stationsMeta').textContent = keys.length + ' stations';
+
+    body.innerHTML = keys.map(k => {
+      const s = stations[k];
+      const total = (s.open || 0) + (s.closed_today || 0);
+      const pct = Math.round(100 * total / max);
+      const fillClass = (s.resus_open > 0) ? 'bar-fill--red' : (s.in_transfer > 0 ? 'bar-fill' : 'bar-fill--green');
+      return ''
+        + '<div class="bar-row">'
+        +   '<div class="bar-name"><strong>' + k + '</strong></div>'
+        +   '<div class="bar-count">' + (s.open || 0) + ' <span class="sub">open · ' + (s.closed_today || 0) + ' closed</span></div>'
+        +   '<div class="bar-track"><div class="bar-fill ' + fillClass + '" style="width:' + pct + '%"></div></div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function renderResponseTime(rt) {
+    rt = rt || {};
+    document.getElementById('rtMean').textContent = msToMin(rt.mean_ms);
+    document.getElementById('rtP50').textContent  = msToMin(rt.p50_ms);
+    document.getElementById('rtP95').textContent  = msToMin(rt.p95_ms);
+    document.getElementById('rtMeta').textContent = 'n=' + (rt.count || 0);
+  }
+
+  function renderAcuity(p) {
+    const body = document.getElementById('acuityBody');
+    const ac = p.by_acuity || {};
+    const keys = Object.keys(ac);
+    if (!keys.length) { body.innerHTML = '<div class="empty-panel">No PCRs filed yet.</div>'; return; }
+    document.getElementById('acuityMeta').textContent = (p.today || 0) + ' today';
+    const order = ['critical','urgent','standard','minor','unspecified'];
+    const sorted = keys.slice().sort((a,b) => (order.indexOf(a) === -1 ? 99 : order.indexOf(a)) - (order.indexOf(b) === -1 ? 99 : order.indexOf(b)));
+    const max = Math.max(1, ...keys.map(k => ac[k]));
+    const colorFor = (k) => k === 'critical' ? 'bar-fill--red'
+                          : k === 'urgent'   ? 'bar-fill--amber'
+                          : k === 'minor'    ? 'bar-fill--green'
+                          : 'bar-fill';
+    body.innerHTML = sorted.map(k => {
+      const v = ac[k]; const pct = Math.round(100 * v / max);
+      return ''
+        + '<div class="bar-row">'
+        +   '<div class="bar-name"><strong>' + cap(k) + '</strong></div>'
+        +   '<div class="bar-count">' + v + '</div>'
+        +   '<div class="bar-track"><div class="bar-fill ' + colorFor(k) + '" style="width:' + pct + '%"></div></div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function renderDispo(p) {
+    const body = document.getElementById('dispoBody');
+    const dp = p.by_disposition || {};
+    const keys = Object.keys(dp);
+    if (!keys.length) { body.innerHTML = '<div class="empty-panel">No PCRs filed yet.</div>'; return; }
+    const max = Math.max(1, ...keys.map(k => dp[k]));
+    body.innerHTML = keys.sort((a,b) => dp[b] - dp[a]).map(k => {
+      const v = dp[k]; const pct = Math.round(100 * v / max);
+      return ''
+        + '<div class="bar-row">'
+        +   '<div class="bar-name"><strong>' + cap(k) + '</strong></div>'
+        +   '<div class="bar-count">' + v + '</div>'
+        +   '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function renderComplaints(p) {
+    const body = document.getElementById('complaintsBody');
+    const list = p.top_complaints || [];
+    if (!list.length) { body.innerHTML = '<div class="empty-panel">No complaints recorded yet.</div>'; return; }
+    const max = Math.max(1, list[0].count);
+    body.innerHTML = list.map(it => {
+      const pct = Math.round(100 * it.count / max);
+      return ''
+        + '<div class="bar-row">'
+        +   '<div class="bar-name"><strong>' + cap(it.complaint) + '</strong></div>'
+        +   '<div class="bar-count">' + it.count + '</div>'
+        +   '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function renderRecentDispatch(list) {
+    const body = document.getElementById('dispatchBody');
+    if (!list.length) { body.innerHTML = '<div class="empty-panel">Quiet so far.</div>'; return; }
+    document.getElementById('dispatchMeta').textContent = list.length + ' today';
+    body.innerHTML = list.slice(0, 12).map(inc => {
+      const cat = (inc.category || '').toLowerCase();
+      const pillCls = inc.status === 'closed' ? 'pill-closed'
+                    : inc.in_transfer ? 'pill-transfer'
+                    : 'pill-' + cat;
+      const pillText = inc.status === 'closed' ? (inc.decision || 'closed')
+                     : inc.in_transfer ? 'transfer'
+                     : (cat || '—');
+      const ts = formatHM(inc.created);
+      return ''
+        + '<div class="row-item">'
+        +   '<div class="ts">' + ts + '</div>'
+        +   '<div class="label">' + escapeHtml(inc.station || '—') + '<span class="meta">' + escapeHtml(inc.case || '') + '</span></div>'
+        +   '<span class="pill ' + pillCls + '">' + pillText + '</span>'
+        + '</div>';
+    }).join('');
+  }
+
+  function renderRecentPcr(list) {
+    const body = document.getElementById('pcrBody');
+    if (!list.length) { body.innerHTML = '<div class="empty-panel">No PCRs yet today.</div>'; return; }
+    document.getElementById('pcrMeta').textContent = list.length + ' today';
+    body.innerHTML = list.slice(0, 12).map(p => {
+      const ac = (p.acuity || '').toLowerCase();
+      const pillCls = ac === 'critical' ? 'pill-resus'
+                    : ac === 'urgent'   ? 'pill-urgent'
+                    : ac === 'minor'    ? 'pill-less'
+                    : 'pill-closed';
+      const ts = formatHM(p.ts);
+      const ageGen = [p.age, p.gender].filter(Boolean).join(' · ');
+      return ''
+        + '<div class="row-item">'
+        +   '<div class="ts">' + ts + '</div>'
+        +   '<div class="label">' + escapeHtml(p.complaint || '—') + '<span class="meta">' + escapeHtml(p.station || '') + (ageGen ? ' · ' + escapeHtml(ageGen) : '') + '</span></div>'
+        +   '<span class="pill ' + pillCls + '">' + (ac || p.dispo || '') + '</span>'
+        + '</div>';
+    }).join('');
+  }
+
+  function formatHM(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+  function cap(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({
+      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+    }[c]));
+  }
+
+})();
+</script>
+
+</body>
+</html>
