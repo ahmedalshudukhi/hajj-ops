@@ -231,7 +231,15 @@
     dispatch_list:          { method: 'GET', exec: true },
     dashboard_active:       { method: 'GET', exec: true },
     dashboard_dispatch:     { method: 'GET', exec: true },
-    dashboard_sv:           { method: 'GET', exec: true }
+    dashboard_sv:           { method: 'GET', exec: true },
+    // Writes (still GET via query params for now, consistent with reads)
+    dispatch_create:        { method: 'GET', exec: true },
+    dispatch_event:         { method: 'GET', exec: true },
+    dispatch_close:         { method: 'GET', exec: true },
+    station_status_set:     { method: 'GET', exec: true },
+    unit_status_set:        { method: 'GET', exec: true },
+    reposition_request:     { method: 'GET', exec: true },
+    admin_apply_validation: { method: 'GET', exec: true }
   };
 
   async function waitForGasToken(timeoutMs) {

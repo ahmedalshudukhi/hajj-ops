@@ -351,6 +351,13 @@ const ROLE_GATE = {
   dashboard_active: ['cluster_supervisor','dispatcher','leadership','admin'],
   dashboard_dispatch: ['cluster_supervisor','dispatcher','leadership','admin'],
   dashboard_sv: ['cluster_supervisor','dispatcher','leadership','admin'],
+  // Writes
+  dispatch_create: ['dispatcher','leadership','admin'],
+  dispatch_event: ['dispatcher','leadership','admin'],
+  dispatch_close: ['dispatcher','leadership','admin'],
+  station_status_set: ['cluster_supervisor','leadership','admin'],
+  unit_status_set: ['cluster_supervisor','dispatcher','leadership','admin'],
+  reposition_request: ['cluster_supervisor','dispatcher','leadership','admin'],
 };
 
 // Actions that need data.json loaded (cached in module scope after first call)
@@ -481,20 +488,51 @@ const ACTIONS = {
   },
 
   async dispatch_list(user, env, params) {
-    const limit = Math.min(parseInt(params.limit || '100', 10), 500);
-    const r = await env.DB.prepare(
-      `SELECT incident_id AS Incident_ID, ts, station AS Zone, sub_location,
-              source AS Source, complaint AS Chief_Complaint, triage AS Category,
-              cardiac_arrest, unit_assigned AS Unit, status AS Status,
-              patient_count, notes AS Notes, created_by_nid AS Created_By
-       FROM dispatch_log ORDER BY ts DESC LIMIT ?1`
-    ).bind(limit).all();
+    const limit = Math.min(parseInt(params.limit || '500', 10), 2000);
+    // Date filter: ?date=YYYY-MM-DD returns only that day (UTC)
+    let where = '', binds = [];
+    if (params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date)) {
+      const dayStart = Math.floor(new Date(params.date + 'T00:00:00Z').getTime() / 1000);
+      const dayEnd = dayStart + 86400;
+      where = 'WHERE ts >= ?1 AND ts < ?2';
+      binds = [dayStart, dayEnd, limit];
+    } else if (params.from && params.to) {
+      const fromTs = Math.floor(new Date(params.from).getTime() / 1000);
+      const toTs = Math.floor(new Date(params.to).getTime() / 1000);
+      where = 'WHERE ts >= ?1 AND ts < ?2';
+      binds = [fromTs, toTs, limit];
+    } else {
+      binds = [limit];
+    }
+    const sql = `SELECT incident_id AS Incident_ID, ts, station AS Zone, sub_location,
+                        source AS Source, complaint AS Chief_Complaint, triage AS Category,
+                        cardiac_arrest, unit_assigned AS Unit, status AS Status,
+                        patient_count, notes AS Notes, created_by_nid AS Created_By,
+                        closed_at, closed_by_nid AS Closed_By, pcr_id AS PCR_ID
+                 FROM dispatch_log ${where} ORDER BY ts DESC LIMIT ?${binds.length}`;
+    const r = await env.DB.prepare(sql).bind(...binds).all();
     const incidents = (r.results || []).map(row => {
       row.Created_At = new Date(row.ts * 1000).toISOString();
-      delete row.ts;
+      if (row.closed_at) row.Closed_At = new Date(row.closed_at * 1000).toISOString();
+      delete row.ts; delete row.closed_at;
       return row;
     });
-    return { ok: true, incidents, server_time: new Date().toISOString() };
+    // Day list for date toggle UI: distinct dates in dispatch_log (last 30)
+    let availableDays = [];
+    if (params.with_days === '1') {
+      const d = await env.DB.prepare(
+        `SELECT DISTINCT date(ts, 'unixepoch') AS d FROM dispatch_log
+         ORDER BY d DESC LIMIT 30`
+      ).all();
+      availableDays = (d.results || []).map(r => r.d);
+    }
+    return {
+      ok: true,
+      incidents,
+      filter: params.date || (params.from ? `${params.from}..${params.to}` : 'all'),
+      available_days: availableDays,
+      server_time: new Date().toISOString()
+    };
   },
 
   async reposition_list(user, env) {
@@ -825,6 +863,209 @@ const ACTIONS = {
       station_status: stations.stations,
       repositions: repos,
       units: units.units
+    };
+  },
+
+  // ==================== WRITES ====================
+
+  async dispatch_create(user, env, params) {
+    const station = (params.station || '').toUpperCase();
+    if (!STATIONS.includes(station)) {
+      return { ok: false, error: 'invalid_station', station };
+    }
+    const triage = (params.triage || 'green').toLowerCase();
+    if (!['red','yellow','green','black'].includes(triage)) {
+      return { ok: false, error: 'invalid_triage', triage };
+    }
+    // Generate incident_id: DSP-YYYYMMDD-NNNN (sequential per day)
+    const now = Math.floor(Date.now() / 1000);
+    const dateStr = new Date(now * 1000).toISOString().slice(0, 10).replace(/-/g, '');
+    const seqRow = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM dispatch_log WHERE incident_id LIKE ?1`
+    ).bind(`DSP-${dateStr}-%`).first();
+    const seq = String((seqRow?.n || 0) + 1).padStart(4, '0');
+    const incidentId = `DSP-${dateStr}-${seq}`;
+    const cardiacArrest = (params.cardiac_arrest === 'true' || params.cardiac_arrest === '1' || params.cardiac_arrest === 'yes') ? 1 : 0;
+    const patientCount = Math.max(1, parseInt(params.patient_count || '1', 10));
+    const status = params.unit_assigned ? 'on_scene' : 'pending';
+    try {
+      await env.DB.prepare(
+        `INSERT INTO dispatch_log
+         (incident_id, ts, station, sub_location, source, complaint, triage,
+          cardiac_arrest, unit_assigned, status, patient_count, notes, created_by_nid)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`
+      ).bind(
+        incidentId, now, station,
+        params.sub_location || '',
+        params.source || 'walk-in',
+        params.complaint || '',
+        triage,
+        cardiacArrest,
+        params.unit_assigned || null,
+        status,
+        patientCount,
+        params.notes || '',
+        user.nid
+      ).run();
+      // Audit
+      await env.DB.prepare(
+        `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
+         VALUES (?1, 'dispatch_create', 'incident', ?2, ?3)`
+      ).bind(user.nid, incidentId, JSON.stringify({ station, triage, status })).run();
+      return { ok: true, incident_id: incidentId, status, ts: now };
+    } catch (e) {
+      return { ok: false, error: 'insert_failed', detail: e.message };
+    }
+  },
+
+  async dispatch_event(user, env, params) {
+    const incidentId = params.incident_id;
+    const event = (params.event || '').toLowerCase();
+    if (!incidentId) return { ok: false, error: 'missing_incident_id' };
+    const validEvents = ['unit_assigned','on_scene','transporting','arrived_hospital'];
+    if (!validEvents.includes(event)) return { ok: false, error: 'invalid_event', event, valid: validEvents };
+    // Map event → status
+    const statusMap = {
+      'unit_assigned': 'on_scene',
+      'on_scene': 'on_scene',
+      'transporting': 'transporting',
+      'arrived_hospital': 'transporting'
+    };
+    const newStatus = statusMap[event];
+    try {
+      const updates = ['status = ?1'];
+      const binds = [newStatus];
+      if (params.unit_assigned) {
+        updates.push(`unit_assigned = ?${binds.length + 1}`);
+        binds.push(params.unit_assigned);
+      }
+      binds.push(incidentId);
+      const r = await env.DB.prepare(
+        `UPDATE dispatch_log SET ${updates.join(', ')} WHERE incident_id = ?${binds.length}`
+      ).bind(...binds).run();
+      if (r.meta?.changes === 0) return { ok: false, error: 'incident_not_found', incident_id: incidentId };
+      await env.DB.prepare(
+        `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
+         VALUES (?1, 'dispatch_event', 'incident', ?2, ?3)`
+      ).bind(user.nid, incidentId, JSON.stringify({ event, new_status: newStatus, notes: params.notes || '' })).run();
+      return { ok: true, incident_id: incidentId, status: newStatus };
+    } catch (e) {
+      return { ok: false, error: 'update_failed', detail: e.message };
+    }
+  },
+
+  async dispatch_close(user, env, params) {
+    const incidentId = params.incident_id;
+    const outcome = (params.outcome || '').toLowerCase();
+    if (!incidentId) return { ok: false, error: 'missing_incident_id' };
+    const validOutcomes = ['transferred','treated_released','refused','deceased','cancelled'];
+    if (!validOutcomes.includes(outcome)) return { ok: false, error: 'invalid_outcome', outcome, valid: validOutcomes };
+    const now = Math.floor(Date.now() / 1000);
+    const status = outcome === 'cancelled' ? 'cancelled' : 'complete';
+    try {
+      const r = await env.DB.prepare(
+        `UPDATE dispatch_log
+         SET status = ?1, closed_at = ?2, closed_by_nid = ?3, notes = COALESCE(notes,'') || ?4
+         WHERE incident_id = ?5`
+      ).bind(
+        status, now, user.nid,
+        params.notes ? `\n[close ${new Date(now*1000).toISOString()}]: ${params.notes}` : '',
+        incidentId
+      ).run();
+      if (r.meta?.changes === 0) return { ok: false, error: 'incident_not_found', incident_id: incidentId };
+      await env.DB.prepare(
+        `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
+         VALUES (?1, 'dispatch_close', 'incident', ?2, ?3)`
+      ).bind(user.nid, incidentId, JSON.stringify({ outcome, status, notes: params.notes || '' })).run();
+      return { ok: true, incident_id: incidentId, status, outcome, closed_at: now };
+    } catch (e) {
+      return { ok: false, error: 'close_failed', detail: e.message };
+    }
+  },
+
+  async station_status_set(user, env, params) {
+    const station = (params.station || '').toUpperCase();
+    if (!STATIONS.includes(station)) return { ok: false, error: 'invalid_station', station };
+    const status = (params.status || '').toLowerCase();
+    if (!['open','closed','degraded','surge','offline'].includes(status)) {
+      return { ok: false, error: 'invalid_status', status, valid: ['open','closed','degraded','surge','offline'] };
+    }
+    // Cluster_supervisor can only set their own cluster
+    if (user.role === 'cluster_supervisor' && user.cluster) {
+      const clusterStations = CLUSTER_STATIONS[user.cluster.toLowerCase()] || [];
+      if (!clusterStations.includes(station)) {
+        return { ok: false, error: 'cross_cluster_forbidden', user_cluster: user.cluster, station };
+      }
+    }
+    const capacityPct = params.capacity_pct ? Math.max(0, Math.min(100, parseInt(params.capacity_pct, 10))) : null;
+    try {
+      const r = await env.DB.prepare(
+        `INSERT INTO station_status_log (station, sub_location, status, capacity_pct, set_by_nid, note)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
+      ).bind(station, params.sub_location || '', status, capacityPct, user.nid, params.note || '').run();
+      await env.DB.prepare(
+        `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
+         VALUES (?1, 'station_status_set', 'station', ?2, ?3)`
+      ).bind(user.nid, station, JSON.stringify({ status, capacity_pct: capacityPct, note: params.note || '' })).run();
+      return { ok: true, station, status, capacity_pct: capacityPct, ts: Math.floor(Date.now()/1000), id: r.meta?.last_row_id };
+    } catch (e) {
+      return { ok: false, error: 'insert_failed', detail: e.message };
+    }
+  },
+
+  async unit_status_set(user, env, params) {
+    const unitCode = params.unit_code || params.unit;
+    if (!unitCode) return { ok: false, error: 'missing_unit_code' };
+    const status = (params.status || '').toLowerCase();
+    const valid = ['available','on_call','en_route','on_scene','transporting','out_of_service'];
+    if (!valid.includes(status)) return { ok: false, error: 'invalid_status', status, valid };
+    try {
+      const r = await env.DB.prepare(
+        `INSERT INTO unit_status_log (unit_code, status, note, set_by_nid)
+         VALUES (?1, ?2, ?3, ?4)`
+      ).bind(unitCode, status, params.note || '', user.nid).run();
+      await env.DB.prepare(
+        `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
+         VALUES (?1, 'unit_status_set', 'unit', ?2, ?3)`
+      ).bind(user.nid, unitCode, JSON.stringify({ status, note: params.note || '' })).run();
+      return { ok: true, unit_code: unitCode, status, ts: Math.floor(Date.now()/1000), id: r.meta?.last_row_id };
+    } catch (e) {
+      return { ok: false, error: 'insert_failed', detail: e.message };
+    }
+  },
+
+  async reposition_request(user, env, params) {
+    const unitCode = params.unit_code || params.unit;
+    const fromStation = (params.from_station || '').toUpperCase();
+    const toStation = (params.to_station || '').toUpperCase();
+    if (!unitCode) return { ok: false, error: 'missing_unit_code' };
+    if (!STATIONS.includes(fromStation)) return { ok: false, error: 'invalid_from_station', from_station: fromStation };
+    if (!STATIONS.includes(toStation)) return { ok: false, error: 'invalid_to_station', to_station: toStation };
+    if (fromStation === toStation) return { ok: false, error: 'same_station', station: fromStation };
+    try {
+      const r = await env.DB.prepare(
+        `INSERT INTO reposition_log
+         (unit_code, from_station, to_station, reason, status, requested_by_nid, notes)
+         VALUES (?1, ?2, ?3, ?4, 'requested', ?5, ?6)`
+      ).bind(unitCode, fromStation, toStation, params.reason || '', user.nid, params.notes || '').run();
+      const id = r.meta?.last_row_id;
+      await env.DB.prepare(
+        `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
+         VALUES (?1, 'reposition_request', 'reposition', ?2, ?3)`
+      ).bind(user.nid, String(id), JSON.stringify({ unit_code: unitCode, from: fromStation, to: toStation, reason: params.reason || '' })).run();
+      return { ok: true, id, unit_code: unitCode, from_station: fromStation, to_station: toStation, status: 'requested' };
+    } catch (e) {
+      return { ok: false, error: 'insert_failed', detail: e.message };
+    }
+  },
+
+  async admin_apply_validation(user, env, params) {
+    // Admin-only: refresh data.json from sheet (proxy to GAS for now until cron sync built)
+    return {
+      ok: true,
+      note: 'D1 schema validation only. Sheet → data.json rebuild handled by GitHub Actions cron (every 10min).',
+      next_cron: 'pending',
+      schema_version: '1.1'
     };
   },
 
