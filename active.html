@@ -283,6 +283,17 @@
       </div>
     </div>
 
+    <!-- ====== Incident heatmap (station × hour) ====== -->
+    <div class="panel" style="grid-column: span 2;">
+      <div class="panel-title">
+        <span>Incident heatmap — station × hour (today)</span>
+        <span class="meta" id="heatmapMeta">—</span>
+      </div>
+      <div id="heatmapBody" style="overflow-x:auto;">
+        <div class="empty-panel">No incidents today.</div>
+      </div>
+    </div>
+
     <!-- ====== Unit Positions ====== -->
     <div class="panel" style="grid-column: span 2;">
       <div class="panel-title">
@@ -409,6 +420,8 @@
     ]);
 
     if (summary && summary.ok) {
+      // Render heatmap from incidents in summary
+      if (Array.isArray(summary.incidents)) renderHeatmap(summary.incidents);
       try { localStorage.setItem('hajj_active_cache', JSON.stringify(summary)); } catch (_) {}
       render(summary);
       setLive(true);
@@ -900,6 +913,61 @@
     });
     setFilterMeta();
   }, 200);
+
+
+
+  function renderHeatmap(incidents) {
+    const body = document.getElementById('heatmapBody');
+    const meta = document.getElementById('heatmapMeta');
+    if (!body || !meta) return;
+    if (!incidents || !incidents.length) {
+      body.innerHTML = '<div class="empty-panel">No incidents today.</div>';
+      meta.textContent = '0';
+      return;
+    }
+    const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3','OCC','DEPOT'];
+    const today = new Date(); today.setHours(0,0,0,0);
+    const grid = {}; // station -> hour -> count
+    let max = 0;
+    incidents.forEach(function(inc) {
+      const t = new Date(inc.Created_At || inc.created_at);
+      if (isNaN(t.getTime())) return;
+      if (t.getTime() < today.getTime()) return;
+      const station = String(inc.Zone || inc.Station || 'UNK').toUpperCase();
+      const h = t.getHours();
+      if (!grid[station]) grid[station] = {};
+      grid[station][h] = (grid[station][h] || 0) + 1;
+      if (grid[station][h] > max) max = grid[station][h];
+    });
+    const total = incidents.filter(i => {
+      const t = new Date(i.Created_At || i.created_at);
+      return !isNaN(t.getTime()) && t.getTime() >= today.getTime();
+    }).length;
+    meta.textContent = total + ' incidents · max ' + max + ' / cell';
+
+    // Build grid: rows = stations, cols = 24 hours
+    let html = '<div style="display:grid; grid-template-columns: 60px repeat(24, minmax(20px, 1fr)); gap:1px; font-size:9px;">';
+    html += '<div></div>';
+    for (let h = 0; h < 24; h++) html += '<div style="text-align:center; color:#9ca3af;">' + h + '</div>';
+    STATIONS.forEach(function(st) {
+      const row = grid[st] || {};
+      const rowMax = Math.max.apply(null, Object.values(row).concat([0]));
+      if (rowMax === 0 && st !== 'OCC') {} // skip empty? keep all for clarity
+      html += '<div style="font-weight:600; color:#e5e7eb; padding:2px 4px;">' + st + '</div>';
+      for (let h = 0; h < 24; h++) {
+        const count = row[h] || 0;
+        const intensity = max > 0 ? Math.min(1, count / max) : 0;
+        const bg = count > 0
+          ? 'rgba(239, 68, 68, ' + (0.15 + intensity * 0.6) + ')'
+          : 'rgba(255,255,255,0.02)';
+        const tooltip = st + ' @ ' + h + ':00 — ' + count + ' incident' + (count === 1 ? '' : 's');
+        html += '<div title="' + tooltip + '" style="background:' + bg + '; min-height:18px; border-radius:2px; text-align:center; color:#fff; line-height:18px;">' + (count || '') + '</div>';
+      }
+    });
+    html += '</div>';
+    body.innerHTML = html;
+  }
+
 
 })();
 </script>

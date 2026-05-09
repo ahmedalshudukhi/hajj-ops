@@ -170,6 +170,26 @@
   </div>
 </div>
 
+<div class="form-card" style="margin-bottom:12px; border:1px solid rgba(168, 85, 247, 0.3); background: rgba(168, 85, 247, 0.05);">
+  <div class="card-title" style="color:#c4b5fd; display:flex; justify-content:space-between; align-items:center;">
+    <span>⚡ Relocate unit</span>
+    <span class="meta" style="font-size:11px; color: #9ca3af;">applies immediately</span>
+  </div>
+  <div style="display:grid; grid-template-columns: 2fr 2fr 2fr 1fr; gap:8px;">
+    <select class="select" id="relocUnit"><option value="">Unit</option></select>
+    <select class="select" id="relocStation">
+      <option value="">To station</option>
+      <option value="ARF1">ARF1</option><option value="ARF2">ARF2</option><option value="ARF3">ARF3</option>
+      <option value="MUZ1">MUZ1</option><option value="MUZ2">MUZ2</option><option value="MUZ3">MUZ3</option>
+      <option value="MIN1">MIN1</option><option value="MIN2">MIN2</option><option value="MIN3">MIN3</option>
+      <option value="DEPOT">DEPOT</option>
+    </select>
+    <input type="text" class="input" id="relocReason" placeholder="Reason (optional)">
+    <button class="btn" id="relocBtn" style="background:#a855f7;">Relocate</button>
+  </div>
+  <div id="relocMsg" style="margin-top:6px; font-size:12px;"></div>
+</div>
+
 <div class="form-card">
   <div class="card-title">New incident</div>
   <div class="form-grid">
@@ -667,6 +687,48 @@
     // Run once for initial state
     setTimeout(refresh, 100);
   })();
+
+
+
+  // Relocate Unit (dispatcher discretion — applies immediately)
+  (function() {
+    function populateUnits() {
+      const sel = document.getElementById('relocUnit');
+      if (!sel || !UNITS_BY_CODE) return;
+      const codes = Object.keys(UNITS_BY_CODE).sort();
+      if (!codes.length) return;
+      const opts = ['<option value="">Unit</option>'];
+      codes.forEach(c => {
+        const u = UNITS_BY_CODE[c];
+        opts.push('<option value="' + c + '">' + c + (u.home_station ? ' · ' + u.home_station : '') + '</option>');
+      });
+      sel.innerHTML = opts.join('');
+    }
+    setTimeout(populateUnits, 800);
+    setTimeout(populateUnits, 2000);
+
+    const btn = document.getElementById('relocBtn');
+    if (btn) btn.addEventListener('click', async function() {
+      const unit = document.getElementById('relocUnit').value;
+      const toStation = document.getElementById('relocStation').value;
+      const reason = document.getElementById('relocReason').value;
+      const msg = document.getElementById('relocMsg');
+      if (!unit || !toStation) { msg.innerHTML = '<span style="color:#fca5a5;">Pick a unit and target station.</span>'; return; }
+      msg.innerHTML = '<span style="color:#9ca3af;">Relocating…</span>';
+      const homeFrom = (UNITS_BY_CODE[unit] && UNITS_BY_CODE[unit].home_station) || '';
+      const r = await HAJJ.authedCall('reposition_request', {
+        unit_code: unit, from_station: homeFrom, to_station: toStation, reason: reason
+      });
+      if (!r || !r.ok) { msg.innerHTML = '<span style="color:#fca5a5;">Failed: ' + ((r && r.error) || 'unknown') + '</span>'; return; }
+      msg.innerHTML = r.applied
+        ? '<span style="color:#86efac;">✓ ' + unit + ' → ' + toStation + ' (applied at ' + new Date(r.at).toLocaleTimeString() + ')</span>'
+        : '<span style="color:#fcd34d;">Pending review (request: ' + (r.request_id || '?') + ')</span>';
+      document.getElementById('relocUnit').value = '';
+      document.getElementById('relocStation').value = '';
+      document.getElementById('relocReason').value = '';
+    });
+  })();
+
 
 })();
 </script>
