@@ -1,0 +1,9 @@
+/*
+  Cache-Control: no-cache, no-store, must-revalidate
+  X-Content-Type-Options: nosniff
+
+/assets/*
+  Cache-Control: public, max-age=300, must-revalidate
+
+/assets/img/*
+  Cache-Control: public, max-age=86400

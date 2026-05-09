@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Admin · HMG Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=8">
-<script src="assets/config.js?v=8"></script>
-<script src="assets/tempo.js?v=8"></script>
-<script src="assets/auth.js?v=8"></script>
-<script src="assets/topbar.js?v=8"></script>
+<link rel="stylesheet" href="assets/style.css?v=9">
+<script src="assets/config.js?v=9"></script>
+<script src="assets/tempo.js?v=9"></script>
+<script src="assets/auth.js?v=9"></script>
+<script src="assets/topbar.js?v=9"></script>
 <style>
   .admin-wrap { max-width: 1200px; margin: 0 auto; padding: 16px; }
   .admin-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; overflow-x: auto; }
@@ -78,7 +78,11 @@
 
 <div class="admin-wrap">
 
-  <div class="admin-tabs">
+  <div style="max-width:1400px; margin: 0 auto 12px; padding: 0 16px; display:flex; gap:8px; flex-wrap:wrap;">
+  <button class="btn btn--small" id="btnApplyValidation" style="background:#f59e0b; color:#000; font-weight:600;">⚙️ Apply Allowlist data validation</button>
+  <span id="validationMsg" style="font-size:12px; color:#9ca3af; align-self:center;"></span>
+</div>
+<div class="admin-tabs">
     <button class="admin-tab active" data-tab="allowlist">Allowlist <span class="badge" id="allowlistCount">—</span></button>
     <button class="admin-tab" data-tab="sessions">Active Sessions <span class="badge" id="sessionsCount">—</span></button>
     <button class="admin-tab" data-tab="reposition">Reposition Queue <span class="badge" id="repositionCount">—</span></button>
@@ -435,6 +439,23 @@
   }
   scheduleRefresh();
 
+
+  document.getElementById('btnApplyValidation').addEventListener('click', async function() {
+    if (!confirm('Apply dropdown data validation to Allowlist columns Role, Cluster, Station, Accommodation, Active?\n\nThis writes to Mob Sheet → Allowlist tab. Existing values are preserved; future entries enforced.')) return;
+    const msg = document.getElementById('validationMsg');
+    this.disabled = true;
+    msg.textContent = 'Applying…';
+    msg.style.color = '#fcd34d';
+    const r = await HAJJ.authedCall('admin_apply_validation');
+    this.disabled = false;
+    if (!r || !r.ok) {
+      msg.textContent = 'Failed: ' + ((r && r.error) || 'unknown') + ' — backend may need redeploy';
+      msg.style.color = '#fca5a5';
+      return;
+    }
+    msg.textContent = '✓ Applied: ' + Object.keys(r.applied || {}).map(function(k) { return k + '=' + r.applied[k]; }).join(', ');
+    msg.style.color = '#86efac';
+  });
 })();
 </script>
 

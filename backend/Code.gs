@@ -305,6 +305,9 @@ function route_(e) {
           case 'schedule_grid':       response = scheduleGrid_(u, params); break;
           case 'unit_availability':   response = unitAvailability_(u, params); break;
           case 'unit_status_set':     response = unitStatusSet_(u, params); break;
+          case 'dashboard_active':    response = dashboardActive_(u, params); break;
+          case 'dashboard_dispatch':  response = dashboardDispatch_(u, params); break;
+          case 'dashboard_sv':        response = dashboardSV_(u, params); break;
 
           default: response = { ok: false, error: 'unknown_action', action };
         }
@@ -1479,6 +1482,42 @@ function applyAllowlistValidation_(user, params) {
   // Log
   logAdmin_(user, 'apply_validation', 'allowlist', JSON.stringify(applied));
   return { ok:true, applied: applied };
+}
+
+
+// ============================================================
+// MEGA ENDPOINTS — one Apps Script call returns ALL data for a page
+// (works around Apps Script per-user concurrency bottleneck)
+// ============================================================
+
+function dashboardActive_(user, params) {
+  if (!hasRole_(user, ['cluster_supervisor','dispatcher','leadership','admin'])) return { ok:false, error:'forbidden' };
+  const out = { ok:true, server_time: new Date().toISOString() };
+  try { out.summary       = getActiveSummary_(user, params); } catch (e) { out.summary = { ok:false, error: String(e) }; }
+  try { out.augmentations = augmentationsList_(user, params); } catch (e) { out.augmentations = { ok:false }; }
+  try { out.unit_positions = unitPositions_(user, params); } catch (e) { out.unit_positions = { ok:false }; }
+  try { out.roster_fill   = rosterFill_(user, params); } catch (e) { out.roster_fill = { ok:false }; }
+  try { out.unit_availability = unitAvailability_(user, params); } catch (e) { out.unit_availability = { ok:false }; }
+  try { out.station_status = stationStatusList_(user, params); } catch (e) { out.station_status = { ok:false }; }
+  return out;
+}
+
+function dashboardDispatch_(user, params) {
+  if (!hasRole_(user, ['dispatcher','leadership','admin'])) return { ok:false, error:'forbidden' };
+  const out = { ok:true, server_time: new Date().toISOString() };
+  try { out.units         = unitAvailability_(user, params); } catch (e) { out.units = { ok:false }; }
+  try { out.incidents     = dispatchList_(user, params); } catch (e) { out.incidents = { ok:false }; }
+  try { out.station_status = stationStatusList_(user, params); } catch (e) { out.station_status = { ok:false }; }
+  return out;
+}
+
+function dashboardSV_(user, params) {
+  if (!hasRole_(user, ['cluster_supervisor','leadership','admin'])) return { ok:false, error:'forbidden' };
+  const out = { ok:true, server_time: new Date().toISOString() };
+  try { out.station_status = stationStatusList_(user, params); } catch (e) { out.station_status = { ok:false }; }
+  try { out.repositions    = repositionList_(user, params); } catch (e) { out.repositions = { ok:false }; }
+  try { out.units          = unitAvailability_(user, params); } catch (e) { out.units = { ok:false }; }
+  return out;
 }
 
 // ============================================================

@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SV · HMG Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=8">
-<script src="assets/config.js?v=8"></script>
-<script src="assets/tempo.js?v=8"></script>
-<script src="assets/auth.js?v=8"></script>
-<script src="assets/sublocations.js?v=8"></script>
-<script src="assets/topbar.js?v=8"></script>
+<link rel="stylesheet" href="assets/style.css?v=9">
+<script src="assets/config.js?v=9"></script>
+<script src="assets/tempo.js?v=9"></script>
+<script src="assets/auth.js?v=9"></script>
+<script src="assets/sublocations.js?v=9"></script>
+<script src="assets/topbar.js?v=9"></script>
 <style>
   .sv-wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
   .sv-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
@@ -120,6 +120,23 @@
       <thead><tr><th>Status</th><th>Time</th><th>Unit</th><th>From → To</th><th>By</th></tr></thead>
       <tbody id="recentBody"><tr><td colspan="5" class="empty-state">Loading…</td></tr></tbody>
     </table>
+  </div>
+
+
+  <!-- ===== UNITS OVERVIEW + STATUS ===== -->
+  <div class="sv-section">
+    <h3>Units overview <span style="color:#9ca3af; font-weight:400;" id="unitsSummary">—</span></h3>
+    <div style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
+      <button class="btn btn--small btn--ghost" data-filter="all">All</button>
+      <button class="btn btn--small btn--ghost" data-filter="available" style="color:#86efac;">🟢 Available</button>
+      <button class="btn btn--small btn--ghost" data-filter="busy" style="color:#fcd34d;">🟡 Busy</button>
+      <button class="btn btn--small btn--ghost" data-filter="off_duty" style="color:#9ca3af;">⚫ Off-duty</button>
+      <button class="btn btn--small btn--ghost" data-filter="oos" style="color:#fca5a5;">🔴 OOS</button>
+      <button class="btn btn--small btn--ghost" data-filter="maintenance" style="color:#c4b5fd;">🛠 Maintenance</button>
+    </div>
+    <div id="unitsOverview" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px,1fr)); gap:6px; max-height:400px; overflow-y:auto;">
+      <div class="empty-state">Loading units…</div>
+    </div>
   </div>
 
 </div>
@@ -409,10 +426,45 @@
     return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
   }
 
-  // Initial load
-  loadStationStatus();
-  loadUnitsForReposition();
-  loadReposition();
+  // Initial load — ONE mega call hydrates all 3 views
+  (async function loadAll() {
+    const dash = await HAJJ.authedCallSWR('dashboard_sv');
+    if (dash && dash.station_status && dash.station_status.ok) {
+      LATEST_STATUS = {};
+      (dash.station_status.stations || []).forEach(function(s) { LATEST_STATUS[s.station] = s; });
+      renderStationGrid();
+    } else {
+      loadStationStatus();
+    }
+    if (dash && dash.repositions && dash.repositions.ok) {
+      const r = dash.repositions;
+      const pBody = document.getElementById('pendingBody');
+      const rBody = document.getElementById('recentBody');
+      const pending = (r.pending || []).filter(function(p) { return !allowedStations || isAllowed(p.From_Station) || isAllowed(p.To_Station); });
+      const recent = (r.recent || []).filter(function(p) { return !allowedStations || isAllowed(p.From_Station) || isAllowed(p.To_Station); });
+      pBody.innerHTML = pending.length ? pending.map(function(pp) {
+        return '<tr><td><span class="reposition-status pending">pending</span></td><td>' + fmtTime(pp.Created_At) + '</td><td>' + esc(pp.Unit_Code || '') + '</td><td>' + esc(pp.From_Station || '?') + ' → ' + esc(pp.To_Station || '?') + '</td><td>' + esc(pp.Requested_By_NID || '') + '</td><td>' + esc(pp.Reason || '—') + '</td></tr>';
+      }).join('') : '<tr><td colspan="6" class="empty-state">No pending requests.</td></tr>';
+      rBody.innerHTML = recent.length ? recent.slice(-30).reverse().map(function(pp) {
+        return '<tr><td><span class="reposition-status ' + esc(pp.Status) + '">' + esc(pp.Status || '') + '</span></td><td>' + fmtTime(pp.Timestamp) + '</td><td>' + esc(pp.Unit_Code || '') + '</td><td>' + esc(pp.From_Station || '?') + ' → ' + esc(pp.To_Station || '?') + '</td><td>' + esc(pp.Operator_NID || '—') + '</td></tr>';
+      }).join('') : '<tr><td colspan="5" class="empty-state">No recent.</td></tr>';
+    } else {
+      loadReposition();
+    }
+    if (dash && dash.units && dash.units.ok && dash.units.units) {
+      // Populate unit dropdown for reposition
+      const sel = document.getElementById('repUnit');
+      const filtered = (dash.units.units || []).filter(function(u) { return !allowedStations || (u.home_station && isAllowed(u.home_station)); });
+      sel.innerHTML = '<option value="">Select unit (' + filtered.length + ')</option>' + filtered.map(function(u) {
+        return '<option value="' + u.code + '" data-home="' + esc(u.home_station || '') + '">' + u.code + (u.home_station ? ' · ' + u.home_station : '') + '</option>';
+      }).join('');
+      const toSel = document.getElementById('repToStation');
+      const allStations = role === 'cluster_supervisor' ? (CLUSTER_STATIONS[cluster] || []) : ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+      toSel.innerHTML = '<option value="">To station</option>' + allStations.map(function(s) { return '<option value="' + s + '">' + s + '</option>'; }).join('');
+    } else {
+      loadUnitsForReposition();
+    }
+  })();
 
   // Tempo refresh
   function scheduleNext() {
@@ -442,8 +494,140 @@
     toSel.addEventListener('change', refresh);
   })();
 
+
+
+  // ===== Units Overview =====
+  let _allUnits = [];
+  let _unitFilter = 'all';
+  let _modalUnit = null;
+
+  function renderUnitsOverview() {
+    const body = document.getElementById('unitsOverview');
+    const summary = document.getElementById('unitsSummary');
+    if (!body) return;
+    if (!_allUnits.length) {
+      body.innerHTML = '<div class="empty-state">No units loaded.</div>';
+      return;
+    }
+    const filtered = _unitFilter === 'all'
+      ? _allUnits
+      : _allUnits.filter(function(u) { return u.state === _unitFilter; });
+
+    const counts = { available:0, busy:0, off_duty:0, oos:0, maintenance:0, unknown:0 };
+    _allUnits.forEach(function(u) { counts[u.state] = (counts[u.state]||0) + 1; });
+    if (summary) summary.textContent = '· ' + counts.available + ' available · ' + counts.busy + ' busy · ' + counts.off_duty + ' off · ' + counts.oos + ' oos';
+
+    if (!filtered.length) {
+      body.innerHTML = '<div class="empty-state" style="grid-column:1/-1;">No units in this state.</div>';
+      return;
+    }
+
+    const stateColor = { available:'#16a34a', busy:'#f59e0b', off_duty:'rgba(255,255,255,0.10)', oos:'#dc2626', maintenance:'#a855f7', unknown:'rgba(255,255,255,0.10)' };
+    const stateBg = { available:'rgba(34,197,94,0.10)', busy:'rgba(245,158,11,0.10)', off_duty:'rgba(80,80,80,0.10)', oos:'rgba(239,68,68,0.10)', maintenance:'rgba(168,85,247,0.10)', unknown:'rgba(255,255,255,0.04)' };
+
+    body.innerHTML = filtered.map(function(u) {
+      const station = u.current_station || u.home_station || '—';
+      const canEdit = role === 'dispatcher' || role === 'leadership' || role === 'admin';
+      const editable = canEdit ? ' style="cursor:pointer;"' : '';
+      return '<div class="unit-card" data-unit="' + u.code + '"' + editable + ' style="padding:8px; background:' + stateBg[u.state] + '; border:1px solid ' + stateColor[u.state] + '; border-radius:6px; font-size:12px;">'
+        + '<div style="display:flex; justify-content:space-between; align-items:flex-start;">'
+        +   '<strong style="color:#e5e7eb;">' + u.code + '</strong>'
+        +   '<span style="font-size:10px; color:#9ca3af;">' + (u.state === 'available' ? '🟢' : u.state === 'busy' ? '🟡' : u.state === 'off_duty' ? '⚫' : u.state === 'oos' ? '🔴' : u.state === 'maintenance' ? '🛠' : '·') + '</span>'
+        + '</div>'
+        + '<div style="font-size:10px; color:#9ca3af; margin-top:2px;">@ ' + station + (u.type ? ' · ' + u.type : '') + '</div>'
+        + (u.open_incidents > 0 ? '<div style="font-size:10px; color:#fcd34d; margin-top:2px;">↳ ' + u.open_incidents + ' open</div>' : '')
+        + (u.schedule_label ? '<div style="font-size:10px; color:#9ca3af; margin-top:2px;">slot: ' + u.schedule_label + '</div>' : '')
+        + (u.manual_note ? '<div style="font-size:10px; color:#c4b5fd; margin-top:2px; font-style:italic;">' + esc(u.manual_note) + '</div>' : '')
+        + '</div>';
+    }).join('');
+
+    // Wire unit card clicks for status change (dispatcher/leadership/admin only)
+    if (role === 'dispatcher' || role === 'leadership' || role === 'admin') {
+      body.querySelectorAll('.unit-card').forEach(function(c) {
+        c.addEventListener('click', function() { openUnitStatusModal(c.dataset.unit); });
+      });
+    }
+  }
+
+  function openUnitStatusModal(unitCode) {
+    _modalUnit = unitCode;
+    document.getElementById('unitStatusModalTitle').textContent = 'Set status for ' + unitCode;
+    document.querySelectorAll('input[name="newUnitStatus"]').forEach(function(r) { r.checked = false; });
+    document.querySelectorAll('#unitStatusModal .triage-tile').forEach(function(t) { t.classList.remove('selected'); });
+    document.getElementById('unitStatusNote').value = '';
+    document.getElementById('unitStatusModal').classList.add('visible');
+  }
+
+  document.querySelectorAll('#unitStatusModal .triage-tile').forEach(function(tile) {
+    tile.addEventListener('click', function() {
+      document.querySelectorAll('#unitStatusModal .triage-tile').forEach(function(t) { t.classList.remove('selected'); });
+      tile.classList.add('selected');
+      tile.querySelector('input[type="radio"]').checked = true;
+    });
+  });
+
+  document.getElementById('unitStatusCancel').addEventListener('click', function() {
+    document.getElementById('unitStatusModal').classList.remove('visible');
+  });
+
+  document.getElementById('unitStatusSave').addEventListener('click', async function() {
+    const sel = document.querySelector('input[name="newUnitStatus"]:checked');
+    if (!sel) { alert('Pick a state'); return; }
+    const r = await HAJJ.authedCall('unit_status_set', {
+      unit_code: _modalUnit,
+      status: sel.value,
+      note: document.getElementById('unitStatusNote').value
+    });
+    if (!r || !r.ok) { alert('Failed: ' + ((r && r.error) || 'unknown')); return; }
+    document.getElementById('unitStatusModal').classList.remove('visible');
+    // Refresh
+    location.reload();
+  });
+
+  // Filter buttons
+  document.querySelectorAll('[data-filter]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      _unitFilter = btn.dataset.filter;
+      renderUnitsOverview();
+    });
+  });
+
+  // Hook the dashboard load to populate _allUnits
+  const _origLoadAll = window.loadAll || function() {};
+  // Hijack the dash load — append units rendering
+  setTimeout(async function() {
+    const dash = await HAJJ.authedCallSWR('dashboard_sv');
+    if (dash && dash.units && dash.units.ok && dash.units.units) {
+      _allUnits = dash.units.units;
+      // Filter by cluster for SVs
+      if (allowedStations) {
+        _allUnits = _allUnits.filter(function(u) { return isAllowed(u.home_station) || isAllowed(u.current_station); });
+      }
+      renderUnitsOverview();
+    }
+  }, 500);
+
 })();
 </script>
+
+
+<!-- ===== UNIT STATUS MODAL ===== -->
+<div class="modal-bg" id="unitStatusModal">
+  <div class="modal">
+    <h4 id="unitStatusModalTitle">Set status for —</h4>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-bottom:12px;">
+      <label class="triage-tile" data-state="available" style="color:#86efac;"><input type="radio" name="newUnitStatus" value="available" hidden>🟢 Available</label>
+      <label class="triage-tile" data-state="oos" style="color:#fca5a5;"><input type="radio" name="newUnitStatus" value="oos" hidden>🔴 OOS</label>
+      <label class="triage-tile" data-state="maintenance" style="color:#c4b5fd;"><input type="radio" name="newUnitStatus" value="maintenance" hidden>🛠 Maintenance</label>
+      <label class="triage-tile" data-state="off_duty" style="color:#d1d5db;"><input type="radio" name="newUnitStatus" value="off_duty" hidden>⚫ Off-duty</label>
+    </div>
+    <input type="text" id="unitStatusNote" class="input" placeholder="Note (optional)" style="margin-bottom: 10px;">
+    <div class="modal-actions">
+      <button class="btn btn--small btn--ghost" id="unitStatusCancel">Cancel</button>
+      <button class="btn btn--small" id="unitStatusSave">Set status</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
