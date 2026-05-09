@@ -131,51 +131,60 @@
 
   async function login(nid, last4) {
     const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-    let r;
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nid: String(nid), last4_mobile: String(last4) })
-      });
-      r = await res.json();
-    } catch (e) {
-      return { ok: false, error: 'network', message: String(e) };
-    }
+
+    // Parallel fetch BOTH D1 (fast) and GAS (slow). We MUST await both before
+    // returning, otherwise browser kills the GAS fetch on page navigation.
+    // Login takes max(D1, GAS) — same as before D1 cutover, but now ALL endpoints
+    // will work post-login (D1 token for migrated, GAS token for legacy).
+    const ua = navigator.userAgent.slice(0, 80);
+
+    const d1Promise = (async () => {
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nid: String(nid), last4_mobile: String(last4) })
+        });
+        return await res.json();
+      } catch (e) {
+        return { ok: false, error: 'network', message: String(e) };
+      }
+    })();
+
+    const gasPromise = (async () => {
+      try {
+        return await call('auth', { nid: nid, last4: last4, ua: ua });
+      } catch (e) {
+        return { ok: false, error: 'network', message: String(e) };
+      }
+    })();
+
+    const [d1, gas] = await Promise.all([d1Promise, gasPromise]);
     const ms = Math.round(((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - t0);
 
-    if (r && r.ok && r.token) {
-      // Store D1 session
-      const expIso = r.expires_at ? new Date(r.expires_at * 1000).toISOString() : null;
-      setSession(r.token, r.user, expIso);
-      if (typeof console !== 'undefined') {
-        console.log('%c[CAD] /api/auth/login (D1) %c' + ms + 'ms %cok',
-          'color:#3b82f6', 'color:#9ca3af', 'color:#22c55e');
-      }
-
-      // Background: shadow GAS login (no await — runs in parallel)
-      // Required for unmigrated /action= endpoints. Stored under hajj_gas_token.
-      // Fire-and-forget; authedCall will wait for it if needed.
-      (async () => {
-        const t1 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-        try {
-          const gr = await call('auth', {
-            nid: nid, last4: last4, ua: navigator.userAgent.slice(0, 80)
-          });
-          const gms = Math.round(((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - t1);
-          if (gr && gr.ok && gr.token) {
-            sessionStorage.setItem(GAS_TOKEN_KEY, gr.token);
-            console.log('%c[CAD] GAS shadow login %c' + gms + 'ms %cok (legacy endpoints ready)',
-              'color:#a855f7', 'color:#9ca3af', 'color:#22c55e');
-          } else {
-            console.warn('[CAD] GAS shadow login failed in ' + gms + 'ms', gr);
-          }
-        } catch (e) {
-          console.warn('[CAD] GAS shadow login error', e);
-        }
-      })();
+    if (d1 && d1.ok && d1.token) {
+      const expIso = d1.expires_at ? new Date(d1.expires_at * 1000).toISOString() : null;
+      setSession(d1.token, d1.user, expIso);
     }
-    return r;
+    if (gas && gas.ok && gas.token) {
+      sessionStorage.setItem(GAS_TOKEN_KEY, gas.token);
+    }
+
+    if (typeof console !== 'undefined') {
+      console.log('%c[CAD] login %c' + ms + 'ms %cD1=' + (d1 && d1.ok ? 'ok' : 'fail') + ' GAS=' + (gas && gas.ok ? 'ok' : 'fail'),
+        'color:#3b82f6', 'color:#9ca3af', 'color:#22c55e');
+    }
+
+    // Return D1 result as primary (it has the user object the frontend expects)
+    // If D1 failed but GAS succeeded, fall back to GAS shape (for emergency continuity)
+    if (d1 && d1.ok) return d1;
+    if (gas && gas.ok) {
+      // Fallback path — D1 had a problem but GAS worked. Should never happen if D1 is healthy.
+      console.warn('[CAD] D1 login failed but GAS ok — using GAS-only mode');
+      setSession(gas.token, gas.user, gas.expires);
+      return gas;
+    }
+    return d1 || gas || { ok: false, error: 'login_failed' };
   }
 
   async function logout() {
