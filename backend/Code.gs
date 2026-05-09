@@ -291,6 +291,8 @@ function route_(e) {
           // admin
           case 'admin_audit_list':    response = adminAuditList_(u, params); break;
           case 'admin_audit_log':     response = adminAuditLog_(u, params); break;
+          case 'admin_allowlist_view':response = adminAllowlistView_(u, params); break;
+          case 'admin_sessions_view': response = adminSessionsView_(u, params); break;
 
           default: response = { ok: false, error: 'unknown_action', action };
         }
@@ -976,6 +978,51 @@ function adminAuditList_(user, params) {
     out.push(rowToObject_(h, data[i]));
   }
   return { ok:true, entries: out };
+}
+
+
+function adminAllowlistView_(user, params) {
+  if (!hasRole_(user, ['admin'])) return { ok:false, error:'forbidden' };
+  const sh = sheet_(SHEETS.ALLOWLIST);
+  if (!sh) return { ok:true, rows:[] };
+  const data = sh.getDataRange().getValues();
+  if (data.length < 2) return { ok:true, rows:[], headers: data[0] || [] };
+  const h = data[0];
+  // Mask Mobile column except last 4 digits for shoulder-surfing safety
+  const mobileIdx = h.indexOf('Mobile');
+  const out = [];
+  for (let i = 1; i < data.length; i++) {
+    const obj = rowToObject_(h, data[i]);
+    if (mobileIdx >= 0 && obj.Mobile) {
+      const m = String(obj.Mobile).replace(/\D/g,'');
+      obj.Mobile = m.length >= 4 ? '****' + m.slice(-4) : '****';
+    }
+    out.push(obj);
+  }
+  return { ok:true, rows: out, count: out.length };
+}
+
+function adminSessionsView_(user, params) {
+  if (!hasRole_(user, ['admin'])) return { ok:false, error:'forbidden' };
+  const sh = sheet_(SHEETS.SESSIONS);
+  if (!sh) return { ok:true, rows:[] };
+  const data = sh.getDataRange().getValues();
+  if (data.length < 2) return { ok:true, rows:[] };
+  const h = data[0];
+  const ti = h.indexOf('Token'), ei = h.indexOf('Expires');
+  const now = new Date();
+  const out = [];
+  for (let i = 1; i < data.length; i++) {
+    const exp = new Date(data[i][ei]);
+    const obj = rowToObject_(h, data[i]);
+    obj.is_active = exp > now;
+    // Mask token to last 6 chars
+    if (obj.Token) obj.Token = '...' + String(obj.Token).slice(-6);
+    out.push(obj);
+  }
+  // Most recent first
+  out.sort(function(a, b) { return new Date(b.Last_Activity || b.Created_At) - new Date(a.Last_Activity || a.Created_At); });
+  return { ok:true, rows: out.slice(0, 100), total: out.length };
 }
 
 // ============================================================

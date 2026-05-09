@@ -117,6 +117,14 @@
       <div class="tile-arrow">Open →</div>
     </a>
 
+    <a href="admin.html" class="tile" id="adminTile" style="display:none;">
+      <div>
+        <div class="tile-title">Admin</div>
+        <div class="tile-sub">Allowlist, sessions, reposition queue, audit log.</div>
+      </div>
+      <div class="tile-arrow">Open →</div>
+    </a>
+
     <a href="active.html" class="tile is-primary">
       <div>
         <div class="tile-title">Active insights</div>
@@ -138,6 +146,14 @@
 (function () {
 
   if (!HAJJ.requireRole(['leadership', 'admin'])) return;
+
+  // Show admin tile only for admin role
+  HAJJ.authedCall('whoami').then(function(r) {
+    if (r && r.ok && r.user && r.user.role === 'admin') {
+      const tile = document.getElementById('adminTile');
+      if (tile) tile.style.display = '';
+    }
+  });
 
   const user = HAJJ.getUser() || {};
   document.getElementById('name').textContent = user.name || '—';
