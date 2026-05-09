@@ -1,0 +1,12 @@
+# Hajj CAD — Cloudflare Pages worker config
+# Lives at repo root; Cloudflare Pages auto-applies bindings on git push.
+# Do NOT set `name` here — Pages uses the dashboard project name.
+# database_id is filled in by migrate.py.
+
+compatibility_date = "2025-09-01"
+pages_build_output_dir = "."
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hajj_cad"
+database_id = "ce392cb3-6a88-4602-bfa6-ea6d1cd6ea39"

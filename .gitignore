@@ -16,3 +16,7 @@ v118_check/
 .dev.vars*
 !.dev.vars.example
 !.env.example
+
+# Hajj CAD migration — never commit allowlist seed (contains PII)
+migration/seed_allowlist.sql
+_worker.js.backup
