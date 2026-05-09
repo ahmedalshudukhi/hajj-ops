@@ -232,6 +232,7 @@
 <div class="floater"><span class="dot"></span><span id="syncStatus">Live · syncing every 5s</span></div>
 
 <script src="assets/config.js"></script>
+<script src="assets/tempo.js"></script>
 <script src="assets/auth.js"></script>
 <script>
 (function () {
@@ -355,8 +356,18 @@
     renderCards();
     renderStats();
   }
-  setInterval(refresh, 5000);
+  // Dynamic tempo — refresh interval changes with Hajj phase
+  let _tempoTimer = null;
+  function scheduleNextRefresh() {
+    if (_tempoTimer) clearTimeout(_tempoTimer);
+    const ms = (window.HAJJ_TEMPO && window.HAJJ_TEMPO.intervalMs()) || 5000;
+    _tempoTimer = setTimeout(async function tick() {
+      await refresh();
+      scheduleNextRefresh();
+    }, ms);
+  }
   refresh();
+  scheduleNextRefresh();
 
   // ============ Render ============
   function renderCards() {
@@ -464,7 +475,9 @@
           '<div class="section-label">Timeline</div>'
         + '<div class="timeline">'
         + tlRows.map(r => '<div class="timeline-row"><span class="ev">' + r[0] + '</span><span class="at">' + formatTimeShort(r[1]) + '</span></div>').join('')
-        + '</div>' : '');
+        + '</div>' : '')
+      // File PCR button — opens DCH form with incident context
+      + (window.PCR_URL ? buildPcrButton(inc) : '');
 
     card.querySelectorAll('[data-event]').forEach(btn => {
       btn.addEventListener('click', () => recordEvent(inc.Incident_ID, btn.dataset.event));
@@ -477,6 +490,21 @@
     });
 
     return card;
+  }
+
+  function buildPcrButton(inc) {
+    const params = new URLSearchParams();
+    if (inc.Incident_ID) params.set('incident_id', inc.Incident_ID);
+    if (inc.Station)     params.set('prefill_station', inc.Station);
+    if (inc.Unit)        params.set('prefill_unit', inc.Unit);
+    const url = window.PCR_URL + '?' + params.toString();
+    const label = inc.Q_PCR_ID
+      ? '📄 PCR filed (' + inc.Q_PCR_ID + ')'
+      : (inc.Long_PCR_URL ? '📄 View PCR' : '📋 File PCR');
+    return '<div class="section-label">PCR</div>'
+      + '<div class="btn-row">'
+      + '<a href="' + url + '" target="_blank" rel="noopener" class="btn btn--small btn--blue" style="text-decoration:none; display:inline-flex; align-items:center;">' + label + '</a>'
+      + '</div>';
   }
 
   function formatTimeShort(t) {

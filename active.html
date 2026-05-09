@@ -310,6 +310,7 @@
 </div>
 
 <script src="assets/config.js"></script>
+<script src="assets/tempo.js"></script>
 <script src="assets/auth.js"></script>
 <script>
 (function () {
@@ -320,7 +321,17 @@
 
   let lastOk = null;
   refresh();
-  setInterval(refresh, 10000); // 10s polling
+  // Dynamic tempo — refresh interval changes with Hajj phase
+  let _tempoTimer = null;
+  function scheduleNextRefresh() {
+    if (_tempoTimer) clearTimeout(_tempoTimer);
+    const ms = (window.HAJJ_TEMPO && window.HAJJ_TEMPO.intervalMs()) || 10000;
+    _tempoTimer = setTimeout(async function tick() {
+      await refresh();
+      scheduleNextRefresh();
+    }, ms);
+  }
+  scheduleNextRefresh();
 
   async function refresh() {
     const r = await HAJJ.authedCall('active_summary');
