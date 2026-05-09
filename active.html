@@ -328,9 +328,34 @@
     const ms = (window.HAJJ_TEMPO && window.HAJJ_TEMPO.intervalMs()) || 10000;
     _tempoTimer = setTimeout(async function tick() {
       await refresh();
-      scheduleNextRefresh();
+      // Pre-render from cache for instant first paint
+  try {
+    const cached = localStorage.getItem('hajj_active_cache');
+    if (cached) {
+      const r = JSON.parse(cached);
+      if (r && r.ok) {
+        try { localStorage.setItem('hajj_active_cache', JSON.stringify(r)); } catch (_) {}
+        render(r);
+        setLive(true, 'cached');
+      }
+    }
+  } catch (_) {}
+
+  scheduleNextRefresh();
     }, ms);
   }
+  // Pre-render from cache for instant first paint
+  try {
+    const cached = localStorage.getItem('hajj_active_cache');
+    if (cached) {
+      const r = JSON.parse(cached);
+      if (r && r.ok) {
+        render(r);
+        setLive(true, 'cached');
+      }
+    }
+  } catch (_) {}
+
   scheduleNextRefresh();
 
   async function refresh() {

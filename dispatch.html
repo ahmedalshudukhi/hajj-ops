@@ -198,15 +198,8 @@
     <input class="input" id="source" placeholder="Source (caller, walk-in…)">
     <input class="input" id="location" placeholder="Specific location">
     <input class="input" id="caseField" placeholder="Case (chief complaint)">
-    <input class="input" id="unit" placeholder="Unit assigned">
-    <select class="select" id="type">
-      <option>Alpha</option>
-      <option>Romeo</option>
-      <option>Mike</option>
-    </select>
-    <select class="select" id="shift">
-      <option>Day</option>
-      <option>Night</option>
+    <select class="select full" id="unit">
+      <option value="">Loading units…</option>
     </select>
     <select class="select full" id="category">
       <option value="red">🔴 Red — Resuscitation</option>
@@ -238,6 +231,72 @@
 (function () {
 
   if (!HAJJ.requireRole(['dispatcher', 'leadership', 'admin'])) return;
+
+  // Load units list (cached for instant first paint)
+  let UNITS_BY_CODE = {};
+  (async function loadUnits() {
+    const sel = document.getElementById('unit');
+    sel.innerHTML = '<option value="">Loading units…</option>';
+
+    // Render cached units immediately (if any)
+    try {
+      const cached = localStorage.getItem('hajj_units_cache');
+      if (cached) {
+        const units = JSON.parse(cached);
+        if (Array.isArray(units) && units.length) renderUnits(units);
+      }
+    } catch (_) {}
+
+    const r = await HAJJ.authedCall('units_list');
+    if (!r || !r.ok || !Array.isArray(r.units)) {
+      console.warn('units_list failed:', r);
+      if (!sel.value && sel.options.length <= 1) {
+        sel.innerHTML = '<option value="">(units unavailable — ' + ((r && r.error) || 'unknown') + ')</option>';
+      }
+      return;
+    }
+    if (!r.units.length) {
+      sel.innerHTML = '<option value="">(no units in Mob Sheet → Units tab)</option>';
+      return;
+    }
+    try { localStorage.setItem('hajj_units_cache', JSON.stringify(r.units)); } catch (_) {}
+    renderUnits(r.units);
+
+    function renderUnits(units) {
+      UNITS_BY_CODE = {};
+      const groups = {};
+      const order = [];
+      units.forEach(function(u) {
+        UNITS_BY_CODE[u.code] = u;
+        const key = u.category || u.type || 'Units';
+        if (!groups[key]) { groups[key] = []; order.push(key); }
+        groups[key].push(u);
+      });
+      const opts = ['<option value="">Select unit (' + units.length + ' available)</option>'];
+      order.forEach(function(g) {
+        opts.push('<optgroup label="' + g + ' (' + groups[g].length + ')">');
+        groups[g].forEach(function(u) {
+          const homeBit = u.home_station ? ' · ' + u.home_station : '';
+          opts.push('<option value="' + u.code + '">' + u.code + homeBit + '</option>');
+        });
+        opts.push('</optgroup>');
+      });
+      sel.innerHTML = opts.join('');
+    }
+  })();
+
+  function unitTypeFor(code) {
+    if (!code) return '';
+    const u = UNITS_BY_CODE[code];
+    if (u && u.type) return u.type;
+    const prefix = code.split('-')[0];
+    return prefix;
+  }
+  function currentShift() {
+    const h = new Date().getHours();
+    return (h >= 6 && h < 18) ? 'Day' : 'Night';
+  }
+
 
   const user = HAJJ.getUser() || {};
   document.getElementById('dispName').textContent = user.name || '—';
@@ -285,7 +344,7 @@
     createMsg.innerHTML = '';
     const region = regionEl.value, zone = zoneEl.value;
     const source = val('source'), location = val('location'), caseField = val('caseField');
-    const unit = val('unit'), type = val('type'), shift = val('shift');
+    const unit = val('unit'), type = unitTypeFor(unit), shift = currentShift();
     const category = val('category');
 
     if (!region || !zone) { showCreateErr('Pick region and zone.'); return; }
@@ -353,6 +412,8 @@
       }
       incidentsById[serverInc.Incident_ID] = serverInc;
     });
+    // Cache for next page load
+    try { localStorage.setItem('hajj_dispatch_cache', JSON.stringify(incidentsById)); } catch (_) {}
     renderCards();
     renderStats();
   }
@@ -366,6 +427,19 @@
       scheduleNextRefresh();
     }, ms);
   }
+  // Render cached incidents instantly while first refresh is in flight
+  try {
+    const cachedRaw = localStorage.getItem('hajj_dispatch_cache');
+    if (cachedRaw) {
+      const cached = JSON.parse(cachedRaw);
+      if (cached && typeof cached === 'object') {
+        Object.assign(incidentsById, cached);
+        renderCards();
+        renderStats();
+      }
+    }
+  } catch (_) {}
+
   refresh();
   scheduleNextRefresh();
 
