@@ -219,6 +219,35 @@
   .ack-row label { flex: 1; font-size: 14px; cursor: pointer; }
 
 </style>
+
+<script>
+window.CADSubLocations = (function() {
+  const COMMON = [
+    { group:'Clinics',  items:['North clinic','South clinic'] },
+    { group:'Platforms',items:[
+      'North platform · Ramp 1','North platform · Ramp 2','North platform · Ramp 3',
+      'North platform · Ramp 4','North platform · Ramp 5','North platform · Ramp 6',
+      'South platform · Ramp 1','South platform · Ramp 2','South platform · Ramp 3',
+      'South platform · Ramp 4','South platform · Ramp 5','South platform · Ramp 6'
+    ]},
+    { group:'Grounds',  items:['North grounds','South grounds'] }
+  ];
+  const MIN3_EXTRA = [{ group:'Bridge', items:['Bridge from Jamarat → North platform','Bridge from Jamarat → South platform','Bridge approach (Jamarat side)'] }];
+  function populateSelect(sel, station, includeBlank) {
+    if (!sel) return;
+    const groups = JSON.parse(JSON.stringify(COMMON));
+    if (String(station).toUpperCase() === 'MIN3') groups.push.apply(groups, MIN3_EXTRA);
+    let html = (includeBlank !== false) ? '<option value="">Sub-location (optional)</option>' : '';
+    groups.forEach(function(g) {
+      html += '<optgroup label="' + g.group + '">';
+      g.items.forEach(function(item) { html += '<option value="' + item + '">' + item + '</option>'; });
+      html += '</optgroup>';
+    });
+    sel.innerHTML = html;
+  }
+  return { populateSelect: populateSelect };
+})();
+</script>
 </head>
 <body>
 
@@ -261,6 +290,7 @@
           <option value="MIN3">MIN3 — Mina 3</option>
           <option value="DEPOT">DEPOT — OCC Hub</option>
         </select>
+            <select class="input" id="subLocation" style="margin-top:8px;"><option value="">Sub-location (optional)</option></select>
       </label>
 
       <div class="row-2">
@@ -875,5 +905,18 @@
   }
 </script>
 
+
+<script>
+(function(){
+  document.addEventListener('DOMContentLoaded', function() {
+    const stSel = document.getElementById('station');
+    const subSel = document.getElementById('subLocation');
+    if (!stSel || !subSel) return;
+    function refresh(){ if (window.CADSubLocations) CADSubLocations.populateSelect(subSel, stSel.value, true); }
+    stSel.addEventListener('change', refresh);
+    setTimeout(refresh, 100);
+  });
+})();
+</script>
 </body>
 </html>

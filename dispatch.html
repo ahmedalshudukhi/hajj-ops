@@ -184,7 +184,7 @@
       <option value="">Zone / Station</option>
     </select>
     <input class="input" id="source" placeholder="Source (caller, walk-in…)">
-    <input class="input" id="location" placeholder="Specific location">
+    <select class="select" id="subLocation"><option value="">Sub-location (pick station first)</option></select>
     <input class="input" id="caseField" placeholder="Case (chief complaint)">
     <select class="select full" id="unit">
       <option value="">Loading units…</option>
@@ -215,6 +215,7 @@
 <script src="assets/config.js"></script>
 <script src="assets/tempo.js"></script>
 <script src="assets/auth.js"></script>
+<script src="assets/sublocations.js"></script>
 <script src="assets/topbar.js"></script>
 <script>
 (function () {
@@ -336,6 +337,7 @@
     const region = regionEl.value, zone = zoneEl.value;
     const source = val('source'), location = val('location'), caseField = val('caseField');
     const unit = val('unit'), type = unitTypeFor(unit), shift = currentShift();
+    const subLocation = val('subLocation');
     const category = val('category');
 
     if (!region || !zone) { showCreateErr('Pick region and zone.'); return; }
@@ -345,6 +347,7 @@
     createBtn.innerHTML = '<span class="spinner"></span>&nbsp;&nbsp;Dispatching…';
 
     const r = await HAJJ.authedCall('dispatch_create', {
+      sub_location: subLocation,
       region: region, zone: zone, station: zone,
       source: source, location: location, case_field: caseField,
       unit: unit, type: type, shift: shift, category: category,
@@ -645,6 +648,25 @@
       alert('Close failed. Please retry.');
     }
   }
+
+
+  // Sub-location dropdown wired to station selection
+  (function() {
+    const zoneSel = document.getElementById('zone');
+    const subSel  = document.getElementById('subLocation');
+    if (!zoneSel || !subSel) return;
+    function refresh() {
+      const station = zoneSel.value;
+      if (!station) {
+        subSel.innerHTML = '<option value="">Sub-location (pick station first)</option>';
+        return;
+      }
+      window.CADSubLocations && CADSubLocations.populateSelect(subSel, station, true);
+    }
+    zoneSel.addEventListener('change', refresh);
+    // Run once for initial state
+    setTimeout(refresh, 100);
+  })();
 
 })();
 </script>
