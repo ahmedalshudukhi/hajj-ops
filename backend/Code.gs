@@ -86,11 +86,13 @@ function inspectMobSheet() {
   Logger.log('Total tabs: ' + allTabs.length);
   Logger.log('');
 
+  // Each entry: tab name → array of [acceptable column-name aliases]
+  // ALL groups must have at least one alias present
   const REQUIRED = {
-    'Allowlist': ['NID', 'Name', 'Mobile', 'Role', 'Active'],
-    'Stations':  ['Station_Code'],
-    'Units':     ['Unit_Code', 'Home_Station'],
-    'Schedule':  ['NID']
+    'Allowlist': [['NID'], ['Name'], ['Mobile'], ['Role'], ['Active']],
+    'Stations':  [['Station_Code','Station']],
+    'Units':     [['Unit_Code','Unit ID','Unit Code'], ['Home_Station','Home Station']],
+    'Schedule':  [['Unit ID','Unit_Code']]  // wide-format keyed by Unit
   };
   const OPERATIONAL = [
     'Sessions','Auth_Log','Dispatch_Log','Dispatch_Events',
@@ -120,11 +122,21 @@ function inspectMobSheet() {
       return;
     }
     const cols = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0].map(String);
-    const missing = REQUIRED[tabName].filter(function(c) { return cols.indexOf(c) < 0; });
-    if (missing.length === 0) {
-      Logger.log('OK: "' + tabName + '" — has required columns: ' + REQUIRED[tabName].join(', '));
+    const groups = REQUIRED[tabName];
+    const missingGroups = groups.filter(function(aliases) {
+      return aliases.every(function(name) { return cols.indexOf(name) < 0; });
+    });
+    if (missingGroups.length === 0) {
+      const matched = groups.map(function(g) {
+        const found = g.filter(function(n) { return cols.indexOf(n) >= 0; });
+        return g[0] + (found[0] !== g[0] ? ' (matched: ' + found[0] + ')' : '');
+      });
+      Logger.log('OK: "' + tabName + '" — columns present: ' + matched.join(', '));
     } else {
-      Logger.log('WARN: "' + tabName + '" — missing columns: ' + missing.join(', '));
+      Logger.log('WARN: "' + tabName + '" — missing column groups (need ANY of each):');
+      missingGroups.forEach(function(g) {
+        Logger.log('   need one of: ' + g.join(' | '));
+      });
       Logger.log('  has: ' + cols.join(', '));
     }
   });
@@ -398,18 +410,53 @@ function getRoster_(user) {
 }
 
 function getScheduleForNID_(nid) {
+  // Schedule tab is wide-format: Unit ID + 4DH-S1..14DH-S2 grid.
+  // For a given NID we look up their Unit from Allowlist, then find that
+  // Unit's row in Schedule, then expand the grid into [{Date, DH, Shift, Station}, ...]
+  const user = findInAllowlist_(nid);
+  if (!user || !user.Unit) return [];
+
   const sh = sheet_(SHEETS.SCHEDULE);
   if (!sh) return [];
   const data = sh.getDataRange().getValues();
   if (data.length < 2) return [];
-  const h = data[0]; const ni = h.indexOf('NID');
-  if (ni < 0) return [];
-  const out = [];
+  const h = data[0];
+
+  const unitColIdx = findColIdx_(h, ['Unit ID','Unit_Code','Unit Code']);
+  if (unitColIdx < 0) return [];
+
+  // Locate this unit's row
+  let unitRow = null;
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][ni]) === String(nid)) out.push(rowToObject_(h, data[i]));
+    if (String(data[i][unitColIdx]) === String(user.Unit)) { unitRow = data[i]; break; }
   }
-  const di = h.indexOf('Date');
-  if (di >= 0) out.sort((a, b) => new Date(a.Date) - new Date(b.Date));
+  if (!unitRow) return [];
+
+  // DH 4 = 2026-05-30; each subsequent DH is +1 day
+  const DH_BASE_DATE = new Date('2026-05-30T00:00:00+03:00');
+  const SHIFT_PATTERN = /^(\d+)DH-S([12])$/;
+
+  const out = [];
+  for (let c = 0; c < h.length; c++) {
+    const colName = String(h[c] || '');
+    const m = colName.match(SHIFT_PATTERN);
+    if (!m) continue;
+    const dh = parseInt(m[1], 10);
+    const shift = m[2] === '1' ? 'Day' : 'Night';
+    const cell = String(unitRow[c] || '').trim();
+    if (!cell) continue;
+    const date = new Date(DH_BASE_DATE.getTime() + (dh - 4) * 24 * 3600 * 1000);
+    out.push({
+      NID: nid,
+      Unit: user.Unit,
+      DH: dh,
+      Date: date,
+      Shift: shift,
+      Station: cell,
+      Slot: colName
+    });
+  }
+  out.sort((a,b) => a.DH - b.DH || (a.Shift === 'Day' ? -1 : 1));
   return out;
 }
 
@@ -645,7 +692,8 @@ function unitPositions_(user, params) {
     const data = unitsSh.getDataRange().getValues();
     if (data.length > 1) {
       const h = data[0];
-      const ci = h.indexOf('Unit_Code'), hi = h.indexOf('Home_Station');
+      const ci = findColIdx_(h, ['Unit_Code','Unit ID','Unit Code']);
+        const hi = findColIdx_(h, ['Home_Station','Home Station']);
       for (let i = 1; i < data.length; i++) {
         const code = String(data[i][ci] || ''); if (!code) continue;
         positions[code] = { unit: code, station: data[i][hi] || '', sub_location: '', since: null, source: 'home' };
@@ -919,6 +967,15 @@ function updateCellByID_(sheetName, idCol, idVal, targetCol, value) {
     }
   }
   return false;
+}
+
+
+function findColIdx_(headers, candidates) {
+  for (let i = 0; i < candidates.length; i++) {
+    const j = headers.indexOf(candidates[i]);
+    if (j >= 0) return j;
+  }
+  return -1;
 }
 
 function randomToken_() {
