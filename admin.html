@@ -8,6 +8,7 @@
 <script src="assets/config.js"></script>
 <script src="assets/tempo.js"></script>
 <script src="assets/auth.js"></script>
+<script src="assets/topbar.js"></script>
 <style>
   .admin-wrap { max-width: 1200px; margin: 0 auto; padding: 16px; }
   .admin-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; overflow-x: auto; }
@@ -73,21 +74,7 @@
 </head>
 <body>
 
-<nav class="topbar">
-  <div class="topbar-inner">
-    <div class="topbar-brand">
-      <span class="topbar-title">Admin</span>
-      <span class="topbar-sub" id="topPhase">—</span>
-    </div>
-    <div class="topbar-nav">
-      <a href="lobby.html">Lobby</a>
-      <a href="active.html">Active</a>
-      <a href="dispatch.html">Dispatch</a>
-      <a href="me.html">My schedule</a>
-      <a href="#" id="logoutLink">Sign out</a>
-    </div>
-  </div>
-</nav>
+<div id="topbar"></div>
 
 <div class="admin-wrap">
 
@@ -223,6 +210,8 @@
 (function() {
   // Auth gate — admin only
   if (!HAJJ.requireRole(['admin'])) return;
+  CADTopbar.render({ title: "Admin", subtitle: "pre-hajj" });
+
 
   // Topbar phase indicator
   if (window.HAJJ_TEMPO) {

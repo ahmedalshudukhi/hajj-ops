@@ -8,6 +8,7 @@
 <script src="assets/config.js"></script>
 <script src="assets/tempo.js"></script>
 <script src="assets/auth.js"></script>
+<script src="assets/topbar.js"></script>
 <style>
   .sv-wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
   .sv-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
@@ -73,21 +74,7 @@
 </head>
 <body>
 
-<nav class="topbar">
-  <div class="topbar-inner">
-    <div class="topbar-brand">
-      <span class="topbar-title">Cluster Supervisor</span>
-      <span class="topbar-sub" id="topClusterLabel">—</span>
-    </div>
-    <div class="topbar-nav">
-      <a href="lobby.html" id="lobbyLink" style="display:none;">Lobby</a>
-      <a href="active.html" id="activeLink" style="display:none;">Active</a>
-      <a href="dispatch.html" id="dispatchLink" style="display:none;">Dispatch</a>
-      <a href="me.html">My schedule</a>
-      <a href="#" id="logoutLink">Sign out</a>
-    </div>
-  </div>
-</nav>
+<div id="topbar"></div>
 
 <div class="sv-wrap">
 
@@ -156,6 +143,8 @@
 <script>
 (function() {
   if (!HAJJ.requireRole(['cluster_supervisor', 'leadership', 'admin'])) return;
+  CADTopbar.render({ title: "Cluster Supervisor", subtitle: "station + repositioning" });
+
 
   const user = HAJJ.getUser() || {};
   const role = String(user.role || '').toLowerCase();

@@ -2,200 +2,78 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
-<meta name="theme-color" content="#0f172a">
-<title>Leadership · Hajj 2026</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lobby · Shudukhi CAD</title>
 <link rel="stylesheet" href="assets/style.css">
-
+<script src="assets/config.js"></script>
+<script src="assets/tempo.js"></script>
+<script src="assets/auth.js"></script>
+<script src="assets/topbar.js"></script>
 <style>
-  .lobby-greeting { margin-bottom: 18px; }
-  .lobby-greeting h1 {
-    margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.01em;
+  .lobby-hero {
+    max-width: 1400px; margin: 0 auto; padding: 4px 16px 20px;
   }
-  .lobby-greeting .name-ar {
-    margin-top: 2px; font-size: 16px; color: var(--text-dim);
-    direction: rtl; text-align: left;
-  }
-  .lobby-greeting .role-line {
-    margin-top: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
-    color: var(--text-muted); font-size: 13px;
-  }
-
-  .lobby-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 12px;
-    margin-bottom: 14px;
-  }
-  .tile {
-    background: var(--surface);
-    border: 1px solid var(--border-soft);
-    border-radius: var(--radius);
-    padding: 18px;
-    text-decoration: none;
-    color: var(--text);
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    min-height: 110px;
-    transition: background 0.15s, border-color 0.15s, transform 0.05s;
-  }
-  .tile:hover { background: var(--surface-3); border-color: var(--border); }
-  .tile:active { transform: scale(0.99); }
-  .tile.is-disabled { opacity: 0.4; pointer-events: none; }
-
-  .tile-title {
-    font-size: 16px; font-weight: 600; letter-spacing: -0.01em;
-    margin: 0 0 6px;
-  }
-  .tile-sub { font-size: 13px; color: var(--text-muted); line-height: 1.4; }
-  .tile-arrow {
-    margin-top: 14px;
-    font-size: 13px;
-    color: var(--text-muted);
-    align-self: flex-end;
-  }
-  .tile-arrow.ext { color: var(--info); }
-
-  .tile.is-primary {
-    background: linear-gradient(180deg, #1f2937 0%, #161e2c 100%);
-    border-color: var(--border);
+  .lobby-hero h1 { margin: 0 0 4px; font-size: 22px; }
+  .lobby-hero .sub { font-size: 13px; color: var(--text-muted, #9ca3af); }
+  .lobby-section-title {
+    max-width: 1400px; margin: 24px auto 12px; padding: 0 16px;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-muted, #9ca3af); font-weight: 600;
   }
 </style>
 </head>
 <body>
+<div id="topbar"></div>
 
-<div class="app">
-
-  <div class="app-header">
-    <div>
-      <h1>Leadership</h1>
-      <div class="sub">Hajj 2026 · MMMP-SL</div>
-    </div>
-    <button class="btn btn--ghost btn--auto-width btn--small" id="logoutBtn">Sign out</button>
-  </div>
-
-  <div class="card lobby-greeting">
-    <h1 id="name">—</h1>
-    <div class="name-ar bidi-auto" id="nameAr"></div>
-    <div class="role-line">
-      <span id="roleBadge" class="badge">—</span>
-      <span id="callsign" class="num"></span>
-    </div>
-  </div>
-
-  <div class="lobby-grid">
-    <a href="dispatch.html" class="tile is-primary">
-      <div>
-        <div class="tile-title">Dispatch console</div>
-        <div class="tile-sub">Receive calls, dispatch units, track timelines.</div>
-      </div>
-      <div class="tile-arrow">Open →</div>
-    </a>
-
-    <a href="#" id="qpcrTile" class="tile" target="_blank" rel="noopener">
-      <div>
-        <div class="tile-title">File a Q-PCR</div>
-        <div class="tile-sub">Field PCR form by Dr. Khalid. Generates PDF + sheet log.</div>
-      </div>
-      <div class="tile-arrow ext">Open ↗</div>
-    </a>
-
-    <a href="me.html" class="tile">
-      <div>
-        <div class="tile-title">My schedule</div>
-        <div class="tile-sub">Personal page — station, callsign, accommodation, shifts.</div>
-      </div>
-      <div class="tile-arrow">Open →</div>
-    </a>
-
-    <a href="legacy.html" class="tile">
-      <div>
-        <div class="tile-title">Planning dashboard</div>
-        <div class="tile-sub">Mobilization v11.8 — units, augmentations, wave plan.</div>
-      </div>
-      <div class="tile-arrow">Open →</div>
-    </a>
-
-    <a href="admin.html" class="tile" id="adminTile" style="display:none;">
-      <div>
-        <div class="tile-title">Admin</div>
-        <div class="tile-sub">Allowlist, sessions, reposition queue, audit log.</div>
-      </div>
-      <div class="tile-arrow">Open →</div>
-    </a>
-
-    <a href="active.html" class="tile is-primary">
-      <div>
-        <div class="tile-title">Active insights</div>
-        <div class="tile-sub">Live ops view — open incidents, response times, Q-PCR census.</div>
-      </div>
-      <div class="tile-arrow">Open →</div>
-    </a>
-  </div>
-
-  <div style="text-align:center; color:var(--text-muted); font-size:12px; margin-top:24px;">
-    Hajj 2026 · v1.0 · session expires in <span id="sessionTimer" class="num">—</span>
-  </div>
-
+<div class="lobby-hero">
+  <h1>Welcome to Shudukhi CAD</h1>
+  <div class="sub" id="lobbySub">—</div>
 </div>
 
-<script src="assets/config.js"></script>
-<script src="assets/auth.js"></script>
+<div class="lobby-section-title">Available pages for your role</div>
+<div class="cad-tile-grid" id="tileGrid"></div>
+
+<div class="lobby-section-title" style="margin-top:32px;">Operational status</div>
+<div class="cad-tile-grid" style="grid-template-columns: repeat(auto-fit, minmax(160px,1fr));">
+  <div class="cad-tile" style="--tile-accent:#3b82f6;">
+    <div class="cad-tile-icon">⏱️</div>
+    <div class="cad-tile-title" id="tilePhase">—</div>
+    <div class="cad-tile-desc">Current operational phase</div>
+  </div>
+  <div class="cad-tile" style="--tile-accent:#f59e0b;">
+    <div class="cad-tile-icon">🔄</div>
+    <div class="cad-tile-title" id="tileTempo">—</div>
+    <div class="cad-tile-desc">Refresh tempo</div>
+  </div>
+  <div class="cad-tile" style="--tile-accent:#a855f7;">
+    <div class="cad-tile-icon">📅</div>
+    <div class="cad-tile-title" id="tileDH">—</div>
+    <div class="cad-tile-desc">Days to DH 1</div>
+  </div>
+</div>
+
 <script>
-(function () {
+(function() {
+  if (!HAJJ.requireAuth()) return;
+  CADTopbar.render({ title: 'Lobby' });
+  CADTopbar.renderTileGrid('tileGrid');
 
-  if (!HAJJ.requireRole(['leadership', 'admin'])) return;
+  const u = HAJJ.getUser() || {};
+  document.getElementById('lobbySub').textContent =
+    (u.full_name || 'User') + ' · role: ' + (u.role || '?') +
+    (u.cluster ? ' · cluster: ' + u.cluster : '') +
+    (u.station ? ' · station: ' + u.station : '');
 
-  // Show admin tile only for admin role
-  HAJJ.authedCall('whoami').then(function(r) {
-    if (r && r.ok && r.user && r.user.role === 'admin') {
-      const tile = document.getElementById('adminTile');
-      if (tile) tile.style.display = '';
-    }
-  });
-
-  const user = HAJJ.getUser() || {};
-  document.getElementById('name').textContent = user.name || '—';
-  const arEl = document.getElementById('nameAr');
-  if (user.name_ar) { arEl.textContent = user.name_ar; }
-  else { arEl.style.display = 'none'; }
-
-  const role = String(user.role || '').replace(/_/g, ' ');
-  const rb = document.getElementById('roleBadge');
-  rb.textContent = role || '—';
-  rb.className = 'badge ' + (user.role === 'admin' || user.role === 'leadership' ? 'badge--blue' : '');
-
-  document.getElementById('callsign').textContent =
-    [user.callsign, user.station].filter(Boolean).join(' · ');
-
-  // Wire Q-PCR tile to DCH's URL
-  const qpcrTile = document.getElementById('qpcrTile');
-  if (window.PCR_URL && window.PCR_URL.indexOf('PASTE_') === -1) {
-    qpcrTile.href = window.PCR_URL;
-  } else {
-    qpcrTile.classList.add('is-disabled');
-    qpcrTile.removeAttribute('href');
+  // Tempo info
+  if (window.HAJJ_TEMPO) {
+    document.getElementById('tilePhase').textContent = HAJJ_TEMPO.phase();
+    const ms = HAJJ_TEMPO.intervalMs();
+    document.getElementById('tileTempo').textContent = (ms / 1000) + 's';
   }
-
-  document.getElementById('logoutBtn').addEventListener('click', HAJJ.logout);
-
-  // Session countdown
-  function tickSessionTimer() {
-    const exp = sessionStorage.getItem('hajj_expires');
-    const el = document.getElementById('sessionTimer');
-    if (!exp) { el.textContent = '—'; return; }
-    const ms = new Date(exp) - new Date();
-    if (ms <= 0) { el.textContent = 'expired'; return; }
-    const h = Math.floor(ms / 3600000);
-    const m = Math.floor((ms % 3600000) / 60000);
-    el.textContent = h + 'h ' + m + 'm';
-  }
-  tickSessionTimer();
-  setInterval(tickSessionTimer, 30000);
-
+  const DH1 = new Date('2026-05-27T00:00:00+03:00');
+  const days = Math.ceil((DH1 - new Date()) / 86400000);
+  document.getElementById('tileDH').textContent = days > 0 ? ('T-' + days + ' days') : (days === 0 ? 'TODAY' : ('+' + (-days) + ' days'));
 })();
 </script>
-
 </body>
 </html>

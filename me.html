@@ -164,9 +164,12 @@
 
 <script src="assets/config.js"></script>
 <script src="assets/auth.js"></script>
+<script src="assets/topbar.js"></script>
 <script>
 (function () {
   if (!HAJJ.requireAuth()) return;
+  CADTopbar.render({ title: "My schedule" });
+
   document.getElementById('logoutBtn').addEventListener('click', HAJJ.logout);
 
   const cached = HAJJ.getUser();
