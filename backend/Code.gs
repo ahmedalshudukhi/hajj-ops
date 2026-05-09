@@ -47,6 +47,7 @@ const SHEETS = {
   REPOSITION_LOG: 'Reposition_Log',
   REPOSITION_PENDING: 'Reposition_Pending',
   STATION_STATUS_LOG: 'Station_Status_Log',
+  UNIT_STATUS_LOG: 'Unit_Status_Log',
   ADMIN_AUDIT_LOG: 'Admin_Audit_Log'
 };
 
@@ -301,6 +302,8 @@ function route_(e) {
           case 'mobilization_plan':   response = mobPlanList_(u, params); break;
           case 'roster_fill':         response = rosterFill_(u, params); break;
           case 'schedule_grid':       response = scheduleGrid_(u, params); break;
+          case 'unit_availability':   response = unitAvailability_(u, params); break;
+          case 'unit_status_set':     response = unitStatusSet_(u, params); break;
 
           default: response = { ok: false, error: 'unknown_action', action };
         }
@@ -1236,6 +1239,200 @@ function scheduleGrid_(user, params) {
     out.push(obj);
   }
   return { ok:true, rows: out, headers: h, total: data.length - 1 };
+}
+
+
+// ============================================================
+// UNIT AVAILABILITY (on_duty / busy / available / off_duty / oos)
+// ============================================================
+
+function unitAvailability_(user, params) {
+  if (!hasRole_(user, ['cluster_supervisor','dispatcher','leadership','admin'])) return { ok:false, error:'forbidden' };
+
+  // 1. Load all units with base info
+  const ush = sheet_(SHEETS.UNITS);
+  if (!ush) return { ok:true, units:[] };
+  const ud = ush.getDataRange().getValues();
+  if (ud.length < 2) return { ok:true, units:[] };
+  const uh = ud[0];
+  const codeIdx = findColIdx_(uh, ['Unit_Code','Unit ID','Unit Code','Code']);
+  const typeIdx = findColIdx_(uh, ['Unit_Type','Unit Type','Type']);
+  const homeIdx = findColIdx_(uh, ['Home_Station','Home Station','Home']);
+  const catIdx  = findColIdx_(uh, ['Category']);
+
+  const units = {};
+  for (let i = 1; i < ud.length; i++) {
+    const code = String(ud[i][codeIdx] || '').trim();
+    if (!code) continue;
+    units[code] = {
+      code: code,
+      type: String(ud[i][typeIdx] || ''),
+      home_station: String(ud[i][homeIdx] || '').toUpperCase(),
+      current_station: String(ud[i][homeIdx] || '').toUpperCase(),
+      category: String(ud[i][catIdx] || ''),
+      state: 'unknown',          // computed below
+      open_incidents: 0,
+      schedule_label: '',         // current DH-Slot value, e.g. "B1A"
+      manual_status: '',          // from Unit_Status_Log if set
+      manual_note: '',
+      manual_at: ''
+    };
+  }
+
+  // 2. Apply reposition overrides (latest applied per unit)
+  const rsh = sheet_(SHEETS.REPOSITION_LOG);
+  if (rsh && rsh.getLastRow() > 1) {
+    const data = rsh.getDataRange().getValues();
+    const h = data[0];
+    const ucIdx = findColIdx_(h, ['Unit_Code']);
+    const toIdx = findColIdx_(h, ['To_Station']);
+    const stIdx = findColIdx_(h, ['Status']);
+    const tsIdx = findColIdx_(h, ['Timestamp']);
+    const latest = {};
+    for (let i = 1; i < data.length; i++) {
+      const status = String(data[i][stIdx] || '').toLowerCase();
+      if (['approved','auto_approved','active'].indexOf(status) === -1) continue;
+      const code = String(data[i][ucIdx] || '');
+      if (!code || !units[code]) continue;
+      const ts = data[i][tsIdx] ? new Date(data[i][tsIdx]).getTime() : 0;
+      if (!latest[code] || ts > latest[code].ts) {
+        latest[code] = { ts: ts, to: String(data[i][toIdx] || '').toUpperCase() };
+      }
+    }
+    Object.keys(latest).forEach(function(c) {
+      if (latest[c].to) units[c].current_station = latest[c].to;
+    });
+  }
+
+  // 3. Read current schedule cell (current DH-Slot) per unit
+  const sch = sheet_(SHEETS.SCHEDULE);
+  if (sch && sch.getLastRow() > 1) {
+    const data = sch.getDataRange().getValues();
+    const h = data[0];
+    const ucIdx = findColIdx_(h, ['Unit_Code','Unit ID','Unit Code']);
+
+    // Determine current DH-Slot column
+    // DH4 = 30 May 2026, S1 = 06:00-18:00 (Day), S2 = 18:00-06:00 (Night)
+    const now = new Date();
+    const ksaNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Riyadh' }));
+    const dh4 = new Date('2026-05-30T00:00:00+03:00');
+    const daysSinceDH4 = Math.floor((ksaNow - dh4) / 86400000);
+    const dhDay = 4 + daysSinceDH4;  // current DH day
+    const hour = ksaNow.getHours();
+    const slot = (hour >= 6 && hour < 18) ? 'S1' : 'S2';
+    const colHeader = dhDay + ' DH-' + slot;  // try this format
+    let colIdx = findColIdx_(h, [colHeader, dhDay + 'DH-' + slot, 'DH ' + dhDay + ' ' + slot]);
+    if (colIdx < 0) {
+      // Try alternative column header formats
+      for (let j = 0; j < h.length; j++) {
+        const head = String(h[j]);
+        if (head.indexOf(String(dhDay)) !== -1 && head.indexOf(slot) !== -1) {
+          colIdx = j;
+          break;
+        }
+      }
+    }
+
+    if (colIdx >= 0) {
+      for (let i = 1; i < data.length; i++) {
+        const code = String(data[i][ucIdx] || '');
+        if (!code || !units[code]) continue;
+        const cell = String(data[i][colIdx] || '').trim();
+        units[code].schedule_label = cell;
+      }
+    }
+  }
+
+  // 4. Count open incidents per unit (busy)
+  const dsh = sheet_(SHEETS.DISPATCH_LOG);
+  if (dsh && dsh.getLastRow() > 1) {
+    const data = dsh.getDataRange().getValues();
+    const h = data[0];
+    const unitIdx = findColIdx_(h, ['Unit']);
+    const statusIdx = findColIdx_(h, ['Status']);
+    for (let i = 1; i < data.length; i++) {
+      const st = String(data[i][statusIdx] || '').toLowerCase();
+      if (st === 'closed' || st === 'cancelled') continue;
+      const code = String(data[i][unitIdx] || '').trim();
+      if (code && units[code]) units[code].open_incidents++;
+    }
+  }
+
+  // 5. Manual unit status overrides (Unit_Status_Log: oos, maintenance, etc.)
+  const ush2 = sheet_(SHEETS.UNIT_STATUS_LOG);
+  if (ush2 && ush2.getLastRow() > 1) {
+    const data = ush2.getDataRange().getValues();
+    const h = data[0];
+    const ucIdx = findColIdx_(h, ['Unit_Code']);
+    const stIdx = findColIdx_(h, ['Status']);
+    const ntIdx = findColIdx_(h, ['Note']);
+    const tsIdx = findColIdx_(h, ['Timestamp']);
+    const latest = {};
+    for (let i = 1; i < data.length; i++) {
+      const code = String(data[i][ucIdx] || '');
+      if (!code || !units[code]) continue;
+      const ts = data[i][tsIdx] ? new Date(data[i][tsIdx]).getTime() : 0;
+      if (!latest[code] || ts > latest[code].ts) {
+        latest[code] = {
+          ts: ts,
+          status: String(data[i][stIdx] || '').toLowerCase(),
+          note: String(data[i][ntIdx] || ''),
+          at: data[i][tsIdx] ? new Date(data[i][tsIdx]).toISOString() : ''
+        };
+      }
+    }
+    Object.keys(latest).forEach(function(c) {
+      const u = units[c];
+      u.manual_status = latest[c].status;
+      u.manual_note = latest[c].note;
+      u.manual_at = latest[c].at;
+    });
+  }
+
+  // 6. Compute final state per unit
+  Object.keys(units).forEach(function(c) {
+    const u = units[c];
+    if (u.manual_status === 'oos' || u.manual_status === 'out_of_service') {
+      u.state = 'oos';
+    } else if (u.manual_status === 'maintenance') {
+      u.state = 'maintenance';
+    } else if (!u.schedule_label) {
+      u.state = 'off_duty';
+    } else if (u.open_incidents > 0) {
+      u.state = 'busy';
+    } else {
+      u.state = 'available';
+    }
+  });
+
+  // Summary
+  const summary = { available:0, busy:0, off_duty:0, oos:0, maintenance:0, unknown:0, total:0 };
+  Object.keys(units).forEach(function(c) {
+    summary.total++;
+    summary[units[c].state] = (summary[units[c].state] || 0) + 1;
+  });
+
+  return { ok:true, units: Object.values(units), summary: summary };
+}
+
+function unitStatusSet_(user, params) {
+  if (!hasRole_(user, ['dispatcher','leadership','admin'])) return { ok:false, error:'forbidden' };
+  const code = String(params.unit_code || '');
+  const status = String(params.status || '').toLowerCase();
+  if (!code) return { ok:false, error:'no_unit' };
+  if (['available','oos','maintenance','off_duty'].indexOf(status) === -1) {
+    return { ok:false, error:'invalid_status' };
+  }
+  const sh = sheet_(SHEETS.UNIT_STATUS_LOG, true);
+  sh.appendRow([
+    new Date().toISOString(),
+    code,
+    status,
+    String(params.note || ''),
+    user.nid,
+    user.full_name || ''
+  ]);
+  return { ok:true };
 }
 
 // ============================================================

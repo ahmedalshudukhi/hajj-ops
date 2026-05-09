@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Active Insights · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/style.css?v=7">
 
 <style>
   body { background: var(--bg); }
@@ -358,10 +358,10 @@
 
 </div>
 
-<script src="assets/config.js"></script>
-<script src="assets/tempo.js"></script>
-<script src="assets/auth.js"></script>
-<script src="assets/topbar.js"></script>
+<script src="assets/config.js?v=7"></script>
+<script src="assets/tempo.js?v=7"></script>
+<script src="assets/auth.js?v=7"></script>
+<script src="assets/topbar.js?v=7"></script>
 <script>
 (function () {
 
@@ -412,11 +412,12 @@
 
   async function refresh() {
     // Fire all data calls in PARALLEL so first paint happens at fastest endpoint
-    const [summary, augs, roster, units] = await Promise.all([
+    const [summary, augs, roster, units, avail] = await Promise.all([
       HAJJ.authedCall('active_summary'),
       HAJJ.authedCall('augmentations'),
       HAJJ.authedCall('roster_fill'),
-      HAJJ.authedCall('unit_positions')
+      HAJJ.authedCall('unit_positions'),
+      HAJJ.authedCall('unit_availability')
     ]);
 
     if (summary && summary.ok) {
@@ -432,6 +433,7 @@
     if (augs && augs.ok)   renderAugmentations(augs);
     if (roster && roster.ok) renderRosterFill(roster);
     if (units && units.ok) renderUnitPositions(units, summary && summary.stations);
+    if (avail && avail.ok) renderUnitAvailability(avail);
   }
 
   function setLive(ok, err) {
@@ -968,6 +970,51 @@
     body.innerHTML = html;
   }
 
+
+
+
+  function renderUnitAvailability(r) {
+    const sum = r.summary || {};
+    // Update or replace the unit positions panel meta with availability stats
+    const meta = document.getElementById('unitsMeta');
+    if (meta) {
+      meta.textContent = (sum.available || 0) + ' available · ' +
+                          (sum.busy || 0) + ' busy · ' +
+                          (sum.off_duty || 0) + ' off-duty · ' +
+                          (sum.oos || 0) + ' OOS';
+    }
+    // Re-render unit cards using the availability data (state-aware coloring)
+    const body = document.getElementById('unitsBody');
+    if (!body || !r.units || !r.units.length) return;
+    const stateColor = {
+      available:    'rgba(34, 197, 94, 0.15)',   // green
+      busy:         'rgba(245, 158, 11, 0.15)',  // amber
+      off_duty:     'rgba(80, 80, 80, 0.15)',    // gray
+      oos:          'rgba(239, 68, 68, 0.15)',   // red
+      maintenance:  'rgba(168, 85, 247, 0.15)',  // purple
+      unknown:      'rgba(255, 255, 255, 0.04)'
+    };
+    const stateBorder = {
+      available: '#16a34a', busy: '#f59e0b', off_duty: 'rgba(255,255,255,0.10)',
+      oos: '#dc2626', maintenance: '#a855f7', unknown: 'rgba(255,255,255,0.10)'
+    };
+    body.innerHTML = '';
+    r.units.forEach(function(u) {
+      const station = u.current_station || u.home_station || '—';
+      const card = document.createElement('div');
+      const tooltipParts = [u.code, '@', station, '· state:', u.state];
+      if (u.open_incidents > 0) tooltipParts.push('· busy on ' + u.open_incidents + ' incident' + (u.open_incidents>1?'s':''));
+      if (u.schedule_label) tooltipParts.push('· slot: ' + u.schedule_label);
+      if (u.manual_note) tooltipParts.push('· ' + u.manual_note);
+      card.title = tooltipParts.join(' ');
+      card.style.cssText = 'padding:5px 4px; background:' + (stateColor[u.state] || stateColor.unknown) +
+        '; border:1px solid ' + (stateBorder[u.state] || stateBorder.unknown) + '; border-radius:4px; text-align:center; font-size:10px;';
+      card.innerHTML = '<div style="font-weight:600; color:#e5e7eb;">' + u.code + '</div>' +
+        '<div style="color:#9ca3af; font-size:9px;">' + station + '</div>' +
+        (u.open_incidents > 0 ? '<div style="color:#fcd34d; font-size:9px;">↳ ' + u.open_incidents + '</div>' : '');
+      body.appendChild(card);
+    });
+  }
 
 })();
 </script>

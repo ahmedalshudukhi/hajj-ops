@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Dispatch · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/style.css?v=7">
 
 <style>
   body { background: var(--bg); }
@@ -203,9 +203,65 @@
     <select class="select" id="zone">
       <option value="">Zone / Station</option>
     </select>
-    <input class="input" id="source" placeholder="Source (caller, walk-in…)">
+    <select class="select" id="source">
+      <option value="">Source</option>
+      <option value="Phone">Phone (911 / hotline)</option>
+      <option value="Walk-in">Walk-in</option>
+      <option value="Radio">Radio</option>
+      <option value="Internal">Internal request</option>
+      <option value="Field crew">Field crew</option>
+      <option value="Station">Station call</option>
+      <option value="Ambulance">Ambulance handoff</option>
+      <option value="Other">Other</option>
+    </select>
     <select class="select" id="subLocation"><option value="">Sub-location (pick station first)</option></select>
-    <input class="input" id="caseField" placeholder="Case (chief complaint)">
+    <select class="select" id="caseField">
+      <option value="">Chief complaint</option>
+      <optgroup label="Cardiac / Resp">
+        <option value="Chest pain">Chest pain</option>
+        <option value="Shortness of breath">Shortness of breath</option>
+        <option value="Cardiac arrest">Cardiac arrest</option>
+        <option value="Palpitations">Palpitations</option>
+        <option value="Syncope">Syncope / fainting</option>
+      </optgroup>
+      <optgroup label="Trauma">
+        <option value="Fall">Fall</option>
+        <option value="Trauma — minor">Trauma — minor</option>
+        <option value="Trauma — major">Trauma — major</option>
+        <option value="Crush / stampede">Crush / stampede</option>
+        <option value="Laceration">Laceration / bleeding</option>
+        <option value="Fracture">Fracture suspected</option>
+        <option value="Head injury">Head injury</option>
+      </optgroup>
+      <optgroup label="Heat / Environmental">
+        <option value="Heat exhaustion">Heat exhaustion</option>
+        <option value="Heat stroke">Heat stroke</option>
+        <option value="Dehydration">Dehydration</option>
+        <option value="Sunburn">Sunburn</option>
+      </optgroup>
+      <optgroup label="GI / Abdominal">
+        <option value="Abdominal pain">Abdominal pain</option>
+        <option value="Vomiting">Vomiting</option>
+        <option value="Diarrhea">Diarrhea</option>
+        <option value="GI bleed">GI bleed</option>
+      </optgroup>
+      <optgroup label="Neuro">
+        <option value="Stroke (CVA)">Stroke / CVA suspected</option>
+        <option value="Seizure">Seizure</option>
+        <option value="Altered mental status">Altered mental status</option>
+        <option value="Headache">Headache severe</option>
+      </optgroup>
+      <optgroup label="Other">
+        <option value="Allergic reaction">Allergic reaction</option>
+        <option value="Diabetic emergency">Diabetic emergency</option>
+        <option value="Psychiatric">Psychiatric</option>
+        <option value="OB/Gyn">OB / Gyn emergency</option>
+        <option value="Lost / separated">Lost / separated person</option>
+        <option value="Welfare check">Welfare check</option>
+        <option value="Refusal of care">Refusal of care</option>
+        <option value="Other medical">Other medical</option>
+      </optgroup>
+    </select>
     <select class="select full" id="unit">
       <option value="">Loading units…</option>
     </select>
@@ -232,11 +288,11 @@
 
 <div class="floater"><span class="dot"></span><span id="syncStatus">Live · syncing every 5s</span></div>
 
-<script src="assets/config.js"></script>
-<script src="assets/tempo.js"></script>
-<script src="assets/auth.js"></script>
-<script src="assets/sublocations.js"></script>
-<script src="assets/topbar.js"></script>
+<script src="assets/config.js?v=7"></script>
+<script src="assets/tempo.js?v=7"></script>
+<script src="assets/auth.js?v=7"></script>
+<script src="assets/sublocations.js?v=7"></script>
+<script src="assets/topbar.js?v=7"></script>
 <script>
 (function () {
 
@@ -248,52 +304,93 @@
   let UNITS_BY_CODE = {};
   (async function loadUnits() {
     const sel = document.getElementById('unit');
+    const relocSel = document.getElementById('relocUnit');
     sel.innerHTML = '<option value="">Loading units…</option>';
 
-    // Render cached units immediately (if any)
+    // Try cached
     try {
-      const cached = localStorage.getItem('hajj_units_cache');
+      const cached = localStorage.getItem('hajj_units_avail_cache');
       if (cached) {
-        const units = JSON.parse(cached);
-        if (Array.isArray(units) && units.length) renderUnits(units);
+        const r = JSON.parse(cached);
+        if (r && r.units) renderAvail(r);
       }
     } catch (_) {}
 
-    const r = await HAJJ.authedCall('units_list');
-    if (!r || !r.ok || !Array.isArray(r.units)) {
-      console.warn('units_list failed:', r);
-      if (!sel.value && sel.options.length <= 1) {
-        sel.innerHTML = '<option value="">(units unavailable — ' + ((r && r.error) || 'unknown') + ')</option>';
+    const r = await HAJJ.authedCall('unit_availability');
+    if (!r || !r.ok) {
+      // Fallback to plain units_list
+      const r2 = await HAJJ.authedCall('units_list');
+      if (r2 && r2.ok && Array.isArray(r2.units)) {
+        renderAvail({ units: r2.units.map(function(u) { return Object.assign({state:'unknown', open_incidents:0}, u); }), summary:{} });
+      } else {
+        sel.innerHTML = '<option value="">(units unavailable — redeploy backend?)</option>';
       }
       return;
     }
-    if (!r.units.length) {
+    if (!r.units || !r.units.length) {
       sel.innerHTML = '<option value="">(no units in Mob Sheet → Units tab)</option>';
       return;
     }
-    try { localStorage.setItem('hajj_units_cache', JSON.stringify(r.units)); } catch (_) {}
-    renderUnits(r.units);
+    try { localStorage.setItem('hajj_units_avail_cache', JSON.stringify(r)); } catch (_) {}
+    renderAvail(r);
 
-    function renderUnits(units) {
+    function stateBadge(state, open) {
+      if (state === 'available') return '🟢';
+      if (state === 'busy')      return '🟡(' + open + ')';
+      if (state === 'off_duty')  return '⚫';
+      if (state === 'oos')       return '🔴';
+      if (state === 'maintenance') return '🛠';
+      return '·';
+    }
+
+    function renderAvail(r) {
+      const units = r.units.slice();
+      // Sort: available first, then busy, then off_duty, then oos
+      const order = { available:0, busy:1, off_duty:2, maintenance:3, oos:4, unknown:5 };
+      units.sort(function(a, b) {
+        const oa = order[a.state] !== undefined ? order[a.state] : 9;
+        const ob = order[b.state] !== undefined ? order[b.state] : 9;
+        if (oa !== ob) return oa - ob;
+        return String(a.code).localeCompare(String(b.code));
+      });
+
       UNITS_BY_CODE = {};
-      const groups = {};
-      const order = [];
-      units.forEach(function(u) {
-        UNITS_BY_CODE[u.code] = u;
-        const key = u.category || u.type || 'Units';
-        if (!groups[key]) { groups[key] = []; order.push(key); }
-        groups[key].push(u);
-      });
-      const opts = ['<option value="">Select unit (' + units.length + ' available)</option>'];
-      order.forEach(function(g) {
-        opts.push('<optgroup label="' + g + ' (' + groups[g].length + ')">');
-        groups[g].forEach(function(u) {
-          const homeBit = u.home_station ? ' · ' + u.home_station : '';
-          opts.push('<option value="' + u.code + '">' + u.code + homeBit + '</option>');
+      units.forEach(function(u) { UNITS_BY_CODE[u.code] = u; });
+
+      // Build incident-create dropdown — group by state
+      const groups = { available: [], busy: [], off_duty: [], maintenance: [], oos: [], unknown: [] };
+      units.forEach(function(u) { (groups[u.state] || groups.unknown).push(u); });
+      const sum = r.summary || {};
+
+      let opts = '<option value="">Select unit · ' + (sum.available || 0) + ' available, ' + (sum.busy || 0) + ' busy</option>';
+
+      // AVAILABLE first
+      ['available','busy','off_duty','maintenance','oos'].forEach(function(state) {
+        const grp = groups[state];
+        if (!grp.length) return;
+        const label = ({ available:'🟢 Available', busy:'🟡 Busy (on call)', off_duty:'⚫ Off duty', maintenance:'🛠 Maintenance', oos:'🔴 Out of service' })[state];
+        opts += '<optgroup label="' + label + ' · ' + grp.length + '">';
+        grp.forEach(function(u) {
+          const station = u.current_station || u.home_station || '';
+          const badge = stateBadge(u.state, u.open_incidents);
+          opts += '<option value="' + u.code + '"' + (state !== 'available' && state !== 'busy' ? ' style="color:#6b7280;"' : '') + '>'
+                + badge + ' ' + u.code + (station ? ' · ' + station : '')
+                + (u.open_incidents > 0 ? ' (busy on ' + u.open_incidents + ')' : '')
+                + '</option>';
         });
-        opts.push('</optgroup>');
+        opts += '</optgroup>';
       });
-      sel.innerHTML = opts.join('');
+      sel.innerHTML = opts;
+
+      // Also populate relocUnit dropdown (all units, no state filter)
+      if (relocSel) {
+        let relOpts = '<option value="">Unit (' + units.length + ')</option>';
+        units.forEach(function(u) {
+          const station = u.current_station || u.home_station || '';
+          relOpts += '<option value="' + u.code + '">' + stateBadge(u.state, u.open_incidents) + ' ' + u.code + (station ? ' · ' + station : '') + '</option>';
+        });
+        relocSel.innerHTML = relOpts;
+      }
     }
   })();
 
@@ -361,7 +458,8 @@
     const category = val('category');
 
     if (!region || !zone) { showCreateErr('Pick region and zone.'); return; }
-    if (!caseField)       { showCreateErr('Enter the case / chief complaint.'); return; }
+    if (!source)          { showCreateErr('Pick a source.'); return; }
+    if (!caseField)       { showCreateErr('Pick a chief complaint.'); return; }
 
     createBtn.disabled = true;
     createBtn.innerHTML = '<span class="spinner"></span>&nbsp;&nbsp;Dispatching…';
@@ -540,7 +638,7 @@
       +     '<div class="id-line">' + idShort + '</div>'
       +     '<div class="where">' + where + '</div>'
       +     '<div style="font-size:12px; color:var(--text-muted);">'
-      +       (inc.Type || '—') + ' · ' + (inc.Unit || '—') + ' (' + (inc.Shift || '—') + ')'
+      +       (inc.Unit || '—') + (inc.Type ? ' · ' + inc.Type : '')
       +     '</div>'
       +   '</div>'
       +   '<div class="timer" data-start="' + startMs + '">⏱ 0:00</div>'

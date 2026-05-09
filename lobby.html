@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lobby · Shudukhi CAD</title>
-<link rel="stylesheet" href="assets/style.css">
-<script src="assets/config.js"></script>
-<script src="assets/tempo.js"></script>
-<script src="assets/auth.js"></script>
-<script src="assets/topbar.js"></script>
+<title>Lobby · Hajj CAD</title>
+<link rel="stylesheet" href="assets/style.css?v=7">
+<script src="assets/config.js?v=7"></script>
+<script src="assets/tempo.js?v=7"></script>
+<script src="assets/auth.js?v=7"></script>
+<script src="assets/topbar.js?v=7"></script>
 <style>
   .lobby-hero {
     max-width: 1400px; margin: 0 auto; padding: 4px 16px 20px;
@@ -26,7 +26,7 @@
 <div id="topbar"></div>
 
 <div class="lobby-hero">
-  <h1>Welcome to Shudukhi CAD</h1>
+  <h1>Welcome to Hajj CAD</h1>
   <div class="sub" id="lobbySub">—</div>
 </div>
 
@@ -70,9 +70,29 @@
     const ms = HAJJ_TEMPO.intervalMs();
     document.getElementById('tileTempo').textContent = (ms / 1000) + 's';
   }
-  const DH1 = new Date('2026-05-27T00:00:00+03:00');
-  const days = Math.ceil((DH1 - new Date()) / 86400000);
-  document.getElementById('tileDH').textContent = days > 0 ? ('T-' + days + ' days') : (days === 0 ? 'TODAY' : ('+' + (-days) + ' days'));
+  // KSA day-aligned counter — DH1 = 27 May (drills start), DH4 = 30 May (full operational window)
+  function daysUntil(dateStr) {
+    const target = new Date(dateStr + 'T00:00:00+03:00');
+    const now = new Date();
+    const ksaNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Riyadh' }));
+    ksaNow.setHours(0,0,0,0);
+    return Math.round((target - ksaNow) / 86400000);
+  }
+  const dDH1 = daysUntil('2026-05-27');
+  const dDH4 = daysUntil('2026-05-30');
+  const tileDH = document.getElementById('tileDH');
+  if (tileDH) {
+    if (dDH1 > 0) {
+      tileDH.innerHTML = 'T-' + dDH1 + ' to DH 1<br><span style="font-size:11px; color:#9ca3af; font-weight:400;">T-' + dDH4 + ' to DH 4 (full ops)</span>';
+    } else if (dDH1 === 0) {
+      tileDH.textContent = 'DH 1 — drills start today';
+    } else if (dDH4 >= 0) {
+      tileDH.innerHTML = 'DH ' + (Math.abs(dDH1) + 1) + ' (drills)<br><span style="font-size:11px; color:#9ca3af; font-weight:400;">T-' + dDH4 + ' to DH 4</span>';
+    } else {
+      const op = Math.abs(dDH4) + 4;
+      tileDH.textContent = 'DH ' + op + ' (operational)';
+    }
+  }
 })();
 </script>
 </body>
