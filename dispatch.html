@@ -78,9 +78,10 @@
     padding: 14px;
     border-left-width: 4px; border-left-style: solid;
   }
-  .inc-card.cat-resus  { border-left-color: var(--danger); }
-  .inc-card.cat-urgent { border-left-color: var(--warning); }
-  .inc-card.cat-less   { border-left-color: var(--success); }
+  .inc-card.cat-red    { border-left-color: var(--danger); }
+  .inc-card.cat-yellow { border-left-color: var(--warning); }
+  .inc-card.cat-green  { border-left-color: var(--success); }
+  .inc-card.cat-black  { border-left-color: var(--text-muted); }
   .inc-card.is-closed  { opacity: 0.55; }
 
   .inc-head {
@@ -169,7 +170,7 @@
   </div>
   <div class="stat stat--amber">
     <div class="stat-num" id="statResus">0</div>
-    <div class="stat-label">Resus</div>
+    <div class="stat-label">Red</div>
   </div>
   <div class="stat stat--blue">
     <div class="stat-num" id="statTransfer">0</div>
@@ -208,10 +209,15 @@
       <option>Night</option>
     </select>
     <select class="select full" id="category">
-      <option value="resus">Resuscitation</option>
-      <option value="urgent" selected>Urgent</option>
-      <option value="less">Less Urgent</option>
+      <option value="red">🔴 Red — Resuscitation</option>
+      <option value="yellow" selected>🟡 Yellow — Urgent</option>
+      <option value="green">🟢 Green — Less Urgent</option>
+      <option value="black">⚫ Black — DOA</option>
     </select>
+    <label class="cardiac-arrest-label" id="cardiacArrestLabel" style="display:none; align-items:center; gap:6px; margin-top:-4px; padding:6px 10px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.3); border-radius:6px; cursor:pointer;">
+      <input type="checkbox" id="cardiacArrest" style="margin:0; width:16px; height:16px; accent-color:#ef4444;">
+      <span style="color:#fca5a5; font-size:13px; font-weight:500;">⚡ Cardiac arrest in progress</span>
+    </label>
     <button class="btn full" id="createBtn">Dispatch</button>
   </div>
   <div id="createMsg" style="margin-top:8px;"></div>
@@ -290,7 +296,8 @@
     const r = await HAJJ.authedCall('dispatch_create', {
       region: region, zone: zone, station: zone,
       source: source, location: location, case_field: caseField,
-      unit: unit, type: type, shift: shift, category: category
+      unit: unit, type: type, shift: shift, category: category,
+      cardiac_arrest: document.getElementById('cardiacArrest').checked
     });
 
     createBtn.disabled = false;
@@ -301,6 +308,19 @@
     regionEl.value = ''; zoneEl.innerHTML = '<option value="">Zone / Station</option>';
     refresh();
   });
+
+
+  // Show cardiac arrest checkbox only when category = red
+  const categoryEl = document.getElementById('category');
+  const cardiacLabel = document.getElementById('cardiacArrestLabel');
+  if (categoryEl && cardiacLabel) {
+    function syncCardiacVisibility() {
+      cardiacLabel.style.display = (categoryEl.value === 'red') ? 'inline-flex' : 'none';
+      if (categoryEl.value !== 'red') document.getElementById('cardiacArrest').checked = false;
+    }
+    categoryEl.addEventListener('change', syncCardiacVisibility);
+    syncCardiacVisibility();
+  }
 
   function val(id) { return document.getElementById(id).value.trim(); }
   function showCreateErr(text) {
@@ -336,22 +356,22 @@
   function renderStats() {
     const items = Object.values(incidentsById);
     const today = new Date(); today.setHours(0,0,0,0);
-    let open = 0, closedToday = 0, resus = 0, inTransfer = 0;
+    let open = 0, closedToday = 0, red = 0, inTransfer = 0;
     items.forEach(i => {
       if (i.Status === 'open') open++;
       if (i.Status === 'closed' && i.Closed_At && new Date(i.Closed_At) >= today) closedToday++;
-      if ((i.Category || '').toLowerCase() === 'resus' && i.Status === 'open') resus++;
+      if ((i.Category || '').toLowerCase() === 'red' && i.Status === 'open') red++;
       if (i.Status === 'open' && i.Transfer_Start && !i.Closed_At) inTransfer++;
     });
     document.getElementById('statOpen').textContent = open;
-    document.getElementById('statResus').textContent = resus;
+    document.getElementById('statResus').textContent = red;
     document.getElementById('statTransfer').textContent = inTransfer;
     document.getElementById('statClosed').textContent = closedToday;
   }
 
   function buildCard(inc) {
     const card = document.createElement('div');
-    const cat = (inc.Category || 'urgent').toLowerCase();
+    const cat = (inc.Category || 'yellow').toLowerCase();
     card.className = 'inc-card cat-' + cat + (inc.Status === 'closed' ? ' is-closed' : '');
     card.dataset.id = inc.Incident_ID;
 
@@ -461,17 +481,60 @@
   }, 1000);
 
   async function recordEvent(incidentId, eventType) {
+    // OPTIMISTIC UPDATE — patch local state immediately
+    const inc = incidentsById[incidentId];
+    if (inc) {
+      const colMap = {
+        'en_route':'En_Route_At', 'on_scene':'On_Scene_At',
+        'patient_contact':'Patient_Contact_At', 'transfer_start':'Transfer_Start',
+        'hospital_arrival':'Hospital_Arrival', 'handover':'Handover'
+      };
+      const col = colMap[eventType];
+      if (col && !inc[col]) {
+        inc[col] = new Date().toISOString();
+        renderCards();
+        renderStats();
+      }
+    }
+    // Background sync
     const r = await HAJJ.authedCall('dispatch_event', {
       incident_id: incidentId, event_type: eventType
     });
-    if (r && r.ok) refresh();
+    if (!r || !r.ok) {
+      // Revert on failure
+      if (inc) {
+        const col = ({'en_route':'En_Route_At','on_scene':'On_Scene_At','patient_contact':'Patient_Contact_At',
+                      'transfer_start':'Transfer_Start','hospital_arrival':'Hospital_Arrival','handover':'Handover'})[eventType];
+        if (col) delete inc[col];
+        renderCards();
+        renderStats();
+      }
+      alert('Sync failed for ' + eventType + '. Please retry.');
+    }
   }
 
   async function closeIncident(incidentId, decision) {
+    // OPTIMISTIC UPDATE
+    const inc = incidentsById[incidentId];
+    const prevState = inc ? { Status: inc.Status, Closed_At: inc.Closed_At, Decision: inc.Decision } : null;
+    if (inc) {
+      inc.Status = 'closed';
+      inc.Closed_At = new Date().toISOString();
+      inc.Decision = decision;
+      renderCards();
+      renderStats();
+    }
     const r = await HAJJ.authedCall('dispatch_close', {
       incident_id: incidentId, decision: decision
     });
-    if (r && r.ok) refresh();
+    if (!r || !r.ok) {
+      if (inc && prevState) {
+        Object.assign(inc, prevState);
+        renderCards();
+        renderStats();
+      }
+      alert('Close failed. Please retry.');
+    }
   }
 
 })();
