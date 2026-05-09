@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
+<title>Diagnostic · Hajj CAD</title>
+<link rel="stylesheet" href="assets/style.css?v=10">
+<script src="assets/config.js?v=10"></script>
+<script src="assets/auth.js?v=10"></script>
+<script src="assets/topbar.js?v=10"></script>
+<style>
+  body { padding: 0; background: #0a0e15; color: #e5e7eb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .diag-wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  .diag-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  .diag-header h1 { margin:0; font-size:18px; }
+  .btn-test { background:#22c55e; color:#000; padding:8px 14px; border:none; border-radius:6px; cursor:pointer; font-weight:600; }
+  .btn-test:disabled { opacity:0.5; cursor:not-allowed; }
+  .check-row { display:grid; grid-template-columns: 22px 220px 80px 100px 1fr; gap:8px; padding:8px 10px; border-bottom:1px solid #1f2937; align-items:center; font-size:13px; }
+  .check-row:hover { background: rgba(255,255,255,0.02); }
+  .ok { color:#86efac; }
+  .fail { color:#fca5a5; }
+  .pending { color:#fcd34d; }
+  .meta { font-size:11px; color:#6b7280; }
+  .raw { font-family:ui-monospace,monospace; font-size:11px; color:#9ca3af; max-width:600px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .raw:hover { white-space:normal; word-break:break-all; }
+  .system-info { background:#131720; border:1px solid #1f2937; border-radius:8px; padding:12px; margin-bottom:14px; font-size:12px; line-height:1.7; }
+  .system-info code { background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:3px; font-family:ui-monospace,monospace; }
+  details { margin-top:12px; }
+  summary { cursor:pointer; font-size:12px; color:#9ca3af; }
+  pre { background:#000; padding:8px; border-radius:4px; font-size:11px; overflow-x:auto; max-height:400px; }
+</style>
+</head>
+<body>
+<div id="topbar"></div>
+
+<div class="diag-wrap">
+  <div class="diag-header">
+    <div>
+      <h1>Backend diagnostic</h1>
+      <div class="meta">Ping every endpoint, show timing + raw response — verify what's actually deployed.</div>
+    </div>
+    <button class="btn-test" id="btnRunAll">Run all checks</button>
+  </div>
+
+  <div class="system-info" id="sysInfo">Loading session info…</div>
+
+  <div id="resultsHead" style="display:grid; grid-template-columns: 22px 220px 80px 100px 1fr; gap:8px; padding:6px 10px; font-size:11px; color:#9ca3af; text-transform:uppercase; letter-spacing:0.05em;">
+    <div></div><div>Endpoint</div><div>Time</div><div>Status</div><div>Response</div>
+  </div>
+  <div id="results"></div>
+
+  <details>
+    <summary>Raw browser/network info</summary>
+    <pre id="rawDebug"></pre>
+  </details>
+</div>
+
+<script>
+(function() {
+  if (!HAJJ.requireAuth()) return;
+  CADTopbar.render({ title: 'Diagnostic' });
+
+  const u = HAJJ.getUser() || {};
+  const tok = HAJJ.getToken();
+  const exp = sessionStorage.getItem('hajj_expires');
+  document.getElementById('sysInfo').innerHTML =
+    '<div><strong>Backend URL:</strong> <code>' + (window.BACKEND_URL || 'NOT SET') + '</code></div>' +
+    '<div><strong>User:</strong> ' + (u.full_name || '—') + ' · role: <code>' + (u.role || '?') + '</code> · NID: <code>' + (u.NID || '?') + '</code></div>' +
+    '<div><strong>Session token:</strong> <code>' + (tok ? tok.slice(0, 16) + '…' : 'MISSING') + '</code></div>' +
+    '<div><strong>Token expires:</strong> ' + (exp || '—') + '</div>' +
+    '<div><strong>Browser:</strong> <code>' + navigator.userAgent.slice(0, 120) + '</code></div>' +
+    '<div><strong>Time now (KSA):</strong> ' + new Date().toLocaleString('en-US', { timeZone: 'Asia/Riyadh' }) + '</div>';
+
+  // Endpoints to test (paired with role-needed)
+  const ENDPOINTS = [
+    { action:'whoami',                 needsRole:[],                                 desc:'auth check' },
+    { action:'roster',                 needsRole:[],                                 desc:'/me reads this' },
+    { action:'admin_allowlist_view',   needsRole:['admin'],                          desc:'/admin Allowlist tab' },
+    { action:'admin_sessions_view',    needsRole:['admin'],                          desc:'/admin Sessions tab' },
+    { action:'admin_audit_list',       needsRole:['admin'],                          desc:'/admin Audit tab' },
+    { action:'station_status_list',    needsRole:['cluster_supervisor','admin','leadership','dispatcher','sar'], desc:'/sv station grid' },
+    { action:'reposition_list',        needsRole:['cluster_supervisor','admin','leadership','dispatcher'],     desc:'/sv reposition queue' },
+    { action:'units_list',             needsRole:['cluster_supervisor','dispatcher','admin','leadership'],     desc:'unit dropdowns' },
+    { action:'unit_availability',      needsRole:['cluster_supervisor','dispatcher','admin','leadership'],     desc:'/dispatch + /active unit state — NEW (needs redeploy)' },
+    { action:'augmentations',          needsRole:['cluster_supervisor','dispatcher','admin','leadership','sar'], desc:'/active augmentations panel — NEW' },
+    { action:'roster_fill',            needsRole:['admin','leadership','dispatcher','cluster_supervisor'],     desc:'/active roster fill % — NEW' },
+    { action:'unit_positions',         needsRole:['cluster_supervisor','dispatcher','admin','leadership'],     desc:'/active unit positions — NEW' },
+    { action:'mobilization_plan',      needsRole:['cluster_supervisor','dispatcher','admin','leadership','sar'], desc:'planning data — NEW' },
+    { action:'sar_summary',            needsRole:['sar','admin'],                    desc:'/sar redacted view' },
+    { action:'active_summary',         needsRole:['cluster_supervisor','admin','leadership','dispatcher'],   desc:'core dashboard' },
+    { action:'dispatch_list',          needsRole:['dispatcher','admin','leadership'], desc:'open incidents' },
+    { action:'dashboard_active',       needsRole:['cluster_supervisor','admin','leadership','dispatcher'],   desc:'/active mega — NEW (needs redeploy)' },
+    { action:'dashboard_dispatch',     needsRole:['dispatcher','admin','leadership'], desc:'/dispatch mega — NEW' },
+    { action:'dashboard_sv',           needsRole:['cluster_supervisor','admin','leadership'],                  desc:'/sv mega — NEW' }
+  ];
+
+  const userRole = String(u.role || '').toLowerCase();
+  const results = document.getElementById('results');
+
+  function applicable(ep) {
+    if (!ep.needsRole.length) return true;
+    return ep.needsRole.indexOf(userRole) !== -1;
+  }
+
+  // Pre-render rows
+  ENDPOINTS.forEach(function(ep, i) {
+    const row = document.createElement('div');
+    row.className = 'check-row';
+    row.id = 'row-' + i;
+    const skip = !applicable(ep);
+    row.innerHTML =
+      '<div id="icon-' + i + '">' + (skip ? '·' : '⏳') + '</div>' +
+      '<div><strong>' + ep.action + '</strong><div class="meta">' + ep.desc + '</div></div>' +
+      '<div id="time-' + i + '" class="meta">—</div>' +
+      '<div id="status-' + i + '" class="' + (skip ? 'meta' : 'pending') + '">' + (skip ? 'skipped' : 'pending') + '</div>' +
+      '<div id="raw-' + i + '" class="raw">' + (skip ? 'role does not need this endpoint' : '—') + '</div>';
+    results.appendChild(row);
+  });
+
+  async function runOne(ep, i) {
+    if (!applicable(ep)) return;
+    document.getElementById('icon-' + i).textContent = '🔄';
+    const t0 = Date.now();
+    let r, err;
+    try {
+      r = await HAJJ.authedCall(ep.action);
+    } catch (e) {
+      err = String(e);
+    }
+    const ms = Date.now() - t0;
+    const icon = document.getElementById('icon-' + i);
+    const status = document.getElementById('status-' + i);
+    const raw = document.getElementById('raw-' + i);
+    document.getElementById('time-' + i).textContent = ms + 'ms';
+    if (err) {
+      icon.textContent = '✗';
+      status.className = 'fail';
+      status.textContent = 'thrown';
+      raw.textContent = err;
+      raw.className = 'raw fail';
+    } else if (!r) {
+      icon.textContent = '✗';
+      status.className = 'fail';
+      status.textContent = 'no response';
+      raw.textContent = '(null)';
+      raw.className = 'raw fail';
+    } else if (r.ok === false || r.error) {
+      icon.textContent = '✗';
+      status.className = 'fail';
+      status.textContent = r.error || 'failed';
+      raw.textContent = JSON.stringify(r).slice(0, 400);
+      raw.className = 'raw fail';
+    } else {
+      icon.textContent = '✓';
+      status.className = 'ok';
+      status.textContent = 'ok';
+      const summary = JSON.stringify(Object.keys(r).filter(k=>k!=='ok'));
+      raw.textContent = summary + '  ' + JSON.stringify(r).slice(0, 250);
+      raw.className = 'raw ok';
+    }
+  }
+
+  document.getElementById('btnRunAll').addEventListener('click', async function() {
+    this.disabled = true;
+    this.textContent = 'Running…';
+    // Run sequentially so we can see Apps Script per-call latency individually
+    for (let i = 0; i < ENDPOINTS.length; i++) {
+      await runOne(ENDPOINTS[i], i);
+    }
+    this.disabled = false;
+    this.textContent = 'Run again';
+  });
+
+  // Auto-run on load
+  setTimeout(function() { document.getElementById('btnRunAll').click(); }, 500);
+
+  // Raw debug data
+  document.getElementById('rawDebug').textContent =
+    'sessionStorage keys: ' + Object.keys(sessionStorage).join(', ') + '\n\n' +
+    'localStorage keys: ' + Object.keys(localStorage).join(', ') + '\n\n' +
+    'navigator.connection: ' + (navigator.connection ? JSON.stringify({downlink: navigator.connection.downlink, effectiveType: navigator.connection.effectiveType, rtt: navigator.connection.rtt}) : 'unknown');
+})();
+</script>
+</body>
+</html>

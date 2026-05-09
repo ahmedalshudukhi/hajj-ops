@@ -152,7 +152,15 @@
       window.location.href = ENTRY;
       return { ok: false, error: 'no_session' };
     }
+    const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
     const r = await call(action, Object.assign({ token: token }, params || {}));
+    const ms = Math.round(((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - t0);
+    const ok = r && r.ok;
+    // Console log: visible in browser DevTools so user can see what's happening
+    if (typeof console !== 'undefined' && console.log) {
+      console.log('%c[CAD] ' + action + ' %c' + ms + 'ms %c' + (ok ? 'ok' : 'fail: ' + (r && r.error || 'unknown')),
+        'color:#3b82f6', 'color:#9ca3af', ok ? 'color:#22c55e' : 'color:#ef4444', r);
+    }
     if (r && r.error === 'unauthorized') {
       clearSession();
       window.location.href = ENTRY;

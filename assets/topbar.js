@@ -73,7 +73,8 @@
     { href: 'sv.html',       label: 'Cluster',   roles: ['cluster_supervisor','leadership','admin'] },
     { href: 'sar.html',      label: 'SAR view',  roles: ['sar','admin'] },
     { href: 'admin.html',    label: 'Admin',     roles: ['admin'] },
-    { href: 'me.html',       label: 'My schedule', roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin'] }
+    { href: 'me.html',       label: 'My schedule', roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin'] },
+    { href: 'diagnostic.html', label: 'Diag',       roles: ['admin'] }
   ];
 
   function pagesForRole(role) {
@@ -142,7 +143,8 @@
       'sv.html':       { icon:'⚙️', desc:'Cluster supervisor — set station status, request unit reposition', accent:'#a855f7' },
       'sar.html':      { icon:'👁️', desc:'SAR partner — read-only redacted operations summary', accent:'#06b6d4' },
       'admin.html':    { icon:'🔐', desc:'Allowlist, sessions, reposition queue, audit log', accent:'#f59e0b' },
-      'me.html':       { icon:'📅', desc:'Your shift schedule and assignments', accent:'#10b981' }
+      'me.html':       { icon:'📅', desc:'Your shift schedule and assignments', accent:'#10b981' },
+      'diagnostic.html': { icon:'🩺', desc:'Backend health check — ping every endpoint, see what is actually deployed', accent:'#ef4444' }
     };
 
     mount.innerHTML = pages.map(function(p) {
