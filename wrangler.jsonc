@@ -9,5 +9,12 @@
     "directory": ".",
     "binding": "ASSETS",
     "not_found_handling": "404-page"
-  }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "hajj_cad",
+      "database_id": "ce392cb3-6a88-4602-bfa6-ea6d1cd6ea39"
+    }
+  ]
 }

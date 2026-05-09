@@ -26,3 +26,6 @@ backend/
 .gitignore
 mob_v118/
 v118_check/
+migration/
+_worker.js.backup
+wrangler.toml
