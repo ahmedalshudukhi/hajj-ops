@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SAR Operations Summary · HMG EMS</title>
-<link rel="stylesheet" href="assets/style.css?v=7">
-<script src="assets/config.js?v=7"></script>
-<script src="assets/tempo.js?v=7"></script>
-<script src="assets/auth.js?v=7"></script>
-<script src="assets/topbar.js?v=7"></script>
+<link rel="stylesheet" href="assets/style.css?v=8">
+<script src="assets/config.js?v=8"></script>
+<script src="assets/tempo.js?v=8"></script>
+<script src="assets/auth.js?v=8"></script>
+<script src="assets/topbar.js?v=8"></script>
 <style>
   .sar-wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
   .sar-banner {
@@ -118,7 +118,7 @@
       }
     } catch (_) {}
 
-    const r = await HAJJ.authedCall('sar_summary');
+    const r = await HAJJ.authedCallSWR('sar_summary');
     if (!r || !r.ok) {
       setLive(false, (r && r.error) || 'unknown');
       return;

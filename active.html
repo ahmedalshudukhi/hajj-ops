@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Active Insights · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=7">
+<link rel="stylesheet" href="assets/style.css?v=8">
 
 <style>
   body { background: var(--bg); }
@@ -358,10 +358,10 @@
 
 </div>
 
-<script src="assets/config.js?v=7"></script>
-<script src="assets/tempo.js?v=7"></script>
-<script src="assets/auth.js?v=7"></script>
-<script src="assets/topbar.js?v=7"></script>
+<script src="assets/config.js?v=8"></script>
+<script src="assets/tempo.js?v=8"></script>
+<script src="assets/auth.js?v=8"></script>
+<script src="assets/topbar.js?v=8"></script>
 <script>
 (function () {
 
@@ -413,11 +413,11 @@
   async function refresh() {
     // Fire all data calls in PARALLEL so first paint happens at fastest endpoint
     const [summary, augs, roster, units, avail] = await Promise.all([
-      HAJJ.authedCall('active_summary'),
-      HAJJ.authedCall('augmentations'),
-      HAJJ.authedCall('roster_fill'),
-      HAJJ.authedCall('unit_positions'),
-      HAJJ.authedCall('unit_availability')
+      HAJJ.authedCallSWR('active_summary'),
+      HAJJ.authedCallSWR('augmentations'),
+      HAJJ.authedCallSWR('roster_fill'),
+      HAJJ.authedCallSWR('unit_positions'),
+      HAJJ.authedCallSWR('unit_availability')
     ]);
 
     if (summary && summary.ok) {

@@ -160,6 +160,52 @@
     return r;
   }
 
+  
+
+  // ============================================================
+  // Stale-While-Revalidate cache for read endpoints (free speed boost)
+  // Returns cached response instantly if ≤ TTL old, fetches fresh in
+  // background. Caller's promise resolves IMMEDIATELY with cached data
+  // when available; the next refresh will have the fresh data.
+  //
+  // Use authedCallSWR for read-only endpoints. Keep authedCall for
+  // mutations (POST-style operations like dispatch_create).
+  // ============================================================
+  const SWR_TTL_MS = 30 * 1000; // 30s
+  const SWR_KEY_PREFIX = 'hajj_swr_';
+
+  // Endpoints safe to cache (read-only)
+  const SWR_SAFE_ACTIONS = {
+    active_summary: true, augmentations: true, roster_fill: true,
+    unit_positions: true, unit_availability: true, units_list: true,
+    mobilization_plan: true, schedule_grid: true,
+    station_status_list: true, sar_summary: true,
+    reposition_list: true, admin_audit_list: true,
+    admin_allowlist_view: true, admin_sessions_view: true,
+    roster: true
+  };
+
+  async function authedCallSWR(action, params) {
+    if (!SWR_SAFE_ACTIONS[action]) return authedCall(action, params);
+
+    const key = SWR_KEY_PREFIX + action + ':' + JSON.stringify(params || {});
+    let cached = null;
+    try {
+      const raw = sessionStorage.getItem(key);
+      if (raw) cached = JSON.parse(raw);
+    } catch (_) {}
+
+    const fresh = cached && cached.ts && (Date.now() - cached.ts < SWR_TTL_MS);
+    if (fresh && cached.data) return cached.data;
+
+    // Stale or missing — fetch and cache
+    const r = await authedCall(action, params);
+    if (r && r.ok) {
+      try { sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data: r })); } catch (_) {}
+    }
+    return r;
+  }
+
   function requireAuth() {
     if (!getToken() || isExpired()) {
       clearSession();
@@ -217,6 +263,7 @@
     call: call,
     pcrCall: pcrCall,
     authedCall: authedCall,
+    authedCallSWR: authedCallSWR,
     login: login,
     logout: logout,
     getToken: getToken,

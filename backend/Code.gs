@@ -298,6 +298,7 @@ function route_(e) {
           case 'admin_audit_log':     response = adminAuditLog_(u, params); break;
           case 'admin_allowlist_view':response = adminAllowlistView_(u, params); break;
           case 'admin_sessions_view': response = adminSessionsView_(u, params); break;
+          case 'admin_apply_validation': response = applyAllowlistValidation_(u, params); break;
           case 'augmentations':       response = augmentationsList_(u, params); break;
           case 'mobilization_plan':   response = mobPlanList_(u, params); break;
           case 'roster_fill':         response = rosterFill_(u, params); break;
@@ -1433,6 +1434,51 @@ function unitStatusSet_(user, params) {
     user.full_name || ''
   ]);
   return { ok:true };
+}
+
+
+// ============================================================
+// SHEET DATA VALIDATION (Admin only — apply dropdowns to columns)
+// ============================================================
+function applyAllowlistValidation_(user, params) {
+  if (!hasRole_(user, ['admin'])) return { ok:false, error:'forbidden' };
+  const sh = sheet_(SHEETS.ALLOWLIST);
+  if (!sh) return { ok:false, error:'allowlist_not_found' };
+
+  const lastRow = Math.max(sh.getLastRow(), 500);
+  const h = sh.getDataRange().getValues()[0];
+
+  function findCol(names) { return findColIdx_(h, names) + 1; }  // 1-indexed for ranges
+
+  const ROLE_OPTIONS = ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'];
+  const CLUSTER_OPTIONS = ['','arafat','muzdalifah','mina','OCC','IC1','IC2'];
+  const STATION_OPTIONS = ['','ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3','OCC','DEPOT'];
+  const ACCOMMODATION_OPTIONS = ['','Mina-A','Mina-B','Arafat-A','Arafat-B','Muzdalifah-A','OCC-Quarters','Day-stay','Other','Not assigned'];
+  const ACTIVE_OPTIONS = ['TRUE','FALSE'];
+
+  const applied = {};
+  function applyRule(colNames, options) {
+    const col = findCol(colNames);
+    if (col < 1) { applied[colNames[0]] = 'column_not_found'; return; }
+    const range = sh.getRange(2, col, lastRow - 1, 1);
+    const rule = SpreadsheetApp.newDataValidation()
+      .requireValueInList(options.filter(function(x) { return x !== ''; }), true)
+      .setAllowInvalid(false)
+      .setHelpText('Pick from list — managed by Hajj CAD')
+      .build();
+    range.setDataValidation(rule);
+    applied[colNames[0]] = 'applied';
+  }
+
+  applyRule(['Role','role'], ROLE_OPTIONS);
+  applyRule(['Cluster','cluster'], CLUSTER_OPTIONS);
+  applyRule(['Station','station'], STATION_OPTIONS);
+  applyRule(['Accommodation','accommodation'], ACCOMMODATION_OPTIONS);
+  applyRule(['Active','active'], ACTIVE_OPTIONS);
+
+  // Log
+  logAdmin_(user, 'apply_validation', 'allowlist', JSON.stringify(applied));
+  return { ok:true, applied: applied };
 }
 
 // ============================================================

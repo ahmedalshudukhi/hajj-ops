@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>My Schedule · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=7">
+<link rel="stylesheet" href="assets/style.css?v=8">
 
 <style>
   .me-header {
@@ -140,7 +140,13 @@
       <div class="schedule-grid" id="scheduleGrid"></div>
     </div>
     <div class="grid-empty" id="scheduleEmpty" hidden>
-      Schedule not yet loaded. The roster will populate here once shift data is published.
+      No schedule rows for your account.<br>
+      <span style="font-size:12px; color:#9ca3af; display:block; margin-top:8px;">
+        This page reads the <strong>Schedule</strong> tab in the Mob Sheet — wide-format Unit×DH-Slot grid.
+        It looks up your <strong>Unit</strong> from Allowlist, then finds that unit's row in Schedule.
+        If your Allowlist row has an empty Unit field (typical for leadership/admin), there's nothing to show.
+        Paramedics and GPs with assigned units will see their full 11-day shift grid (DH 4 → DH 14).
+      </span>
     </div>
   </div>
 
@@ -163,9 +169,9 @@
 
 </div>
 
-<script src="assets/config.js?v=7"></script>
-<script src="assets/auth.js?v=7"></script>
-<script src="assets/topbar.js?v=7"></script>
+<script src="assets/config.js?v=8"></script>
+<script src="assets/auth.js?v=8"></script>
+<script src="assets/topbar.js?v=8"></script>
 <script>
 (function () {
   if (!HAJJ.requireAuth()) return;
@@ -180,7 +186,7 @@
   load();
 
   async function load() {
-    const r = await HAJJ.authedCall('roster');
+    const r = await HAJJ.authedCallSWR('roster');
     if (!r || !r.ok) { console.error('roster fetch failed', r); return; }
     renderIdentity(r.user);
     HAJJ.setSession(HAJJ.getToken(), r.user, sessionStorage.getItem('hajj_expires'));

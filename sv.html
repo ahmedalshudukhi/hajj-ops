@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SV · HMG Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=7">
-<script src="assets/config.js?v=7"></script>
-<script src="assets/tempo.js?v=7"></script>
-<script src="assets/auth.js?v=7"></script>
-<script src="assets/sublocations.js?v=7"></script>
-<script src="assets/topbar.js?v=7"></script>
+<link rel="stylesheet" href="assets/style.css?v=8">
+<script src="assets/config.js?v=8"></script>
+<script src="assets/tempo.js?v=8"></script>
+<script src="assets/auth.js?v=8"></script>
+<script src="assets/sublocations.js?v=8"></script>
+<script src="assets/topbar.js?v=8"></script>
 <style>
   .sv-wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
   .sv-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
@@ -190,7 +190,7 @@
   let LATEST_STATUS = {};
 
   async function loadStationStatus() {
-    const r = await HAJJ.authedCall('station_status_list');
+    const r = await HAJJ.authedCallSWR('station_status_list');
     if (!r || !r.ok) return;
     LATEST_STATUS = {};
     (r.stations || []).forEach(function(s) { LATEST_STATUS[s.station] = s; });
@@ -363,7 +363,7 @@
   });
 
   async function loadReposition() {
-    const r = await HAJJ.authedCall('reposition_list');
+    const r = await HAJJ.authedCallSWR('reposition_list');
     const pBody = document.getElementById('pendingBody');
     const rBody = document.getElementById('recentBody');
     if (!r || !r.ok) return;
