@@ -55,6 +55,9 @@ function include(filename) {
 
 function generatePDF(data) {
   try {
+    if (!data || typeof data !== 'object') {
+      throw new Error('No form data received. If running from the script editor, run "testGeneratePDF" (NOT "generatePDF") to do an end-to-end smoke test with sample data.');
+    }
     const pdfUrl = createPdfFromData_(data);
     logPCR_(data, pdfUrl);
     return pdfUrl;
@@ -254,10 +257,10 @@ function f_(data) {
 }
 
 // ============================================================
-// (OPTIONAL) Setup helpers — run from editor
+// SMOKE TEST — run from editor (function dropdown -> testGeneratePDF -> Run)
 // ============================================================
 
-function testGeneratePDF_() {
+function testGeneratePDF() {
   // Run from editor to verify PDF generation + sheet write work end-to-end
   const sample = {
     incident_id: 'TEST-' + new Date().getTime(),
