@@ -222,10 +222,10 @@ async function handleHealth(request, env) {
 
 // ----- LEGACY /api/v1/* (data.json read-only) -----
 
-async function loadDataJson() {
-  const url = "https://hajj.shuki.tech/data.json?t=" + Date.now();
+async function loadDataJson(env) {
+  // Use ASSETS binding (no external fetch loop, much faster than self-fetching)
   try {
-    const r = await fetch(url, { cf: { cacheTtl: 30, cacheEverything: true } });
+    const r = await env.ASSETS.fetch(new Request("https://internal/data.json"));
     if (!r.ok) throw new Error("data.json " + r.status);
     return await r.json();
   } catch (e) {
@@ -267,7 +267,7 @@ async function handleLegacyV1(request, _env, pathname) {
     }
   }
 
-  const data = await loadDataJson();
+  const data = await loadDataJson(_env);
   if (data.error) return jsonResponse(data, { status: 503 });
 
   switch (route) {
