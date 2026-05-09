@@ -35,6 +35,10 @@ const SHEETS = {
   UNITS: 'Units',
   AMBULANCES: 'Ambulances',
   SUB_LOCATIONS: 'Sub_Locations',
+  AUGMENTATIONS: 'Augmentations',
+  MOBILIZATION_PLAN: 'Mobilization_plan',
+  STAFF: 'Staff',
+  STAFF_ASSIGNMENT: 'Staff_Assignment',
   SESSIONS: 'Sessions',
   AUTH_LOG: 'Auth_Log',
   DISPATCH_LOG: 'Dispatch_Log',
@@ -293,6 +297,10 @@ function route_(e) {
           case 'admin_audit_log':     response = adminAuditLog_(u, params); break;
           case 'admin_allowlist_view':response = adminAllowlistView_(u, params); break;
           case 'admin_sessions_view': response = adminSessionsView_(u, params); break;
+          case 'augmentations':       response = augmentationsList_(u, params); break;
+          case 'mobilization_plan':   response = mobPlanList_(u, params); break;
+          case 'roster_fill':         response = rosterFill_(u, params); break;
+          case 'schedule_grid':       response = scheduleGrid_(u, params); break;
 
           default: response = { ok: false, error: 'unknown_action', action };
         }
@@ -1023,6 +1031,116 @@ function adminSessionsView_(user, params) {
   // Most recent first
   out.sort(function(a, b) { return new Date(b.Last_Activity || b.Created_At) - new Date(a.Last_Activity || a.Created_At); });
   return { ok:true, rows: out.slice(0, 100), total: out.length };
+}
+
+
+// ============================================================
+// PLANNING DATA (augmentations, mobilization, roster, schedule)
+// ============================================================
+
+function augmentationsList_(user, params) {
+  if (!hasRole_(user, ['cluster_supervisor','dispatcher','leadership','admin','sar'])) return { ok:false, error:'forbidden' };
+  const sh = sheet_(SHEETS.AUGMENTATIONS);
+  if (!sh) return { ok:true, rows:[] };
+  const data = sh.getDataRange().getValues();
+  if (data.length < 2) return { ok:true, rows:[] };
+  const h = data[0];
+  const out = [];
+  for (let i = 1; i < data.length; i++) {
+    const obj = rowToObject_(h, data[i]);
+    out.push(obj);
+  }
+
+  // Optional filter by movement
+  if (params && params.movement) {
+    const m = String(params.movement).toLowerCase();
+    return { ok:true, rows: out.filter(function(r) { return String(r.Movement || '').toLowerCase() === m; }) };
+  }
+
+  // Optional filter by DH day
+  if (params && params.dh) {
+    const dh = parseInt(params.dh, 10);
+    return { ok:true, rows: out.filter(function(r) {
+      const rdh = parseInt(String(r['DH Day'] || r.DH || '').replace(/[^0-9]/g, ''), 10);
+      return rdh === dh;
+    })};
+  }
+
+  // Group summary by movement
+  const byMovement = {};
+  out.forEach(function(r) {
+    const m = String(r.Movement || 'unspecified');
+    byMovement[m] = (byMovement[m] || 0) + 1;
+  });
+
+  return { ok:true, rows: out, total: out.length, by_movement: byMovement };
+}
+
+function mobPlanList_(user, params) {
+  if (!hasRole_(user, ['cluster_supervisor','dispatcher','leadership','admin','sar'])) return { ok:false, error:'forbidden' };
+  const sh = sheet_(SHEETS.MOBILIZATION_PLAN);
+  if (!sh) return { ok:true, rows:[] };
+  const data = sh.getDataRange().getValues();
+  if (data.length < 2) return { ok:true, rows:[] };
+  const h = data[0];
+  const out = [];
+  // Limit to first 500 rows for response size
+  const maxRows = Math.min(data.length, 501);
+  for (let i = 1; i < maxRows; i++) {
+    out.push(rowToObject_(h, data[i]));
+  }
+  return { ok:true, rows: out, total: data.length - 1, headers: h };
+}
+
+function rosterFill_(user, params) {
+  if (!hasRole_(user, ['leadership','admin','dispatcher','cluster_supervisor'])) return { ok:false, error:'forbidden' };
+  const result = { total: 0, vacant: 0, filled: 0, by_role: {}, by_status: {} };
+
+  // Try Staff_Assignment first (the live roster)
+  let sh = sheet_(SHEETS.STAFF_ASSIGNMENT);
+  if (sh && sh.getLastRow() > 1) {
+    const data = sh.getDataRange().getValues();
+    const h = data[0];
+    const statusIdx = findColIdx_(h, ['Status']);
+    const roleIdx = findColIdx_(h, ['Role','Type','Slot']);
+    for (let i = 1; i < data.length; i++) {
+      result.total++;
+      const status = String(statusIdx >= 0 ? data[i][statusIdx] : '').trim();
+      const role = String(roleIdx >= 0 ? data[i][roleIdx] : '').trim();
+      if (status) result.by_status[status] = (result.by_status[status] || 0) + 1;
+      if (role) result.by_role[role] = (result.by_role[role] || 0) + 1;
+      if (status.toLowerCase() === 'vacant') result.vacant++;
+      else if (status) result.filled++;
+    }
+  }
+
+  // Also pull from Staff tab for total expected headcount
+  const staffSh = sheet_(SHEETS.STAFF);
+  if (staffSh && staffSh.getLastRow() > 1) {
+    result.staff_total = staffSh.getLastRow() - 1;
+  }
+
+  result.fill_pct = result.total > 0 ? Math.round((result.filled / result.total) * 100) : 0;
+  return Object.assign({ ok:true }, result);
+}
+
+function scheduleGrid_(user, params) {
+  if (!hasRole_(user, ['cluster_supervisor','dispatcher','leadership','admin'])) return { ok:false, error:'forbidden' };
+  const sh = sheet_(SHEETS.SCHEDULE);
+  if (!sh) return { ok:true, rows:[] };
+  const data = sh.getDataRange().getValues();
+  if (data.length < 2) return { ok:true, rows:[] };
+  const h = data[0];
+  // Optional filter by unit code
+  const unit = params && params.unit ? String(params.unit) : '';
+  const out = [];
+  for (let i = 1; i < data.length; i++) {
+    const obj = rowToObject_(h, data[i]);
+    const unitId = obj['Unit ID'] || obj.Unit_Code || '';
+    if (unit && String(unitId) !== unit) continue;
+    out.push(obj);
+  }
+  return { ok:true, rows: out, headers: h, total: data.length - 1 };
 }
 
 // ============================================================

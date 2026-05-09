@@ -208,6 +208,11 @@
       <div class="hero-label">⚡ Cardiac arrests</div>
       <div class="hero-sub">today</div>
     </div>
+    <div class="hero-stat" style="border-top-color: #2563eb;">
+      <div class="hero-num"><span id="hRosterPct">—</span><span style="font-size:18px; color:var(--text-muted);">%</span></div>
+      <div class="hero-label">Roster fill</div>
+      <div class="hero-sub"><span id="hRosterFilled">—</span> / <span id="hRosterTotal">—</span></div>
+    </div>
     <div class="hero-stat hero-stat--red">
       <div class="hero-num" id="hOpen">—</div>
       <div class="hero-label">Open incidents</div>
@@ -253,6 +258,28 @@
         <div style="margin-top: 10px; font-size:11px; color: var(--text-muted); text-align:center;">
           Dispatch → Patient contact, today
         </div>
+      </div>
+    </div>
+
+    <!-- ====== Augmentations / Unit Movements ====== -->
+    <div class="panel" style="grid-column: span 2;">
+      <div class="panel-title">
+        <span>Augmentations & unit movements</span>
+        <span class="meta" id="augMeta">—</span>
+      </div>
+      <div id="augBody">
+        <div class="empty-panel">Loading augmentation plan…</div>
+      </div>
+    </div>
+
+    <!-- ====== Unit Positions ====== -->
+    <div class="panel" style="grid-column: span 2;">
+      <div class="panel-title">
+        <span>Unit positions</span>
+        <span class="meta" id="unitsMeta">—</span>
+      </div>
+      <div id="unitsBody" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 4px; max-height:340px; overflow-y:auto;">
+        <div class="empty-panel" style="grid-column: 1/-1;">Loading units…</div>
       </div>
     </div>
 
@@ -359,14 +386,25 @@
   scheduleNextRefresh();
 
   async function refresh() {
-    const r = await HAJJ.authedCall('active_summary');
-    if (!r || !r.ok) {
-      setLive(false, (r && r.error) || 'unknown');
-      return;
+    // Fire all data calls in PARALLEL so first paint happens at fastest endpoint
+    const [summary, augs, roster, units] = await Promise.all([
+      HAJJ.authedCall('active_summary'),
+      HAJJ.authedCall('augmentations'),
+      HAJJ.authedCall('roster_fill'),
+      HAJJ.authedCall('unit_positions')
+    ]);
+
+    if (summary && summary.ok) {
+      try { localStorage.setItem('hajj_active_cache', JSON.stringify(summary)); } catch (_) {}
+      render(summary);
+      setLive(true);
+    } else {
+      setLive(false, (summary && summary.error) || 'unknown');
     }
-    setLive(true);
-    lastOk = new Date();
-    render(r);
+
+    if (augs && augs.ok)   renderAugmentations(augs);
+    if (roster && roster.ok) renderRosterFill(roster);
+    if (units && units.ok) renderUnitPositions(units, summary && summary.stations);
   }
 
   function setLive(ok, err) {
@@ -572,7 +610,7 @@
   function renderStationStatus(stations) {
     const body = document.getElementById('stationStatusGrid');
     if (!stations || !stations.length) {
-      body.innerHTML = '<div class="empty-panel">No station status set yet.</div>';
+      body.innerHTML = '<div class="empty-panel">No status set yet — cluster supervisors set this from <a href="sv.html" style="color:var(--accent);">/sv</a> by tapping a station card.</div>';
       return;
     }
     document.getElementById('stationStatusMeta').textContent = stations.length + ' set';
@@ -621,6 +659,101 @@
       const segHtml = segs.length ? segs.join('') : '<div style="height:1px;"></div>';
       return '<div title="' + tooltip + '" style="flex:1; min-width:6px; display:flex; flex-direction:column; justify-content:flex-end; height:100%;">'
         + '<div style="display:flex; flex-direction:column-reverse; height:100%;">' + segHtml + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+
+
+  function renderRosterFill(r) {
+    document.getElementById('hRosterPct').textContent     = r.fill_pct || 0;
+    document.getElementById('hRosterFilled').textContent  = r.filled || 0;
+    document.getElementById('hRosterTotal').textContent   = r.total || 0;
+  }
+
+  function renderAugmentations(r) {
+    const body = document.getElementById('augBody');
+    const meta = document.getElementById('augMeta');
+    const rows = r.rows || [];
+
+    if (!rows.length) {
+      body.innerHTML = '<div class="empty-panel">No augmentations defined in Mob Sheet → Augmentations tab.</div>';
+      meta.textContent = '0';
+      return;
+    }
+    meta.textContent = rows.length + ' total · ' + Object.keys(r.by_movement || {}).length + ' movements';
+
+    // Group by movement
+    const byMov = {};
+    rows.forEach(function(row) {
+      const m = String(row.Movement || 'unspecified');
+      if (!byMov[m]) byMov[m] = [];
+      byMov[m].push(row);
+    });
+
+    const movNames = Object.keys(byMov).sort();
+    body.innerHTML = movNames.map(function(m) {
+      const movRows = byMov[m];
+      const sample = movRows.slice(0, 8);
+      return '<div style="margin-bottom:14px; padding:10px; background:var(--surface-2); border-radius:6px;">'
+        + '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">'
+        +   '<strong style="font-size:14px;">Movement ' + esc(m) + '</strong>'
+        +   '<span class="meta">' + movRows.length + ' units</span>'
+        + '</div>'
+        + '<div style="display:flex; flex-wrap:wrap; gap:4px;">'
+        +   sample.map(function(row) {
+              const fromUnit = row['From Unit'] || row.From_Unit || '?';
+              const toStation = row['To Station'] || row.To_Station || '?';
+              const status = String(row.Status || '').toLowerCase();
+              const cls = status === 'planned' ? 'bar-fill--amber' : (status === 'active' ? 'bar-fill--red' : 'bar-fill');
+              return '<span style="font-size:11px; padding:3px 8px; background:rgba(255,255,255,0.05); border-radius:4px; color:var(--text-muted);">'
+                + esc(fromUnit) + ' → ' + esc(toStation)
+                + (row['DH Day'] ? ' · ' + esc(String(row['DH Day'])) : '')
+                + '</span>';
+            }).join('')
+        +   (movRows.length > 8 ? '<span style="font-size:11px; padding:3px 8px; color:var(--text-dim);">+' + (movRows.length - 8) + ' more</span>' : '')
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function renderUnitPositions(r, stationStatuses) {
+    const body = document.getElementById('unitsBody');
+    const meta = document.getElementById('unitsMeta');
+    const positions = r.positions || [];
+    if (!positions.length) {
+      body.innerHTML = '<div class="empty-panel" style="grid-column: 1/-1;">No units in Mob Sheet → Units tab.</div>';
+      return;
+    }
+    // Group by station for compactness
+    const byStation = {};
+    positions.forEach(function(u) {
+      const st = u.station || 'UNK';
+      if (!byStation[st]) byStation[st] = [];
+      byStation[st].push(u);
+    });
+    meta.textContent = positions.length + ' units · ' + Object.keys(byStation).length + ' stations';
+
+    // Map station status colors
+    const statusMap = {};
+    (stationStatuses || []).forEach(function(s) { statusMap[s.station] = s.status; });
+
+    const colorMap = {
+      red:    'rgba(239, 68, 68, 0.15)',
+      yellow: 'rgba(245, 158, 11, 0.15)',
+      green:  'rgba(34, 197, 94, 0.15)',
+      black:  'rgba(80, 80, 80, 0.20)'
+    };
+
+    body.innerHTML = positions.map(function(u) {
+      const repositioned = u.source === 'reposition';
+      const stationStatus = statusMap[u.station];
+      const bg = colorMap[stationStatus] || 'rgba(255,255,255,0.04)';
+      const border = repositioned ? '2px solid #f59e0b' : '1px solid var(--border)';
+      const tooltip = u.unit + ' @ ' + (u.station || '?') + (repositioned ? ' (repositioned)' : '');
+      return '<div title="' + esc(tooltip) + '" style="padding:6px 4px; background:' + bg + '; border:' + border + '; border-radius:4px; text-align:center; font-size:10px;">'
+        + '<div style="font-weight:600; color:var(--text);">' + esc(u.unit) + '</div>'
+        + '<div style="color:var(--text-muted); font-size:9px;">' + esc(u.station || '—') + '</div>'
         + '</div>';
     }).join('');
   }
