@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAR Operations Summary · HMG EMS</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/config.js"></script>
+<script src="assets/tempo.js"></script>
+<script src="assets/auth.js"></script>
+<style>
+  .sar-wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  .sar-banner {
+    background: linear-gradient(135deg, #0f4c81 0%, #0a3a66 100%);
+    color: white; padding: 18px 20px; border-radius: var(--radius);
+    margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .sar-banner h1 { margin: 0; font-size: 18px; }
+  .sar-banner .sub { font-size: 12px; opacity: 0.85; margin-top: 4px; }
+  .sar-banner .live {
+    font-size: 11px; padding: 4px 10px; border-radius: 12px;
+    background: rgba(255,255,255,0.15); display: inline-flex; align-items: center; gap: 6px;
+  }
+  .sar-banner .live .dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80;
+    box-shadow: 0 0 6px rgba(74, 222, 128, 0.6); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  .sar-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .sar-stat {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px;
+  }
+  .sar-stat .num { font-size: 28px; font-weight: 700; color: var(--text); }
+  .sar-stat .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
+
+  .sar-section {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px; margin-bottom: 14px;
+  }
+  .sar-section h3 {
+    margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-muted); font-weight: 600;
+  }
+
+  .station-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+  .station-card {
+    border: 2px solid var(--border); border-radius: var(--radius); padding: 12px;
+    background: var(--surface-2); text-align: center;
+  }
+  .station-card.s-red    { border-color: #dc2626; background: rgba(239, 68, 68, 0.10); }
+  .station-card.s-yellow { border-color: #f59e0b; background: rgba(245, 158, 11, 0.10); }
+  .station-card.s-green  { border-color: #16a34a; background: rgba(34, 197, 94, 0.10); }
+  .station-card.s-black  { border-color: #6b7280; background: rgba(107, 114, 128, 0.15); }
+  .station-card .name { font-weight: 700; font-size: 16px; }
+  .station-card .status { font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-top: 4px; }
+
+  .footer-note { font-size: 11px; color: var(--text-dim); text-align: center; margin-top: 16px; padding-bottom: 16px; }
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <div class="topbar-inner">
+    <div class="topbar-brand">
+      <span class="topbar-title">SAR · Operations Summary</span>
+      <span class="topbar-sub">HMG Emergency Medical Services · Hajj 2026</span>
+    </div>
+    <div class="topbar-nav">
+      <a href="#" id="logoutLink">Sign out</a>
+    </div>
+  </div>
+</nav>
+
+<div class="sar-wrap">
+
+  <div class="sar-banner">
+    <div>
+      <h1>Live operations</h1>
+      <div class="sub" id="phaseLabel">— · last sync —</div>
+    </div>
+    <div class="live"><span class="dot"></span><span id="liveLabel">connecting…</span></div>
+  </div>
+
+  <div class="sar-stats">
+    <div class="sar-stat"><div class="num" id="statOpen">—</div><div class="label">Open incidents</div></div>
+    <div class="sar-stat"><div class="num" id="statTransfer">—</div><div class="label">In transfer</div></div>
+    <div class="sar-stat"><div class="num" id="statClosed">—</div><div class="label">Closed today</div></div>
+  </div>
+
+  <div class="sar-section">
+    <h3>Station status</h3>
+    <div class="station-grid" id="stationGrid">
+      <div class="empty-panel" style="grid-column: 1/-1;">No status set yet.</div>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    This view is provided to SAR for situational awareness. Patient details, individual incidents,
+    and personnel information are intentionally redacted. Contact the HMG EMS PM for any operational
+    inquiries.
+  </div>
+
+</div>
+
+<script>
+(function() {
+  if (!HAJJ.requireRole(['sar', 'admin'])) return;
+
+  document.getElementById('logoutLink').addEventListener('click', function(e) {
+    e.preventDefault(); HAJJ.logout();
+  });
+
+  function setLive(connected, msg) {
+    const el = document.getElementById('liveLabel');
+    el.textContent = connected ? ('live · ' + (msg || new Date().toLocaleTimeString())) : ('offline · ' + (msg || ''));
+  }
+
+  async function refresh() {
+    // Pre-render from cache if available
+    try {
+      const cached = localStorage.getItem('hajj_sar_cache');
+      if (cached) {
+        const r = JSON.parse(cached);
+        if (r && r.ok) render(r);
+      }
+    } catch (_) {}
+
+    const r = await HAJJ.authedCall('sar_summary');
+    if (!r || !r.ok) {
+      setLive(false, (r && r.error) || 'unknown');
+      return;
+    }
+    try { localStorage.setItem('hajj_sar_cache', JSON.stringify(r)); } catch (_) {}
+    render(r);
+    setLive(true);
+  }
+
+  function render(r) {
+    document.getElementById('statOpen').textContent     = r.open || 0;
+    document.getElementById('statTransfer').textContent = r.in_transfer || 0;
+    document.getElementById('statClosed').textContent   = r.closed_today || 0;
+
+    const phase = (window.HAJJ_TEMPO && window.HAJJ_TEMPO.phase()) || '';
+    document.getElementById('phaseLabel').textContent = phase + ' · ' + new Date().toLocaleTimeString();
+
+    const grid = document.getElementById('stationGrid');
+    const stations = r.stations || [];
+    if (!stations.length) {
+      grid.innerHTML = '<div class="empty-panel" style="grid-column: 1/-1;">No status set yet.</div>';
+      return;
+    }
+    grid.innerHTML = stations.map(function(s) {
+      const cls = s.status ? ('s-' + s.status) : '';
+      return '<div class="station-card ' + cls + '">'
+        + '<div class="name">' + esc(s.station) + '</div>'
+        + '<div class="status">' + esc(s.status || '—') + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"\']/g, function(c) {
+    return ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;" })[c];
+  }); }
+
+  refresh();
+  function scheduleNext() {
+    const ms = (window.HAJJ_TEMPO && window.HAJJ_TEMPO.intervalMs()) || 30000;
+    setTimeout(function() { refresh(); scheduleNext(); }, Math.max(ms, 15000));
+  }
+  scheduleNext();
+})();
+</script>
+
+</body>
+</html>

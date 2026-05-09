@@ -177,13 +177,15 @@
       if (role === allowed[i]) return true;
     }
     // Not authorized for this page — bounce to me.html
-    window.location.href = 'me.html';
+    window.location.href = landingFor(user && user.role);
     return false;
   }
 
   function landingFor(role) {
     role = String(role || '').toLowerCase();
-    if (role === 'dispatcher') return 'dispatch.html';
+    if (role === 'sar')                return 'sar.html';
+    if (role === 'cluster_supervisor') return 'sv.html';
+    if (role === 'dispatcher')         return 'dispatch.html';
     if (role === 'leadership' || role === 'admin') return 'lobby.html';
     return 'me.html';
   }
