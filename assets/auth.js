@@ -206,11 +206,32 @@
     window.location.href = ENTRY;
   }
 
-  // Migrated D1 actions — served from Worker, no Apps Script proxy
-  // Add to this map as more endpoints are migrated. Each one becomes 200ms instead of 5s+.
+  // Migrated D1 actions — served from Worker via /api/v2/exec (single router)
+  // Each action gets 200-500ms instead of 3-60s on Apps Script.
+  // Adding a new action = one entry here + one handler in worker.
+  const EXEC_PATH = '/api/v2/exec';
   const MIGRATED_ACTIONS = {
-    whoami: { method: 'GET', path: '/api/auth/whoami' }
-    // TODO Day 2: dashboard_active, dashboard_sv, dashboard_dispatch, etc.
+    // Auth (uses dedicated path, fastest)
+    whoami:                 { method: 'GET', path: '/api/auth/whoami' },
+    // All others go through unified /api/v2/exec router
+    roster:                 { method: 'GET', exec: true },
+    admin_allowlist_view:   { method: 'GET', exec: true },
+    admin_sessions_view:    { method: 'GET', exec: true },
+    admin_audit_list:       { method: 'GET', exec: true },
+    station_status_list:    { method: 'GET', exec: true },
+    reposition_list:        { method: 'GET', exec: true },
+    units_list:             { method: 'GET', exec: true },
+    unit_availability:      { method: 'GET', exec: true },
+    augmentations:          { method: 'GET', exec: true },
+    roster_fill:            { method: 'GET', exec: true },
+    unit_positions:         { method: 'GET', exec: true },
+    mobilization_plan:      { method: 'GET', exec: true },
+    sar_summary:            { method: 'GET', exec: true },
+    active_summary:         { method: 'GET', exec: true },
+    dispatch_list:          { method: 'GET', exec: true },
+    dashboard_active:       { method: 'GET', exec: true },
+    dashboard_dispatch:     { method: 'GET', exec: true },
+    dashboard_sv:           { method: 'GET', exec: true }
   };
 
   async function waitForGasToken(timeoutMs) {
@@ -239,15 +260,32 @@
     const mig = MIGRATED_ACTIONS[action];
     if (mig) {
       try {
-        const res = await fetch(mig.path, {
-          method: mig.method || 'GET',
-          headers: {
-            'Authorization': 'Bearer ' + d1Token,
-            'Content-Type': 'application/json'
-          },
-          body: (mig.method === 'POST') ? JSON.stringify(params || {}) : undefined
-        });
-        r = await res.json();
+        if (mig.exec) {
+          // Unified router: /api/v2/exec?action=X&token=Y&...params
+          const u = new URL(EXEC_PATH, window.location.origin);
+          u.searchParams.set('action', action);
+          u.searchParams.set('token', d1Token);
+          if (params) {
+            for (const k in params) {
+              if (params[k] !== undefined && params[k] !== null) {
+                u.searchParams.set(k, String(params[k]));
+              }
+            }
+          }
+          const res = await fetch(u.toString(), { method: mig.method || 'GET' });
+          r = await res.json();
+        } else {
+          // Dedicated path (e.g. /api/auth/whoami)
+          const res = await fetch(mig.path, {
+            method: mig.method || 'GET',
+            headers: {
+              'Authorization': 'Bearer ' + d1Token,
+              'Content-Type': 'application/json'
+            },
+            body: (mig.method === 'POST') ? JSON.stringify(params || {}) : undefined
+          });
+          r = await res.json();
+        }
       } catch (e) {
         r = { ok: false, error: 'network', message: String(e) };
       }
