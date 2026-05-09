@@ -335,7 +335,23 @@
     if (!r || !r.ok) return;
     const list = r.incidents || [];
     list.sort((a, b) => new Date(b.Created_At) - new Date(a.Created_At));
-    list.forEach(inc => incidentsById[inc.Incident_ID] = inc);
+    // MERGE — preserve optimistic local state when server hasn't yet caught up.
+    // If we have a timestamp/decision/status locally and server is empty, keep ours.
+    const PRESERVE = ['En_Route_At','On_Scene_At','Patient_Contact_At','Transfer_Start',
+                      'Hospital_Arrival','Handover','Closed_At','Decision','Q_PCR_ID','Long_PCR_URL'];
+    list.forEach(serverInc => {
+      const local = incidentsById[serverInc.Incident_ID];
+      if (local) {
+        PRESERVE.forEach(f => {
+          if (local[f] && !serverInc[f]) serverInc[f] = local[f];
+        });
+        // Status: if locally closed but server still open, keep closed
+        if (local.Status === 'closed' && serverInc.Status !== 'closed') {
+          serverInc.Status = 'closed';
+        }
+      }
+      incidentsById[serverInc.Incident_ID] = serverInc;
+    });
     renderCards();
     renderStats();
   }

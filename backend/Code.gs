@@ -277,6 +277,7 @@ function route_(e) {
           case 'reposition_reject':   response = repositionReject_(u, params); break;
           case 'reposition_list':     response = repositionList_(u, params); break;
           case 'unit_positions':      response = unitPositions_(u, params); break;
+          case 'units_list':         response = unitsList_(u, params); break;
 
           // station status
           case 'station_status_set':  response = stationStatusSet_(u, params); break;
@@ -682,6 +683,42 @@ function repositionList_(user, params) {
     }
   }
   return { ok:true, pending: out.pending, recent: out.recent };
+}
+
+
+function unitsList_(user, params) {
+  const sh = sheet_(SHEETS.UNITS);
+  if (!sh) return { ok:true, units: [] };
+  const data = sh.getDataRange().getValues();
+  if (data.length < 2) return { ok:true, units: [] };
+  const h = data[0];
+  const ci = findColIdx_(h, ['Unit_Code','Unit ID','Unit Code']);
+  const ti = findColIdx_(h, ['Unit Type','Unit_Type','Type']);
+  const hi = findColIdx_(h, ['Home_Station','Home Station','Home']);
+  const ki = findColIdx_(h, ['Category']);
+  if (ci < 0) return { ok:true, units: [] };
+  const out = [];
+  for (let i = 1; i < data.length; i++) {
+    const code = String(data[i][ci] || '').trim();
+    if (!code) continue;
+    out.push({
+      code,
+      type: ti >= 0 ? String(data[i][ti] || '').trim() : '',
+      home_station: hi >= 0 ? String(data[i][hi] || '').trim() : '',
+      category: ki >= 0 ? String(data[i][ki] || '').trim() : ''
+    });
+  }
+  // Sort: Mike → Alpha → Romeo, then numeric within type
+  const order = { Mike: 0, Alpha: 1, Romeo: 2 };
+  out.sort((a, b) => {
+    const aPrefix = a.code.split('-')[0];
+    const bPrefix = b.code.split('-')[0];
+    const ap = order[aPrefix] !== undefined ? order[aPrefix] : 99;
+    const bp = order[bPrefix] !== undefined ? order[bPrefix] : 99;
+    if (ap !== bp) return ap - bp;
+    return a.code.localeCompare(b.code, undefined, { numeric: true });
+  });
+  return { ok:true, units: out };
 }
 
 // Returns {unit_code: latest position} from Reposition_Log + Mob.Units defaults
