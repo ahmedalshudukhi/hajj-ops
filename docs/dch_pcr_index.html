@@ -174,6 +174,51 @@
     color: var(--danger); font-size: 13px; margin-top: 8px; display: none;
   }
   .toggle-disposition-required.visible { display: block; }
+
+  /* Refusal of Care section (4 languages) */
+  .refusal-section { display: none; }
+  .refusal-section.visible { display: block; }
+  .refusal-section .card-inner { background: #fffbeb; border-color: #fbbf24; }
+
+  .lang-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+    margin-bottom: 12px;
+  }
+  @media (max-width: 540px) { .lang-grid { grid-template-columns: 1fr 1fr; } }
+  .lang-tile {
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 10px 6px; cursor: pointer; user-select: none;
+    text-align: center; background: white;
+    font-size: 13px;
+  }
+  .lang-tile input[type="radio"] { display: none; }
+  .lang-tile .flag { font-size: 18px; display: block; margin-bottom: 2px; }
+  .lang-tile .name { font-weight: 600; }
+  .lang-tile.selected {
+    background: #fef3c7; border-color: #f59e0b;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+  }
+
+  .refusal-statement {
+    background: white; border: 2px solid #f59e0b;
+    border-radius: var(--radius); padding: 16px;
+    font-size: 16px; line-height: 1.7;
+    margin-bottom: 12px; min-height: 100px;
+  }
+  .refusal-statement[dir="rtl"] { text-align: right; font-family: -apple-system, BlinkMacSystemFont, "Geeza Pro", "Tahoma", sans-serif; }
+  .refusal-statement.empty { color: var(--text-muted); font-style: italic; }
+
+  .ack-row {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 12px; background: #fefce8; border-radius: var(--radius-sm);
+    margin-bottom: 8px; border: 1px solid #facc15;
+  }
+  .ack-row input[type="checkbox"] {
+    width: 20px; height: 20px; margin-top: 2px; flex-shrink: 0;
+    accent-color: #d97706;
+  }
+  .ack-row label { flex: 1; font-size: 14px; cursor: pointer; }
+
 </style>
 </head>
 <body>
@@ -462,6 +507,54 @@
       </label>
     </div>
 
+    <!-- ====== REFUSAL OF CARE (4 languages) ====== -->
+    <div class="card refusal-section" id="refusalCard" style="background:#fffbeb; border-color:#fbbf24;">
+      <h3 style="color: #92400e;">⚠ Refusal of Care — Acknowledgment</h3>
+
+      <span class="label-text">Refusal language</span>
+      <div class="lang-grid">
+        <label class="lang-tile" data-lang="en">
+          <input type="radio" name="refusal_language" value="en">
+          <span class="flag">🇬🇧</span>
+          <span class="name">English</span>
+        </label>
+        <label class="lang-tile" data-lang="ar">
+          <input type="radio" name="refusal_language" value="ar">
+          <span class="flag">🇸🇦</span>
+          <span class="name">العربية</span>
+        </label>
+        <label class="lang-tile" data-lang="ur">
+          <input type="radio" name="refusal_language" value="ur">
+          <span class="flag">🇵🇰</span>
+          <span class="name">اردو</span>
+        </label>
+        <label class="lang-tile" data-lang="hi">
+          <input type="radio" name="refusal_language" value="hi">
+          <span class="flag">🇮🇳</span>
+          <span class="name">हिन्दी</span>
+        </label>
+      </div>
+
+      <span class="label-text">Statement read to patient</span>
+      <div class="refusal-statement empty" id="refusalStatement">
+        Select a language above to display the refusal statement.
+      </div>
+
+      <div class="ack-row">
+        <input type="checkbox" id="patient_acknowledged_refusal">
+        <label for="patient_acknowledged_refusal">
+          <strong>Patient acknowledgment.</strong> Patient understood the refusal statement (read aloud or shown) and chose to refuse care/transport against medical advice.
+        </label>
+      </div>
+
+      <div class="ack-row">
+        <input type="checkbox" id="paramedic_witnessed_refusal">
+        <label for="paramedic_witnessed_refusal">
+          <strong>Witness acknowledgment.</strong> Treating paramedic confirmed the refusal was explained, risks discussed, and patient appeared mentally competent to refuse.
+        </label>
+      </div>
+    </div>
+
     <!-- ====== NOTES ====== -->
     <div class="card" id="notesCard" style="display:none;">
       <h3>Additional notes</h3>
@@ -483,6 +576,15 @@
 </div>
 
 <script>
+  // ==== Refusal-of-care statements in 4 languages ====
+  const REFUSAL_TEXTS = {
+    en: "I have been advised by HMG medical staff to receive medical care or transport. I understand that refusing this care may result in serious harm to my health, including the possibility of death. I am refusing care and/or transport against medical advice. I release HMG, its medical personnel, and SAR (Saudi Arabia Railways) from any liability resulting from my refusal.",
+    ar: "نصحني الطاقم الطبي التابع لمجموعة د. سليمان الحبيب الطبية بتلقي الرعاية الطبية أو النقل إلى منشأة طبية. أدرك أن رفض هذه الرعاية قد يؤدي إلى ضرر جسيم على صحتي، بما في ذلك احتمال الوفاة. أرفض الرعاية و/أو النقل خلافاً للنصيحة الطبية. أعفي مجموعة د. سليمان الحبيب الطبية وطاقمها الطبي وشركة الخطوط الحديدية السعودية (سار) من أي مسؤولية ناتجة عن رفضي.",
+    ur: "ایچ ایم جی کے طبی عملے نے مجھے طبی دیکھ بھال یا طبی سہولت تک منتقلی حاصل کرنے کا مشورہ دیا ہے۔ میں سمجھتا ہوں کہ اس دیکھ بھال سے انکار کرنے سے میری صحت کو سنگین نقصان پہنچ سکتا ہے، جس میں موت کا امکان بھی شامل ہے۔ میں طبی مشورے کے خلاف دیکھ بھال اور/یا منتقلی سے انکار کر رہا ہوں۔ میں ایچ ایم جی، اس کے طبی عملے، اور سعودی عرب ریلویز (سار) کو میرے انکار سے پیدا ہونے والی کسی بھی ذمہ داری سے بری الذمہ کرتا ہوں۔",
+    hi: "एचएमजी के चिकित्सा कर्मचारियों ने मुझे चिकित्सा देखभाल या चिकित्सा सुविधा में स्थानांतरण प्राप्त करने की सलाह दी है। मैं समझता हूँ कि इस देखभाल से इनकार करने से मेरे स्वास्थ्य को गंभीर नुकसान हो सकता है, जिसमें मृत्यु की संभावना भी शामिल है। मैं चिकित्सा सलाह के विरुद्ध देखभाल और/या स्थानांतरण से इनकार कर रहा हूँ। मैं एचएमजी, इसके चिकित्सा कर्मचारियों, और सऊदी अरब रेलवेज़ (एसएआर) को मेरे इनकार से उत्पन्न होने वाली किसी भी देयता से मुक्त करता हूँ।"
+  };
+  const REFUSAL_LANG_NAMES = { en: 'English', ar: 'Arabic', ur: 'Urdu', hi: 'Hindi' };
+
   // ==== URL-param prefill (passed via doGet template scriptlets) ====
   window.PCR_PREFILL = {
     incident_id: '<?= incidentId ?>',
@@ -529,9 +631,46 @@
           longCard.classList.remove('visible');
         }
 
+        // Show refusal card only for Refusal of Care
+        const refusalCard = document.getElementById('refusalCard');
+        if (radio.value === 'Refusal of Care') {
+          refusalCard.classList.add('visible');
+        } else {
+          refusalCard.classList.remove('visible');
+          // Clear refusal state if disposition changes
+          document.querySelectorAll('input[name="refusal_language"]').forEach(function(r) { r.checked = false; });
+          document.querySelectorAll('.lang-tile').forEach(function(t) { t.classList.remove('selected'); });
+          document.getElementById('patient_acknowledged_refusal').checked = false;
+          document.getElementById('paramedic_witnessed_refusal').checked = false;
+          const stmt = document.getElementById('refusalStatement');
+          stmt.textContent = 'Select a language above to display the refusal statement.';
+          stmt.classList.add('empty');
+          stmt.removeAttribute('dir');
+        }
+
         // Auto-set acuity from disposition hint
         if (radio.value === 'DOA') {
           selectAcuity('black');
+        }
+      });
+    });
+
+    // Refusal language tile selection
+    document.querySelectorAll('.lang-tile').forEach(function(tile) {
+      tile.addEventListener('click', function() {
+        document.querySelectorAll('.lang-tile').forEach(function(t) { t.classList.remove('selected'); });
+        tile.classList.add('selected');
+        const radio = tile.querySelector('input[type="radio"]');
+        radio.checked = true;
+        const lang = tile.getAttribute('data-lang');
+        const stmt = document.getElementById('refusalStatement');
+        stmt.textContent = REFUSAL_TEXTS[lang] || '';
+        stmt.classList.remove('empty');
+        // RTL for Arabic and Urdu
+        if (lang === 'ar' || lang === 'ur') {
+          stmt.setAttribute('dir', 'rtl');
+        } else {
+          stmt.removeAttribute('dir');
         }
       });
     });
@@ -603,6 +742,26 @@
       return false;
     }
 
+    // Validate refusal-specific fields if disposition = Refusal of Care
+    if (dispoChecked.value === 'Refusal of Care') {
+      const refusalLang = document.querySelector('input[name="refusal_language"]:checked');
+      if (!refusalLang) {
+        showToast('Pick a refusal language and read the statement to the patient first.', true);
+        document.getElementById('refusalCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return false;
+      }
+      if (!document.getElementById('patient_acknowledged_refusal').checked) {
+        showToast('Patient must acknowledge the refusal statement.', true);
+        document.getElementById('refusalCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return false;
+      }
+      if (!document.getElementById('paramedic_witnessed_refusal').checked) {
+        showToast('Paramedic must witness/confirm the refusal.', true);
+        document.getElementById('refusalCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return false;
+      }
+    }
+
     const acuityChecked = document.querySelector('input[name="acuity"]:checked');
     const intervBoxes = document.querySelectorAll('input[name="intervention"]:checked');
     const interventions = Array.from(intervBoxes).map(function(b) { return b.value; });
@@ -644,6 +803,22 @@
       // Disposition
       disposition: dispoChecked.value,
 
+      // Refusal of Care fields (only meaningful when disposition === 'Refusal of Care')
+      refusal_language: (function() {
+        const r = document.querySelector('input[name="refusal_language"]:checked');
+        return r ? r.value : '';
+      })(),
+      refusal_language_name: (function() {
+        const r = document.querySelector('input[name="refusal_language"]:checked');
+        return r ? (REFUSAL_LANG_NAMES[r.value] || '') : '';
+      })(),
+      refusal_text_shown: (function() {
+        const r = document.querySelector('input[name="refusal_language"]:checked');
+        return r ? (REFUSAL_TEXTS[r.value] || '') : '';
+      })(),
+      patient_acknowledged_refusal: document.getElementById('patient_acknowledged_refusal').checked,
+      paramedic_witnessed_refusal: document.getElementById('paramedic_witnessed_refusal').checked,
+
       // Long PCR fields (only present for Hospital Transfer / DOA)
       narrative: document.getElementById('narrative').value,
       secondary_survey: document.getElementById('secondary_survey').value,
@@ -679,10 +854,15 @@
             if (window.PCR_PREFILL.station) document.getElementById('station').value = window.PCR_PREFILL.station;
             if (window.PCR_PREFILL.unit) document.getElementById('treating_unit').value = window.PCR_PREFILL.unit;
           }
-          document.querySelectorAll('.dispo-tile, .triage-tile, .interv').forEach(function(el) { el.classList.remove('selected'); });
+          document.querySelectorAll('.dispo-tile, .triage-tile, .interv, .lang-tile').forEach(function(el) { el.classList.remove('selected'); });
           document.getElementById('clinicalCard').style.display = 'none';
           document.getElementById('notesCard').style.display = 'none';
           document.getElementById('longCard').classList.remove('visible');
+          document.getElementById('refusalCard').classList.remove('visible');
+          const stmt = document.getElementById('refusalStatement');
+          stmt.textContent = 'Select a language above to display the refusal statement.';
+          stmt.classList.add('empty');
+          stmt.removeAttribute('dir');
         }, 1500);
       })
       .withFailureHandler(function(err) {

@@ -132,6 +132,28 @@ function createPdfFromData_(data) {
     ['Disposition', data.disposition]
   ]);
 
+  // Refusal of Care — multi-language acknowledgment block
+  if (data.disposition === 'Refusal of Care') {
+    body.appendParagraph('Refusal of Care — Acknowledgment').setHeading(DocumentApp.ParagraphHeading.HEADING2);
+
+    appendSection_(body, '', [
+      ['Refusal language',  (data.refusal_language_name || data.refusal_language || '')],
+      ['Patient acknowledged', data.patient_acknowledged_refusal ? 'YES' : 'NO'],
+      ['Paramedic witnessed',  data.paramedic_witnessed_refusal  ? 'YES' : 'NO']
+    ]);
+
+    if (data.refusal_text_shown) {
+      const stmtHeader = body.appendParagraph('Statement read to patient (' + (data.refusal_language_name || 'Language') + ')');
+      stmtHeader.editAsText().setBold(true);
+      const stmtPara = body.appendParagraph(data.refusal_text_shown);
+      // RTL alignment for Arabic / Urdu
+      if (data.refusal_language === 'ar' || data.refusal_language === 'ur') {
+        stmtPara.setAlignment(DocumentApp.HorizontalAlignment.RIGHT);
+      }
+      stmtPara.editAsText().setFontSize(11);
+    }
+  }
+
   if (data.form_route === 'long') {
     appendSection_(body, 'Long PCR', [
       ['Onset / narrative',     data.narrative],
