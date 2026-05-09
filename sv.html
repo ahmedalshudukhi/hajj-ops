@@ -199,7 +199,6 @@
 
   function renderStationGrid() {
     const grid = document.getElementById('stationGrid');
-    // Build station list — for SV: their cluster only; for leadership: all 9
     const stations = role === 'cluster_supervisor'
       ? (CLUSTER_STATIONS[cluster] || [])
       : ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
@@ -208,18 +207,54 @@
       grid.innerHTML = '<div class="empty-state">No stations in your cluster.</div>';
       return;
     }
+    // Use richer card style with case count + units + last-updated time
+    grid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(200px, 1fr))';
+
     grid.innerHTML = stations.map(function(st) {
       const cur = LATEST_STATUS[st] || {};
       const cls = cur.status ? ('s-' + cur.status) : '';
-      const note = cur.note ? '<div class="note">' + esc(cur.note) + '</div>' : '';
-      return '<div class="station-card ' + cls + '" data-station="' + st + '">'
-        + '<div class="name">' + st + '</div>'
-        + '<div class="status">' + (cur.status || 'not set') + '</div>'
-        + note + '</div>';
+      const ts = cur.updated_at ? formatRelative(cur.updated_at) : 'never set';
+      const cases = cur.cases || { total:0, open:0, red:0 };
+      const units = cur.units || 0;
+      const readiness = cur.readiness || 'not_set';
+      const noteLine = cur.note ? ('<div style="font-size:11px; color:var(--text-dim, #6b7280); margin-top:6px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.05);">' + esc(cur.note) + '</div>') : '';
+
+      return '<div class="station-card ' + cls + '" data-station="' + st + '" style="text-align:left; min-height:120px;">'
+        + '<div style="display:flex; justify-content:space-between; align-items:flex-start;">'
+        +   '<div>'
+        +     '<div class="name" style="font-size:18px;">' + st + '</div>'
+        +     '<div class="status" style="margin-top:2px;">' + (cur.status || 'not set').toUpperCase() + ' · ' + readiness + '</div>'
+        +   '</div>'
+        +   '<div style="text-align:right; font-size:10px; color:var(--text-muted, #9ca3af);">'
+        +     '<div>' + ts + '</div>'
+        +   '</div>'
+        + '</div>'
+        + '<div style="display:flex; gap:10px; margin-top:8px; font-size:11px;">'
+        +   '<div title="Cases today (open + closed)"><span style="color:#9ca3af;">Cases:</span> <strong style="color:#e5e7eb;">' + cases.total + '</strong>'
+        +     (cases.open ? ' <span style="color:#fcd34d;">(' + cases.open + ' open)</span>' : '') + '</div>'
+        +   '<div title="Units assigned to station"><span style="color:#9ca3af;">Units:</span> <strong style="color:#e5e7eb;">' + units + '</strong></div>'
+        +   (cases.red ? '<div style="color:#fca5a5;">🔴 ' + cases.red + '</div>' : '')
+        + '</div>'
+        + noteLine
+        + '</div>';
     }).join('');
     grid.querySelectorAll('.station-card').forEach(function(c) {
       c.addEventListener('click', function() { openStatusModal(c.dataset.station); });
     });
+  }
+
+  function formatRelative(iso) {
+    if (!iso) return 'never';
+    const then = new Date(iso);
+    if (isNaN(then.getTime())) return 'never';
+    const seconds = Math.floor((Date.now() - then.getTime()) / 1000);
+    if (seconds < 60) return seconds + 's ago';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return minutes + 'm ago';
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return hours + 'h ago';
+    const days = Math.floor(hours / 24);
+    return days + 'd ago';
   }
 
   // Modal

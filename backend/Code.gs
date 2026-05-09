@@ -789,26 +789,121 @@ function stationStatusSet_(user, params) {
 }
 
 function stationStatusList_(user, params) {
+  if (!hasRole_(user, ['cluster_supervisor','dispatcher','leadership','admin','sar'])) return { ok:false, error:'forbidden' };
+
+  // 1. Read Station_Status_Log — keep latest entry per station
   const sh = sheet_(SHEETS.STATION_STATUS_LOG);
-  const latest = {};
-  if (sh) {
+  const latestPerStation = {};
+  if (sh && sh.getLastRow() > 1) {
     const data = sh.getDataRange().getValues();
-    if (data.length > 1) {
-      const h = data[0];
-      for (let i = 1; i < data.length; i++) {
-        const station = String(data[i][h.indexOf('Station')] || '').toUpperCase();
-        if (!station) continue;
-        latest[station] = {
-          station,
-          status: data[i][h.indexOf('Status')],
-          note: data[i][h.indexOf('Note')],
-          ts: new Date(data[i][h.indexOf('Timestamp')]).toISOString(),
-          operator: data[i][h.indexOf('Operator_NID')]
+    const h = data[0];
+    const tsIdx     = findColIdx_(h, ['Timestamp','When','Set_At']);
+    const stIdx     = findColIdx_(h, ['Station']);
+    const statusIdx = findColIdx_(h, ['Status','Color']);
+    const noteIdx   = findColIdx_(h, ['Note','Notes']);
+    const opIdx     = findColIdx_(h, ['Operator_NID','Set_By','By']);
+    for (let i = 1; i < data.length; i++) {
+      const station = String(data[i][stIdx] || '').toUpperCase();
+      if (!station) continue;
+      const ts = data[i][tsIdx] ? new Date(data[i][tsIdx]).getTime() : 0;
+      const cur = latestPerStation[station];
+      if (!cur || ts > cur._ts) {
+        latestPerStation[station] = {
+          station: station,
+          status:  String(data[i][statusIdx] || '').toLowerCase(),
+          note:    String(data[i][noteIdx] || ''),
+          operator_nid: String(data[i][opIdx] || ''),
+          updated_at: data[i][tsIdx] ? new Date(data[i][tsIdx]).toISOString() : '',
+          _ts: ts
         };
       }
     }
   }
-  return { ok:true, stations: Object.values(latest) };
+
+  // 2. Pull case counts per station from Dispatch_Log (today)
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayStart = today.getTime();
+  const casesPerStation = {};
+  const dsh = sheet_(SHEETS.DISPATCH_LOG);
+  if (dsh && dsh.getLastRow() > 1) {
+    const data = dsh.getDataRange().getValues();
+    const h = data[0];
+    const stIdx     = findColIdx_(h, ['Zone','Station']);
+    const createdIdx = findColIdx_(h, ['Created_At','Created']);
+    const statusIdx = findColIdx_(h, ['Status']);
+    const triageIdx = findColIdx_(h, ['Category','Triage']);
+    for (let i = 1; i < data.length; i++) {
+      const station = String(data[i][stIdx] || '').toUpperCase();
+      if (!station) continue;
+      const ts = data[i][createdIdx] ? new Date(data[i][createdIdx]).getTime() : 0;
+      if (ts < todayStart) continue;
+      if (!casesPerStation[station]) casesPerStation[station] = { total:0, open:0, red:0, yellow:0, green:0, black:0, closed:0 };
+      const c = casesPerStation[station];
+      c.total++;
+      const st = String(data[i][statusIdx] || '').toLowerCase();
+      if (st === 'closed') c.closed++; else c.open++;
+      const tr = String(data[i][triageIdx] || '').toLowerCase();
+      if (c[tr] !== undefined) c[tr]++;
+    }
+  }
+
+  // 3. Pull unit count per station (current + repositioned)
+  const unitsPerStation = {};
+  const ush = sheet_(SHEETS.UNITS);
+  if (ush && ush.getLastRow() > 1) {
+    const data = ush.getDataRange().getValues();
+    const h = data[0];
+    const homeIdx = findColIdx_(h, ['Home_Station','Home Station','Home']);
+    for (let i = 1; i < data.length; i++) {
+      const station = String(data[i][homeIdx] || '').toUpperCase();
+      if (!station) continue;
+      unitsPerStation[station] = (unitsPerStation[station] || 0) + 1;
+    }
+  }
+
+  // Apply repositioning overrides — read Reposition_Log latest applied
+  const rsh = sheet_(SHEETS.REPOSITION_LOG);
+  if (rsh && rsh.getLastRow() > 1) {
+    const data = rsh.getDataRange().getValues();
+    const h = data[0];
+    const fromIdx   = findColIdx_(h, ['From_Station']);
+    const toIdx     = findColIdx_(h, ['To_Station']);
+    const statusIdx = findColIdx_(h, ['Status']);
+    for (let i = 1; i < data.length; i++) {
+      const status = String(data[i][statusIdx] || '').toLowerCase();
+      if (status !== 'approved' && status !== 'auto_approved' && status !== 'active') continue;
+      const from = String(data[i][fromIdx] || '').toUpperCase();
+      const to   = String(data[i][toIdx]   || '').toUpperCase();
+      if (from && unitsPerStation[from]) unitsPerStation[from]--;
+      if (to)   unitsPerStation[to] = (unitsPerStation[to] || 0) + 1;
+    }
+  }
+
+  // Combine
+  const stations = [];
+  const seen = {};
+  Object.keys(latestPerStation).forEach(function(st) {
+    seen[st] = true;
+    const entry = latestPerStation[st];
+    delete entry._ts;
+    entry.cases     = casesPerStation[st] || { total:0, open:0 };
+    entry.units     = unitsPerStation[st] || 0;
+    entry.readiness = entry.status === 'green' ? 'ready' : (entry.status === 'yellow' ? 'busy' : (entry.status === 'red' ? 'overload' : (entry.status === 'black' ? 'down' : 'unknown')));
+    stations.push(entry);
+  });
+  // Also include stations that never set status (so frontend shows them too)
+  ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'].forEach(function(st) {
+    if (!seen[st]) {
+      stations.push({
+        station: st, status:'', note:'', operator_nid:'', updated_at:'',
+        cases: casesPerStation[st] || { total:0, open:0 },
+        units: unitsPerStation[st] || 0,
+        readiness: 'not_set'
+      });
+    }
+  });
+
+  return { ok:true, stations: stations };
 }
 
 // ============================================================

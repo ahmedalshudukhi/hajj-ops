@@ -144,9 +144,14 @@
     }
     grid.innerHTML = stations.map(function(s) {
       const cls = s.status ? ('s-' + s.status) : '';
-      return '<div class="station-card ' + cls + '">'
-        + '<div class="name">' + esc(s.station) + '</div>'
-        + '<div class="status">' + esc(s.status || '—') + '</div>'
+      const cases = s.cases || { total:0, open:0 };
+      return '<div class="station-card ' + cls + '" style="text-align:left;">'
+        + '<div class="name" style="font-size:16px;">' + esc(s.station) + '</div>'
+        + '<div class="status" style="margin-top:2px;">' + esc(s.status || '—').toUpperCase() + '</div>'
+        + '<div style="font-size:11px; color:#9ca3af; margin-top:6px;">'
+        +   '<div>Cases today: <strong style="color:#e5e7eb;">' + cases.total + '</strong></div>'
+        +   (cases.open ? '<div>Open: <strong style="color:#fcd34d;">' + cases.open + '</strong></div>' : '')
+        + '</div>'
         + '</div>';
     }).join('');
   }

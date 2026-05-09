@@ -250,6 +250,28 @@
       </div>
     </div>
 
+    <!-- ====== Filter strip ====== -->
+    <div class="panel" style="grid-column: 1 / -1; padding: 12px 14px;">
+      <div class="panel-title" style="margin-bottom:8px;">
+        <span>View filters</span>
+        <span class="meta" id="filterMeta">today · all movements</span>
+      </div>
+      <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-muted, #9ca3af);">Date</label>
+          <input type="date" id="filterDate" min="2026-05-01" max="2026-06-09" value="" style="padding:6px 10px; background:rgba(255,255,255,0.05); border:1px solid var(--border, #1f2937); border-radius:6px; color:#e5e7eb; font-size:13px;">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-muted, #9ca3af);">Movement</label>
+          <select id="filterMovement" style="padding:6px 10px; background:rgba(255,255,255,0.05); border:1px solid var(--border, #1f2937); border-radius:6px; color:#e5e7eb; font-size:13px;">
+            <option value="">All movements</option>
+          </select>
+        </div>
+        <button class="btn btn--ghost btn--small" id="filterReset" style="margin-top:14px;">Reset</button>
+        <div style="margin-left:auto; font-size:11px; color:var(--text-muted, #9ca3af); margin-top:14px;" id="filterDH">—</div>
+      </div>
+    </div>
+
     <!-- ====== Augmentations / Unit Movements ====== -->
     <div class="panel" style="grid-column: span 2;">
       <div class="panel-title">
@@ -786,6 +808,98 @@
     }
   }
 
+
+
+
+  // ===== Filter strip =====
+  let _allAugRows = [];
+  let _selectedDate = '';
+  let _selectedMovement = '';
+
+  function dhDayFromDate(yyyy_mm_dd) {
+    if (!yyyy_mm_dd) return null;
+    const d = new Date(yyyy_mm_dd + 'T00:00:00+03:00');
+    const dh1 = new Date('2026-05-27T00:00:00+03:00');
+    const days = Math.round((d - dh1) / 86400000);
+    return days >= 0 && days <= 13 ? (days + 1) : null;
+  }
+
+  function setFilterMeta() {
+    const meta = document.getElementById('filterMeta');
+    const dhBadge = document.getElementById('filterDH');
+    if (!meta) return;
+    const parts = [];
+    if (_selectedDate) {
+      const dh = dhDayFromDate(_selectedDate);
+      parts.push(_selectedDate + (dh ? ' (DH ' + dh + ')' : ''));
+    } else {
+      parts.push('all dates');
+    }
+    parts.push(_selectedMovement ? ('movement ' + _selectedMovement) : 'all movements');
+    meta.textContent = parts.join(' · ');
+    if (dhBadge) {
+      const today = new Date().toISOString().slice(0,10);
+      const dh = dhDayFromDate(_selectedDate || today);
+      dhBadge.textContent = dh ? ('Operational day: DH ' + dh) : 'Pre-Hajj';
+    }
+  }
+
+  function filteredAugRows() {
+    let rows = _allAugRows.slice();
+    if (_selectedMovement) {
+      rows = rows.filter(r => String(r.Movement || '').toLowerCase() === _selectedMovement.toLowerCase());
+    }
+    if (_selectedDate) {
+      const targetDH = dhDayFromDate(_selectedDate);
+      if (targetDH) {
+        rows = rows.filter(r => {
+          const rdh = parseInt(String(r['DH Day'] || r.DH || '').replace(/[^0-9]/g, ''), 10);
+          return rdh === targetDH;
+        });
+      }
+    }
+    return rows;
+  }
+
+  function applyFilters() {
+    setFilterMeta();
+    const filtered = filteredAugRows();
+    const movs = {};
+    filtered.forEach(r => { const m = String(r.Movement || 'unspecified'); movs[m] = (movs[m] || 0) + 1; });
+    renderAugmentations({ rows: filtered, by_movement: movs });
+  }
+
+  // Hook initial augmentations response: we override renderAugmentations
+  // entry to cache rows for filtering, then re-render with current filter.
+  const _origRenderAug = renderAugmentations;
+  renderAugmentations = function(r) {
+    if (r && Array.isArray(r.rows) && r.rows.length && !_allAugRows.length) {
+      _allAugRows = r.rows.slice();
+      // Populate movement dropdown with unique movements
+      const movs = Array.from(new Set(_allAugRows.map(x => String(x.Movement || 'unspecified')))).sort();
+      const sel = document.getElementById('filterMovement');
+      if (sel && sel.options.length <= 1) {
+        movs.forEach(m => { const opt = document.createElement('option'); opt.value = m; opt.textContent = m; sel.appendChild(opt); });
+      }
+    }
+    _origRenderAug(r);
+  };
+
+  // Wire filter inputs
+  setTimeout(function() {
+    const dateInp = document.getElementById('filterDate');
+    const movSel  = document.getElementById('filterMovement');
+    const reset   = document.getElementById('filterReset');
+    if (dateInp) dateInp.addEventListener('change', function() { _selectedDate = this.value; applyFilters(); });
+    if (movSel) movSel.addEventListener('change', function() { _selectedMovement = this.value; applyFilters(); });
+    if (reset) reset.addEventListener('click', function() {
+      _selectedDate = ''; _selectedMovement = '';
+      if (dateInp) dateInp.value = '';
+      if (movSel) movSel.value = '';
+      applyFilters();
+    });
+    setFilterMeta();
+  }, 200);
 
 })();
 </script>
