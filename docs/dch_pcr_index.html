@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>Q-PCR · HMG Hajj 2026</title>
+<style>
+  :root {
+    --bg: #f8fafc; --surface: #ffffff; --border: #e2e8f0; --text: #0f172a;
+    --text-muted: #64748b; --text-dim: #475569;
+    --primary: #0f4c81; --primary-hover: #0a3a66;
+    --danger: #dc2626; --warning: #f59e0b; --success: #16a34a; --info: #2563eb;
+    --radius: 8px; --radius-sm: 6px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    font-size: 15px; line-height: 1.5;
+    padding-bottom: 80px;
+  }
+  .container { max-width: 720px; margin: 0 auto; padding: 16px; padding-bottom: env(safe-area-inset-bottom); }
+
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding-top: 8px; }
+  .brand-mark { width: 36px; height: 36px; background: var(--primary); color: white;
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px; }
+  .brand-text h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+  .brand-text .sub { font-size: 12px; color: var(--text-muted); }
+
+  .banner-link {
+    background: #dcfce7; border: 1px solid #22c55e; color: #166534;
+    padding: 10px 14px; border-radius: var(--radius); font-size: 13px;
+    margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+  }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px; margin-bottom: 12px;
+  }
+  .card h3 { margin: 0 0 12px; font-size: 13px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+
+  label.field { display: block; margin-bottom: 12px; }
+  label.field > .label-text {
+    display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px;
+    color: var(--text-dim);
+  }
+  label.field > .label-text .req { color: var(--danger); margin-left: 2px; }
+
+  input[type="text"], input[type="number"], input[type="datetime-local"],
+  input[type="tel"], select, textarea {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+    border-radius: var(--radius-sm); font-size: 15px; font-family: inherit;
+    background: white; color: var(--text);
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary);
+  }
+  textarea { min-height: 70px; resize: vertical; }
+
+  .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .vitals-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .vitals-row label.field { margin-bottom: 0; }
+  .vitals-row input { padding: 8px 10px; font-size: 14px; }
+  @media (max-width: 540px) {
+    .row-3 { grid-template-columns: 1fr; }
+    .vitals-row { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  /* Disposition tiles */
+  .dispo-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  }
+  .dispo-tile {
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px; cursor: pointer; background: white;
+    text-align: center; user-select: none;
+    transition: all 0.15s;
+  }
+  .dispo-tile:hover { border-color: var(--primary); }
+  .dispo-tile input[type="radio"] { display: none; }
+  .dispo-tile .icon { font-size: 22px; margin-bottom: 4px; }
+  .dispo-tile .title { font-size: 13px; font-weight: 600; }
+  .dispo-tile .sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .dispo-tile.selected {
+    border-color: var(--primary); background: #f0f7ff;
+    box-shadow: 0 0 0 2px rgba(15, 76, 129, 0.15);
+  }
+  .dispo-tile.selected[data-route="long"] { border-color: var(--danger); background: #fff5f5; box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15); }
+
+  /* Triage radios */
+  .triage-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .triage-tile {
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 12px 6px; text-align: center; cursor: pointer; user-select: none;
+    font-weight: 600; font-size: 13px; background: white;
+    transition: all 0.15s;
+  }
+  .triage-tile input[type="radio"] { display: none; }
+  .triage-tile.t-red    { color: #b91c1c; }
+  .triage-tile.t-yellow { color: #b45309; }
+  .triage-tile.t-green  { color: #15803d; }
+  .triage-tile.t-black  { color: #374151; }
+  .triage-tile.selected.t-red    { background: #fee2e2; border-color: #dc2626; }
+  .triage-tile.selected.t-yellow { background: #fef3c7; border-color: #f59e0b; }
+  .triage-tile.selected.t-green  { background: #dcfce7; border-color: #22c55e; }
+  .triage-tile.selected.t-black  { background: #e5e7eb; border-color: #6b7280; }
+
+  .cardiac-arrest {
+    margin-top: 10px;
+    background: #fef2f2; border: 1px solid #fca5a5;
+    padding: 10px 12px; border-radius: var(--radius-sm);
+    color: #991b1b; font-size: 14px;
+    display: none; align-items: center; gap: 8px;
+  }
+  .cardiac-arrest.visible { display: flex; }
+  .cardiac-arrest input[type="checkbox"] { width: 18px; height: 18px; accent-color: #dc2626; }
+
+  /* Intervention checkboxes */
+  .interventions {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+  }
+  @media (max-width: 540px) { .interventions { grid-template-columns: 1fr 1fr; } }
+  .interv {
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 8px 10px; font-size: 13px; cursor: pointer; user-select: none;
+    background: white; display: flex; align-items: center; gap: 6px;
+  }
+  .interv input { width: 16px; height: 16px; margin: 0; accent-color: var(--primary); }
+  .interv.selected { background: #f0f7ff; border-color: var(--primary); }
+
+  /* Long PCR section visible only for hospital/DOA */
+  .long-section { display: none; }
+  .long-section.visible { display: block; }
+
+  details.fallback {
+    margin-top: 8px; font-size: 13px;
+  }
+  details.fallback summary { cursor: pointer; color: var(--text-muted); padding: 4px 0; }
+  details.fallback[open] summary { color: var(--primary); }
+  details.fallback > div { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; }
+
+  .submit-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: white; border-top: 1px solid var(--border);
+    padding: 10px 16px; padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    display: flex; gap: 10px; align-items: center; justify-content: flex-end;
+    z-index: 50;
+  }
+  .btn-submit {
+    background: var(--primary); color: white; border: none;
+    padding: 12px 24px; border-radius: var(--radius-sm);
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    min-width: 140px;
+  }
+  .btn-submit:hover { background: var(--primary-hover); }
+  .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .toast {
+    position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    background: #16a34a; color: white; padding: 10px 16px;
+    border-radius: var(--radius-sm); font-size: 14px;
+    z-index: 100; opacity: 0; transition: opacity 0.3s;
+  }
+  .toast.error { background: var(--danger); }
+  .toast.visible { opacity: 1; }
+
+  .toggle-disposition-required {
+    color: var(--danger); font-size: 13px; margin-top: 8px; display: none;
+  }
+  .toggle-disposition-required.visible { display: block; }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <div class="brand">
+    <div class="brand-mark">Q-PCR</div>
+    <div class="brand-text">
+      <h1>Quick Patient Care Report</h1>
+      <div class="sub">HMG · Hajj 2026 MMMP-SL</div>
+    </div>
+  </div>
+
+  <? if (incidentId) { ?>
+    <div class="banner-link">
+      🔗 <strong>Linked dispatch:</strong>&nbsp;<?= incidentId ?>
+    </div>
+  <? } ?>
+
+  <input type="hidden" id="incident_id" value="<?= incidentId ?>">
+
+  <form id="pcrForm" onsubmit="return submitForm(event);">
+
+    <!-- ====== ENCOUNTER ====== -->
+    <div class="card">
+      <h3>Encounter</h3>
+
+      <label class="field">
+        <span class="label-text">Station <span class="req">*</span></span>
+        <select id="station" required>
+          <option value="">Select station</option>
+          <option value="ARF1">ARF1 — Arafat 1</option>
+          <option value="ARF2">ARF2 — Arafat 2</option>
+          <option value="ARF3">ARF3 — Arafat 3</option>
+          <option value="MUZ1">MUZ1 — Muzdalifah 1</option>
+          <option value="MUZ2">MUZ2 — Muzdalifah 2</option>
+          <option value="MUZ3">MUZ3 — Muzdalifah 3</option>
+          <option value="MIN1">MIN1 — Mina 1</option>
+          <option value="MIN2">MIN2 — Mina 2</option>
+          <option value="MIN3">MIN3 — Mina 3</option>
+          <option value="DEPOT">DEPOT — OCC Hub</option>
+        </select>
+      </label>
+
+      <div class="row-2">
+        <label class="field">
+          <span class="label-text">Sub-location</span>
+          <input type="text" id="sub_location" placeholder="e.g. south ramp">
+        </label>
+        <label class="field">
+          <span class="label-text">Time of contact</span>
+          <input type="datetime-local" id="contact_time">
+        </label>
+      </div>
+
+      <div class="row-2">
+        <label class="field">
+          <span class="label-text">Treating unit</span>
+          <input type="text" id="treating_unit" placeholder="e.g. Alpha-12">
+        </label>
+        <label class="field">
+          <span class="label-text">Crew NIDs (comma)</span>
+          <input type="text" id="crew_nids" placeholder="1xxxxxxxxx, 1xxxxxxxxx">
+        </label>
+      </div>
+    </div>
+
+    <!-- ====== PATIENT ====== -->
+    <div class="card">
+      <h3>Patient</h3>
+
+      <label class="field">
+        <span class="label-text">Nusuk ID <span style="color: var(--text-muted); font-weight: 400; font-size: 12px;">(preferred)</span></span>
+        <input type="text" id="patient_nusuk_id" placeholder="Nusuk ID" autocomplete="off" inputmode="text">
+      </label>
+
+      <details class="fallback">
+        <summary>No Nusuk? Use a fallback ID</summary>
+        <div>
+          <input type="text" id="patient_nid" placeholder="Saudi NID (10 digits)" inputmode="numeric">
+          <input type="text" id="patient_iqama" placeholder="Iqama number" inputmode="numeric">
+          <input type="text" id="patient_passport" placeholder="Passport number">
+          <input type="text" id="patient_unknown_description" placeholder="Unknown — describe (e.g. adult male, ~40)">
+        </div>
+      </details>
+
+      <div class="row-3" style="margin-top: 12px;">
+        <label class="field">
+          <span class="label-text">Age</span>
+          <input type="text" id="age" placeholder="e.g. 45 or 30-40" inputmode="text">
+        </label>
+        <label class="field">
+          <span class="label-text">Gender</span>
+          <select id="gender">
+            <option value="">—</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Unknown">Unknown</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="label-text">Nationality</span>
+          <input type="text" id="nationality" placeholder="e.g. Saudi">
+        </label>
+      </div>
+    </div>
+
+    <!-- ====== DISPOSITION (drives form path) ====== -->
+    <div class="card">
+      <h3>Disposition <span class="req">*</span></h3>
+
+      <div class="dispo-grid">
+        <label class="dispo-tile" data-route="quick">
+          <input type="radio" name="disposition" value="Treat & Release">
+          <div class="icon">✓</div>
+          <div class="title">Treat & Release</div>
+          <div class="sub">Patient stays</div>
+        </label>
+        <label class="dispo-tile" data-route="quick">
+          <input type="radio" name="disposition" value="Transfer to Clinic">
+          <div class="icon">→</div>
+          <div class="title">Transfer to Clinic</div>
+          <div class="sub">Station/depot clinic</div>
+        </label>
+        <label class="dispo-tile" data-route="quick">
+          <input type="radio" name="disposition" value="Refusal of Care">
+          <div class="icon">✗</div>
+          <div class="title">Refusal of Care</div>
+          <div class="sub">Patient declined</div>
+        </label>
+        <label class="dispo-tile" data-route="long">
+          <input type="radio" name="disposition" value="Transfer to Hospital">
+          <div class="icon">⛑</div>
+          <div class="title">Transfer to Hospital</div>
+          <div class="sub">Long PCR required</div>
+        </label>
+        <label class="dispo-tile" data-route="long" style="grid-column: span 2;">
+          <input type="radio" name="disposition" value="DOA">
+          <div class="icon">⚫</div>
+          <div class="title">Deceased (DOA)</div>
+          <div class="sub">Long PCR required</div>
+        </label>
+      </div>
+
+      <div class="toggle-disposition-required" id="dispoErr">Pick a disposition above to continue.</div>
+    </div>
+
+    <!-- ====== CLINICAL (always visible once disposition picked) ====== -->
+    <div class="card" id="clinicalCard" style="display: none;">
+      <h3>Clinical</h3>
+
+      <label class="field">
+        <span class="label-text">Chief complaint <span class="req">*</span></span>
+        <select id="complaint" required>
+          <option value="">Select complaint</option>
+          <option>Heat exhaustion</option>
+          <option>Heat stroke</option>
+          <option>Dehydration</option>
+          <option>Syncope / fainting</option>
+          <option>Chest pain</option>
+          <option>Shortness of breath</option>
+          <option>Asthma / wheeze</option>
+          <option>Hypertension</option>
+          <option>Hypoglycemia</option>
+          <option>Hyperglycemia</option>
+          <option>Trauma — minor</option>
+          <option>Trauma — major</option>
+          <option>Fall</option>
+          <option>Fracture suspected</option>
+          <option>Laceration / wound</option>
+          <option>Burn</option>
+          <option>Headache</option>
+          <option>Dizziness</option>
+          <option>Nausea / vomiting</option>
+          <option>Diarrhea</option>
+          <option>Abdominal pain</option>
+          <option>Back pain</option>
+          <option>Allergic reaction</option>
+          <option>Anaphylaxis</option>
+          <option>Seizure</option>
+          <option>Stroke / CVA suspected</option>
+          <option>Cardiac arrest</option>
+          <option>Diabetic emergency</option>
+          <option>Foot blister / abrasion</option>
+          <option>Eye irritation</option>
+          <option>Other</option>
+        </select>
+      </label>
+      <label class="field" id="complaintOtherWrap" style="display:none;">
+        <span class="label-text">Specify "Other"</span>
+        <input type="text" id="complaint_other" placeholder="Describe the complaint">
+      </label>
+
+      <span class="label-text" style="margin-top: 8px;">Acuity <span class="req">*</span></span>
+      <div class="triage-row">
+        <label class="triage-tile t-red">
+          <input type="radio" name="acuity" value="red"> 🔴 Red
+        </label>
+        <label class="triage-tile t-yellow">
+          <input type="radio" name="acuity" value="yellow"> 🟡 Yellow
+        </label>
+        <label class="triage-tile t-green">
+          <input type="radio" name="acuity" value="green"> 🟢 Green
+        </label>
+        <label class="triage-tile t-black">
+          <input type="radio" name="acuity" value="black"> ⚫ Black
+        </label>
+      </div>
+
+      <label class="cardiac-arrest" id="cardiacArrest">
+        <input type="checkbox" id="cardiac_arrest_checkbox">
+        <span><strong>⚡ Cardiac arrest</strong> in progress / occurred</span>
+      </label>
+
+      <div style="margin-top: 14px;">
+        <span class="label-text">Vitals</span>
+        <div class="vitals-row">
+          <label class="field"><span class="label-text">BP</span><input type="text" id="bp" placeholder="120/80"></label>
+          <label class="field"><span class="label-text">HR</span><input type="text" id="hr" placeholder="72" inputmode="numeric"></label>
+          <label class="field"><span class="label-text">RR</span><input type="text" id="rr" placeholder="16" inputmode="numeric"></label>
+          <label class="field"><span class="label-text">SpO₂</span><input type="text" id="spo2" placeholder="98" inputmode="numeric"></label>
+          <label class="field"><span class="label-text">Temp</span><input type="text" id="temp" placeholder="37" inputmode="decimal"></label>
+          <label class="field"><span class="label-text">GCS</span><input type="text" id="gcs" placeholder="15" inputmode="numeric"></label>
+        </div>
+      </div>
+
+      <div style="margin-top: 14px;">
+        <span class="label-text">Interventions</span>
+        <div class="interventions">
+          <label class="interv"><input type="checkbox" name="intervention" value="O2"> O₂</label>
+          <label class="interv"><input type="checkbox" name="intervention" value="IV access"> IV access</label>
+          <label class="interv"><input type="checkbox" name="intervention" value="Splint"> Splint</label>
+          <label class="interv"><input type="checkbox" name="intervention" value="Dressing"> Dressing</label>
+          <label class="interv"><input type="checkbox" name="intervention" value="Nebulizer"> Nebulizer</label>
+          <label class="interv"><input type="checkbox" name="intervention" value="Vital signs only"> Vitals only</label>
+          <label class="interv"><input type="checkbox" name="intervention" value="AED"> AED</label>
+          <label class="interv"><input type="checkbox" name="intervention" value="BVM"> BVM</label>
+          <label class="interv"><input type="checkbox" name="intervention" value="CPR"> CPR</label>
+          <label class="interv"><input type="checkbox" name="intervention" value="Glucose"> Glucose</label>
+          <label class="interv"><input type="checkbox" name="intervention" value="Cooling"> Cooling</label>
+          <label class="interv"><input type="checkbox" name="intervention" value="Other"> Other</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== LONG PCR (only for Hospital Transfer / DOA) ====== -->
+    <div class="card long-section" id="longCard">
+      <h3>Long PCR — required for hospital transfer / DOA</h3>
+
+      <label class="field">
+        <span class="label-text">Onset / timeline narrative</span>
+        <textarea id="narrative" placeholder="When did symptoms start? What happened? Any pre-existing conditions known?"></textarea>
+      </label>
+
+      <label class="field">
+        <span class="label-text">Secondary survey findings</span>
+        <textarea id="secondary_survey" placeholder="Head-to-toe findings beyond chief complaint"></textarea>
+      </label>
+
+      <label class="field">
+        <span class="label-text">Medications administered (with doses + times)</span>
+        <textarea id="medications" placeholder="e.g. ASA 300mg PO 14:32 · Salbutamol 5mg neb 14:35"></textarea>
+      </label>
+
+      <div class="row-2">
+        <label class="field">
+          <span class="label-text">Hospital destination</span>
+          <input type="text" id="hospital_destination" placeholder="e.g. KFMC Riyadh">
+        </label>
+        <label class="field">
+          <span class="label-text">Transfer started</span>
+          <input type="datetime-local" id="transfer_started">
+        </label>
+      </div>
+
+      <label class="field">
+        <span class="label-text">Family / next-of-kin notified</span>
+        <select id="nok_notified">
+          <option value="">—</option>
+          <option>Yes</option>
+          <option>No</option>
+          <option>Pending</option>
+          <option>Not applicable</option>
+        </select>
+      </label>
+    </div>
+
+    <!-- ====== NOTES ====== -->
+    <div class="card" id="notesCard" style="display:none;">
+      <h3>Additional notes</h3>
+      <label class="field">
+        <span class="label-text">Notes</span>
+        <textarea id="notes" placeholder="Any additional information"></textarea>
+      </label>
+    </div>
+
+    <!-- Submit bar (fixed bottom) -->
+    <div class="submit-bar">
+      <button type="submit" class="btn-submit" id="submitBtn">Submit & Generate PDF</button>
+    </div>
+
+  </form>
+
+  <div class="toast" id="toast"></div>
+
+</div>
+
+<script>
+  // ==== URL-param prefill (passed via doGet template scriptlets) ====
+  window.PCR_PREFILL = {
+    incident_id: '<?= incidentId ?>',
+    station:     '<?= prefillStation ?>',
+    unit:        '<?= prefillUnit ?>'
+  };
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // Default contact_time to now
+    const now = new Date();
+    const tz = now.getTimezoneOffset() * 60000;
+    const localISO = new Date(now - tz).toISOString().slice(0, 16);
+    document.getElementById('contact_time').value = localISO;
+
+    // Apply URL-param prefill
+    const pre = window.PCR_PREFILL || {};
+    if (pre.station) {
+      const sel = document.getElementById('station');
+      if (sel.querySelector('option[value="' + pre.station + '"]')) {
+        sel.value = pre.station;
+      }
+    }
+    if (pre.unit) document.getElementById('treating_unit').value = pre.unit;
+
+    // Disposition tile selection (custom radio behavior)
+    document.querySelectorAll('.dispo-tile').forEach(function(tile) {
+      tile.addEventListener('click', function() {
+        document.querySelectorAll('.dispo-tile').forEach(function(t) { t.classList.remove('selected'); });
+        tile.classList.add('selected');
+        const radio = tile.querySelector('input[type="radio"]');
+        radio.checked = true;
+        document.getElementById('dispoErr').classList.remove('visible');
+
+        // Show clinical + notes always once disposition picked
+        document.getElementById('clinicalCard').style.display = 'block';
+        document.getElementById('notesCard').style.display = 'block';
+
+        // Show long card only for hospital/DOA
+        const route = tile.getAttribute('data-route');
+        const longCard = document.getElementById('longCard');
+        if (route === 'long') {
+          longCard.classList.add('visible');
+        } else {
+          longCard.classList.remove('visible');
+        }
+
+        // Auto-set acuity from disposition hint
+        if (radio.value === 'DOA') {
+          selectAcuity('black');
+        }
+      });
+    });
+
+    // Triage tile selection
+    document.querySelectorAll('.triage-tile').forEach(function(tile) {
+      tile.addEventListener('click', function() {
+        const radio = tile.querySelector('input[type="radio"]');
+        selectAcuity(radio.value);
+      });
+    });
+
+    // Cardiac arrest visibility tied to acuity=red
+    function syncCardiac() {
+      const checked = document.querySelector('input[name="acuity"]:checked');
+      const ca = document.getElementById('cardiacArrest');
+      if (checked && checked.value === 'red') {
+        ca.classList.add('visible');
+      } else {
+        ca.classList.remove('visible');
+        document.getElementById('cardiac_arrest_checkbox').checked = false;
+      }
+    }
+    document.querySelectorAll('input[name="acuity"]').forEach(function(r) {
+      r.addEventListener('change', syncCardiac);
+    });
+
+    function selectAcuity(value) {
+      document.querySelectorAll('.triage-tile').forEach(function(t) { t.classList.remove('selected'); });
+      const tile = document.querySelector('.triage-tile.t-' + value);
+      if (tile) {
+        tile.classList.add('selected');
+        const radio = tile.querySelector('input[type="radio"]');
+        radio.checked = true;
+        radio.dispatchEvent(new Event('change'));
+      }
+    }
+
+    // Intervention checkbox visual state
+    document.querySelectorAll('.interv').forEach(function(box) {
+      const cb = box.querySelector('input[type="checkbox"]');
+      cb.addEventListener('change', function() {
+        if (cb.checked) box.classList.add('selected'); else box.classList.remove('selected');
+      });
+    });
+
+    // Complaint Other -> show free-text
+    document.getElementById('complaint').addEventListener('change', function(e) {
+      document.getElementById('complaintOtherWrap').style.display = (e.target.value === 'Other') ? 'block' : 'none';
+    });
+  });
+
+  function showToast(msg, isError) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.toggle('error', !!isError);
+    t.classList.add('visible');
+    setTimeout(function() { t.classList.remove('visible'); }, 3500);
+  }
+
+  function submitForm(ev) {
+    ev.preventDefault();
+
+    // Validate disposition picked
+    const dispoChecked = document.querySelector('input[name="disposition"]:checked');
+    if (!dispoChecked) {
+      document.getElementById('dispoErr').classList.add('visible');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return false;
+    }
+
+    const acuityChecked = document.querySelector('input[name="acuity"]:checked');
+    const intervBoxes = document.querySelectorAll('input[name="intervention"]:checked');
+    const interventions = Array.from(intervBoxes).map(function(b) { return b.value; });
+
+    const data = {
+      // Context
+      incident_id: document.getElementById('incident_id').value || '',
+      station: document.getElementById('station').value,
+      sub_location: document.getElementById('sub_location').value,
+      contact_time: document.getElementById('contact_time').value,
+      treating_unit: document.getElementById('treating_unit').value,
+      crew_nids: document.getElementById('crew_nids').value,
+
+      // Patient
+      patient_nusuk_id: document.getElementById('patient_nusuk_id').value,
+      patient_nid: document.getElementById('patient_nid').value,
+      patient_iqama: document.getElementById('patient_iqama').value,
+      patient_passport: document.getElementById('patient_passport').value,
+      patient_unknown_description: document.getElementById('patient_unknown_description').value,
+      age: document.getElementById('age').value,
+      gender: document.getElementById('gender').value,
+      nationality: document.getElementById('nationality').value,
+
+      // Clinical
+      complaint: document.getElementById('complaint').value === 'Other'
+                 ? document.getElementById('complaint_other').value
+                 : document.getElementById('complaint').value,
+      complaint_other: document.getElementById('complaint_other').value,
+      acuity: acuityChecked ? acuityChecked.value : '',
+      cardiac_arrest: document.getElementById('cardiac_arrest_checkbox').checked,
+      bp: document.getElementById('bp').value,
+      hr: document.getElementById('hr').value,
+      rr: document.getElementById('rr').value,
+      spo2: document.getElementById('spo2').value,
+      temp: document.getElementById('temp').value,
+      gcs: document.getElementById('gcs').value,
+      interventions: interventions.join(', '),
+
+      // Disposition
+      disposition: dispoChecked.value,
+
+      // Long PCR fields (only present for Hospital Transfer / DOA)
+      narrative: document.getElementById('narrative').value,
+      secondary_survey: document.getElementById('secondary_survey').value,
+      medications: document.getElementById('medications').value,
+      hospital_destination: document.getElementById('hospital_destination').value,
+      transfer_started: document.getElementById('transfer_started').value,
+      nok_notified: document.getElementById('nok_notified').value,
+
+      // Notes
+      notes: document.getElementById('notes').value,
+
+      // Form path metadata
+      form_route: dispoChecked.parentElement.getAttribute('data-route'),
+      submitted_at: new Date().toISOString()
+    };
+
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Generating PDF…';
+
+    google.script.run
+      .withSuccessHandler(function(pdfUrl) {
+        btn.disabled = false;
+        btn.textContent = 'Submit & Generate PDF';
+        showToast('PDF generated. Opening…');
+        if (pdfUrl) {
+          window.open(pdfUrl, '_blank');
+        }
+        // Optional reset after submit (keep station/unit prefill)
+        setTimeout(function() {
+          document.getElementById('pcrForm').reset();
+          if (window.PCR_PREFILL) {
+            if (window.PCR_PREFILL.station) document.getElementById('station').value = window.PCR_PREFILL.station;
+            if (window.PCR_PREFILL.unit) document.getElementById('treating_unit').value = window.PCR_PREFILL.unit;
+          }
+          document.querySelectorAll('.dispo-tile, .triage-tile, .interv').forEach(function(el) { el.classList.remove('selected'); });
+          document.getElementById('clinicalCard').style.display = 'none';
+          document.getElementById('notesCard').style.display = 'none';
+          document.getElementById('longCard').classList.remove('visible');
+        }, 1500);
+      })
+      .withFailureHandler(function(err) {
+        btn.disabled = false;
+        btn.textContent = 'Submit & Generate PDF';
+        showToast('Submit failed: ' + (err && err.message || err), true);
+      })
+      .generatePDF(data);
+
+    return false;
+  }
+</script>
+
+</body>
+</html>
