@@ -203,10 +203,15 @@
 
   <!-- ====== HERO STATS ====== -->
   <div class="hero">
+    <div class="hero-stat hero-stat--red" style="border-top-color: #dc2626;">
+      <div class="hero-num" id="hCardiac">—</div>
+      <div class="hero-label">⚡ Cardiac arrests</div>
+      <div class="hero-sub">today</div>
+    </div>
     <div class="hero-stat hero-stat--red">
       <div class="hero-num" id="hOpen">—</div>
       <div class="hero-label">Open incidents</div>
-      <div class="hero-sub"><span id="hRed">—</span> red · <span id="hCardiac">—</span> cardiac arrests</div>
+      <div class="hero-sub"><span id="hRed">—</span> red incidents</div>
     </div>
     <div class="hero-stat hero-stat--blue">
       <div class="hero-num" id="hTransfer">—</div>
@@ -251,6 +256,14 @@
       </div>
     </div>
 
+    <!-- ====== Station Status Grid ====== -->
+    <div class="panel" style="grid-column: span 2;">
+      <div class="panel-title"><span>Station status</span><span class="meta" id="stationStatusMeta"></span></div>
+      <div id="stationStatusGrid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px;">
+        <div class="empty-panel">No station status set yet.</div>
+      </div>
+    </div>
+
     <!-- ====== Q-PCR by acuity ====== -->
     <div class="panel">
       <div class="panel-title"><span>Q-PCR by acuity</span><span class="meta" id="acuityMeta"></span></div>
@@ -267,6 +280,17 @@
     <div class="panel">
       <div class="panel-title"><span>Top chief complaints</span></div>
       <div id="complaintsBody"><div class="empty-panel">No complaints recorded yet.</div></div>
+    </div>
+
+    <!-- ====== Hourly trend (today) ====== -->
+    <div class="panel" style="grid-column: span 2;">
+      <div class="panel-title"><span>Today's tempo</span><span class="meta" id="hourlyMeta"></span></div>
+      <div id="hourlyBars" style="display:flex; gap:2px; align-items:flex-end; height:80px; padding-top:8px;">
+        <div class="empty-panel" style="width:100%;">No incidents yet today.</div>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--text-muted); margin-top:4px;">
+        <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
+      </div>
     </div>
 
     <!-- ====== Recent dispatch strip ====== -->
@@ -336,6 +360,8 @@
     renderComplaints(r.pcr);
     renderRecentDispatch(r.dispatch.recent || []);
     renderRecentPcr(r.pcr.recent || []);
+    renderStationStatus(r.stations || []);
+    renderHourlyTempo(r.dispatch.recent || []);
   }
 
   function renderHero(r) {
@@ -505,6 +531,64 @@
       '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
     }[c]));
   }
+
+
+  function renderStationStatus(stations) {
+    const body = document.getElementById('stationStatusGrid');
+    if (!stations || !stations.length) {
+      body.innerHTML = '<div class="empty-panel">No station status set yet.</div>';
+      return;
+    }
+    document.getElementById('stationStatusMeta').textContent = stations.length + ' set';
+    const colorMap = {
+      red:    { bg: 'rgba(239, 68, 68, 0.12)',  border: 'rgba(239, 68, 68, 0.4)',  text: '#fca5a5' },
+      yellow: { bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.4)', text: '#fcd34d' },
+      green:  { bg: 'rgba(34, 197, 94, 0.12)',  border: 'rgba(34, 197, 94, 0.4)',  text: '#86efac' },
+      black:  { bg: 'rgba(80, 80, 80, 0.3)',    border: 'rgba(120, 120, 120, 0.4)', text: '#9ca3af' }
+    };
+    body.innerHTML = stations.map(s => {
+      const c = colorMap[s.status] || colorMap.green;
+      return '<div style="background:' + c.bg + '; border:1px solid ' + c.border + '; border-radius:6px; padding:10px;">'
+        + '<div style="font-weight:600; font-size:14px; color:' + c.text + ';">' + escapeHtml(s.station) + '</div>'
+        + '<div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin-top:2px;">' + escapeHtml(s.status || '—') + '</div>'
+        + (s.note ? '<div style="font-size:11px; color:var(--text-dim); margin-top:4px;">' + escapeHtml(s.note) + '</div>' : '')
+        + '</div>';
+    }).join('');
+  }
+
+  function renderHourlyTempo(recent) {
+    const body = document.getElementById('hourlyBars');
+    if (!recent || !recent.length) {
+      body.innerHTML = '<div class="empty-panel" style="width:100%;">No incidents yet today.</div>';
+      return;
+    }
+    // Bucket recent incidents by hour (0-23)
+    const hourly = new Array(24).fill(0).map(() => ({ red: 0, yellow: 0, green: 0, black: 0, total: 0 }));
+    recent.forEach(inc => {
+      const d = new Date(inc.created);
+      const h = d.getHours();
+      const cat = (inc.category || 'yellow').toLowerCase();
+      if (hourly[h][cat] !== undefined) hourly[h][cat]++;
+      hourly[h].total++;
+    });
+    const max = Math.max(1, ...hourly.map(b => b.total));
+    document.getElementById('hourlyMeta').textContent = recent.length + ' total · peak ' + max + '/hr';
+    body.innerHTML = hourly.map((b, h) => {
+      const pct = (b.total / max) * 100;
+      const tooltip = h.toString().padStart(2,'0') + ':00 — ' + b.total + ' incidents (R:' + b.red + ' Y:' + b.yellow + ' G:' + b.green + (b.black ? ' B:' + b.black : '') + ')';
+      // Stacked bar (red on top, then yellow, then green, then black)
+      const segs = [];
+      if (b.red > 0)    segs.push('<div style="background:var(--danger); height:' + (b.red/b.total*pct) + '%;"></div>');
+      if (b.yellow > 0) segs.push('<div style="background:var(--warning); height:' + (b.yellow/b.total*pct) + '%;"></div>');
+      if (b.green > 0)  segs.push('<div style="background:var(--success); height:' + (b.green/b.total*pct) + '%;"></div>');
+      if (b.black > 0)  segs.push('<div style="background:var(--text-muted); height:' + (b.black/b.total*pct) + '%;"></div>');
+      const segHtml = segs.length ? segs.join('') : '<div style="height:1px;"></div>';
+      return '<div title="' + tooltip + '" style="flex:1; min-width:6px; display:flex; flex-direction:column; justify-content:flex-end; height:100%;">'
+        + '<div style="display:flex; flex-direction:column-reverse; height:100%;">' + segHtml + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
 
 })();
 </script>
