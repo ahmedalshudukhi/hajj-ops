@@ -124,45 +124,152 @@
     return exp ? exp < new Date() : false;
   }
 
+  // === D1 login (fast path, ~300ms) + GAS shadow login (background, ~5s) ===
+  // D1 token stored as hajj_token (primary). GAS token stored as hajj_gas_token (legacy).
+  // authedCall reads hajj_gas_token for ?action= calls until each endpoint is migrated.
+  const GAS_TOKEN_KEY = 'hajj_gas_token';
+
   async function login(nid, last4) {
-    const r = await call('auth', {
-      nid: nid,
-      last4: last4,
-      ua: navigator.userAgent.slice(0, 80)
-    });
+    const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    let r;
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nid: String(nid), last4_mobile: String(last4) })
+      });
+      r = await res.json();
+    } catch (e) {
+      return { ok: false, error: 'network', message: String(e) };
+    }
+    const ms = Math.round(((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - t0);
+
     if (r && r.ok && r.token) {
-      setSession(r.token, r.user, r.expires);
+      // Store D1 session
+      const expIso = r.expires_at ? new Date(r.expires_at * 1000).toISOString() : null;
+      setSession(r.token, r.user, expIso);
+      if (typeof console !== 'undefined') {
+        console.log('%c[CAD] /api/auth/login (D1) %c' + ms + 'ms %cok',
+          'color:#3b82f6', 'color:#9ca3af', 'color:#22c55e');
+      }
+
+      // Background: shadow GAS login (no await — runs in parallel)
+      // Required for unmigrated /action= endpoints. Stored under hajj_gas_token.
+      // Fire-and-forget; authedCall will wait for it if needed.
+      (async () => {
+        const t1 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+        try {
+          const gr = await call('auth', {
+            nid: nid, last4: last4, ua: navigator.userAgent.slice(0, 80)
+          });
+          const gms = Math.round(((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - t1);
+          if (gr && gr.ok && gr.token) {
+            sessionStorage.setItem(GAS_TOKEN_KEY, gr.token);
+            console.log('%c[CAD] GAS shadow login %c' + gms + 'ms %cok (legacy endpoints ready)',
+              'color:#a855f7', 'color:#9ca3af', 'color:#22c55e');
+          } else {
+            console.warn('[CAD] GAS shadow login failed in ' + gms + 'ms', gr);
+          }
+        } catch (e) {
+          console.warn('[CAD] GAS shadow login error', e);
+        }
+      })();
     }
     return r;
   }
 
   async function logout() {
-    const token = getToken();
-    if (token) {
-      try { await call('logout', { token: token }); } catch (_) {}
+    const d1Token = getToken();
+    const gasToken = sessionStorage.getItem(GAS_TOKEN_KEY);
+    if (d1Token) {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + d1Token }
+        });
+      } catch (_) {}
+    }
+    if (gasToken) {
+      try { await call('logout', { token: gasToken }); } catch (_) {}
     }
     clearSession();
+    sessionStorage.removeItem(GAS_TOKEN_KEY);
     window.location.href = ENTRY;
   }
 
+  // Migrated D1 actions — served from Worker, no Apps Script proxy
+  // Add to this map as more endpoints are migrated. Each one becomes 200ms instead of 5s+.
+  const MIGRATED_ACTIONS = {
+    whoami: { method: 'GET', path: '/api/auth/whoami' }
+    // TODO Day 2: dashboard_active, dashboard_sv, dashboard_dispatch, etc.
+  };
+
+  async function waitForGasToken(timeoutMs) {
+    // Wait for shadow GAS login to populate the token. Returns null if it never arrives.
+    const deadline = Date.now() + (timeoutMs || 8000);
+    let t = sessionStorage.getItem(GAS_TOKEN_KEY);
+    while (!t && Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 100));
+      t = sessionStorage.getItem(GAS_TOKEN_KEY);
+    }
+    return t;
+  }
+
   async function authedCall(action, params) {
-    const token = getToken();
-    if (!token || isExpired()) {
+    const d1Token = getToken();
+    if (!d1Token || isExpired()) {
       clearSession();
       window.location.href = ENTRY;
       return { ok: false, error: 'no_session' };
     }
+
     const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-    const r = await call(action, Object.assign({ token: token }, params || {}));
+    let r;
+
+    // === Migrated D1 path (fast) ===
+    const mig = MIGRATED_ACTIONS[action];
+    if (mig) {
+      try {
+        const res = await fetch(mig.path, {
+          method: mig.method || 'GET',
+          headers: {
+            'Authorization': 'Bearer ' + d1Token,
+            'Content-Type': 'application/json'
+          },
+          body: (mig.method === 'POST') ? JSON.stringify(params || {}) : undefined
+        });
+        r = await res.json();
+      } catch (e) {
+        r = { ok: false, error: 'network', message: String(e) };
+      }
+    } else {
+      // === Legacy GAS path (proxied via existing call() function) ===
+      // Wait briefly for shadow GAS login to complete if not ready
+      let gasToken = sessionStorage.getItem(GAS_TOKEN_KEY);
+      if (!gasToken) {
+        gasToken = await waitForGasToken(8000);
+      }
+      if (!gasToken) {
+        // GAS login never completed — try one fresh attempt synchronously
+        const u = getUser();
+        if (u && u.nid) {
+          console.warn('[CAD] GAS token missing, retrying shadow login now...');
+        }
+        return { ok: false, error: 'gas_token_unavailable', message: 'login may have failed silently — try logout/login' };
+      }
+      r = await call(action, Object.assign({ token: gasToken }, params || {}));
+    }
+
     const ms = Math.round(((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - t0);
     const ok = r && r.ok;
-    // Console log: visible in browser DevTools so user can see what's happening
+    const via = mig ? 'D1' : 'GAS';
     if (typeof console !== 'undefined' && console.log) {
-      console.log('%c[CAD] ' + action + ' %c' + ms + 'ms %c' + (ok ? 'ok' : 'fail: ' + (r && r.error || 'unknown')),
-        'color:#3b82f6', 'color:#9ca3af', ok ? 'color:#22c55e' : 'color:#ef4444', r);
+      console.log('%c[CAD] ' + action + ' (' + via + ') %c' + ms + 'ms %c' + (ok ? 'ok' : 'fail: ' + (r && r.error || 'unknown')),
+        mig ? 'color:#22c55e' : 'color:#3b82f6', 'color:#9ca3af', ok ? 'color:#22c55e' : 'color:#ef4444', r);
     }
-    if (r && r.error === 'unauthorized') {
+    if (r && (r.error === 'unauthorized' || r.error === 'session_expired')) {
       clearSession();
+      sessionStorage.removeItem(GAS_TOKEN_KEY);
       window.location.href = ENTRY;
     }
     return r;
