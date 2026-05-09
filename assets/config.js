@@ -1,17 +1,19 @@
 /**
- * Hajj 2026 — backend URLs.
+ * Hajj CAD — config.
  *
- * Two Apps Scripts power the dashboard. Both URLs are safe to commit:
- * the URL alone is useless without auth (NID + last-4) or field validation.
+ * BACKEND_URL: now points to our Cloudflare Pages Function proxy at /api/exec.
+ * The function (in functions/api/exec.js) caches read endpoints at the edge
+ * for 30s and proxies writes straight through to Apps Script.
  *
- *  BACKEND_URL — Auth + dispatch + roster backend (deployed by Ahmed).
- *                Used by:  entry.html, me.html, dispatch.html
+ * Net effect:
+ *   - First call per cache window: ~3-5s (Apps Script cold)
+ *   - Subsequent calls within 30s: ~30-80ms (Cloudflare edge)
+ *   - Mutating writes always passthrough (no cache, dispatch_create stays consistent)
  *
- *  PCR_URL     — Q-PCR sheet (deployed by DCH from gas-template.gs).
- *                Used by:  dispatch.html (Q-PCR write on close),
- *                          active.html (read census), index.html (PCR tab).
+ * Direct Apps Script URL (used by the function):
+ *   https://script.google.com/macros/s/AKfycbxm3tEWy8RiJXjxGV_yPLG6j4iXv_HiPVYzJ28B-evL9OcM4pzap9GglUMkAvvht4Y/exec
  */
+window.BACKEND_URL = '/api/exec';
 
-window.BACKEND_URL = 'https://script.google.com/macros/s/AKfycbxm3tEWy8RiJXjxGV_yPLG6j4iXv_HiPVYzJ28B-evL9OcM4pzap9GglUMkAvvht4Y/exec';
-
+// PCR script (separate, on DCH's Apps Script project — not yet proxied)
 window.PCR_URL = 'https://script.google.com/macros/s/AKfycbxbr7cD4oAEPkMDfaJBu48-205l9qeB777Z3EpuM_ikubfh9R_XjZqnjnvV2DLl1-41tg/exec';

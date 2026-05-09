@@ -1,9 +1,17 @@
+# Hajj CAD — Cloudflare Pages headers
+
+# HTML pages: never cache (always serve fresh deploy)
 /*
   Cache-Control: no-cache, no-store, must-revalidate
   X-Content-Type-Options: nosniff
 
+# Static assets: 5min cache, revalidate (fast but versioned via ?v=N)
 /assets/*
   Cache-Control: public, max-age=300, must-revalidate
 
+# Images: 1 day cache (logos rarely change)
 /assets/img/*
   Cache-Control: public, max-age=86400
+
+# API proxy: cache control set inside the function itself (30s edge cache)
+# We don't override headers here so the function's own Cache-Control wins

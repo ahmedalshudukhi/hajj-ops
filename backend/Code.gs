@@ -798,6 +798,14 @@ function stationStatusSet_(user, params) {
 function stationStatusList_(user, params) {
   if (!hasRole_(user, ['cluster_supervisor','dispatcher','leadership','admin','sar'])) return { ok:false, error:'forbidden' };
 
+  // Apps Script CacheService — 60s server-side cache (separate from CF edge)
+  // Reduces cost of repeated calls when CF cache is cold
+  try {
+    const cache = CacheService.getScriptCache();
+    const cached = cache.get('station_status_v2');
+    if (cached) return JSON.parse(cached);
+  } catch (_) {}
+
   // 1. Read Station_Status_Log — keep latest entry per station
   const sh = sheet_(SHEETS.STATION_STATUS_LOG);
   const latestPerStation = {};
@@ -910,7 +918,9 @@ function stationStatusList_(user, params) {
     }
   });
 
-  return { ok:true, stations: stations };
+  const result = { ok:true, stations: stations };
+  try { CacheService.getScriptCache().put('station_status_v2', JSON.stringify(result), 60); } catch (_) {}
+  return result;
 }
 
 // ============================================================
