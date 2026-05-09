@@ -72,6 +72,75 @@ const CLUSTER_STATIONS = {
 
 
 // ============================================================
+// INSPECTION (run before setup; dumps tab structure)
+// ============================================================
+
+function inspectMobSheet() {
+  const ss = mobSpreadsheet_();
+  Logger.log('=== Mobilization_Plan - Backend ===');
+  Logger.log('Sheet name: ' + ss.getName());
+  Logger.log('Sheet ID:   ' + ss.getId());
+  Logger.log('');
+
+  const allTabs = ss.getSheets();
+  Logger.log('Total tabs: ' + allTabs.length);
+  Logger.log('');
+
+  const REQUIRED = {
+    'Allowlist': ['NID', 'Name', 'Mobile', 'Role', 'Active'],
+    'Stations':  ['Station_Code'],
+    'Units':     ['Unit_Code', 'Home_Station'],
+    'Schedule':  ['NID']
+  };
+  const OPERATIONAL = [
+    'Sessions','Auth_Log','Dispatch_Log','Dispatch_Events',
+    'Q_PCR','Reposition_Log','Reposition_Pending',
+    'Station_Status_Log','Admin_Audit_Log'
+  ];
+
+  Logger.log('--- ALL TABS (name, rows, cols, first row) ---');
+  allTabs.forEach(function(sh) {
+    const name = sh.getName();
+    const lastRow = sh.getLastRow();
+    const lastCol = sh.getLastColumn();
+    let firstRow = '';
+    if (lastRow >= 1 && lastCol >= 1) {
+      firstRow = sh.getRange(1, 1, 1, lastCol).getValues()[0].join(' | ');
+    }
+    Logger.log('TAB "' + name + '"  rows=' + lastRow + '  cols=' + lastCol);
+    Logger.log('  row1: ' + firstRow);
+  });
+  Logger.log('');
+
+  Logger.log('--- REFERENCE TAB CHECK ---');
+  Object.keys(REQUIRED).forEach(function(tabName) {
+    const sh = ss.getSheetByName(tabName);
+    if (!sh) {
+      Logger.log('MISSING: "' + tabName + '" — please create');
+      return;
+    }
+    const cols = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0].map(String);
+    const missing = REQUIRED[tabName].filter(function(c) { return cols.indexOf(c) < 0; });
+    if (missing.length === 0) {
+      Logger.log('OK: "' + tabName + '" — has required columns: ' + REQUIRED[tabName].join(', '));
+    } else {
+      Logger.log('WARN: "' + tabName + '" — missing columns: ' + missing.join(', '));
+      Logger.log('  has: ' + cols.join(', '));
+    }
+  });
+  Logger.log('');
+
+  Logger.log('--- OPERATIONAL TAB STATUS ---');
+  OPERATIONAL.forEach(function(tabName) {
+    const exists = ss.getSheetByName(tabName) !== null;
+    Logger.log((exists ? 'EXISTS: ' : 'WILL CREATE: ') + '"' + tabName + '"');
+  });
+  Logger.log('');
+  Logger.log('Inspection complete. Send this log to Claude.');
+}
+
+
+// ============================================================
 // SETUP — run once after paste
 // ============================================================
 
