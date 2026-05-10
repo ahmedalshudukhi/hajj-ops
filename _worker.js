@@ -564,29 +564,90 @@ const ACTIONS = {
   },
 
   async augmentations(user, env, params, dj) {
+    // Read raw rows from D1 (imported from Mob Sheet → Augmentations tab)
+    const r = await env.DB.prepare(
+      `SELECT aug_id, from_unit, to_station, movement, dh_day, hour, status, reason, notes
+       FROM augmentations ORDER BY aug_id ASC`
+    ).all();
+    const rows = (r.results || []).map(row => ({
+      'Aug ID': row.aug_id,
+      'From Unit': row.from_unit,
+      'To Station': row.to_station,
+      'Movement': row.movement,
+      'DH Day': row.dh_day,
+      'Hour': row.hour,
+      'Status': row.status,
+      'Reason': row.reason,
+      'Notes': row.notes,
+      // legacy snake_case aliases for frontend variants
+      from_unit: row.from_unit,
+      to_station: row.to_station,
+      dh_day: row.dh_day
+    }));
+    // Summary stats (from data.json if available, otherwise compute)
     const a = (dj && dj.augmentations) || {};
-    // Apps Script returns rows array; data.json has summary + matrix
-    // For diag compatibility we return summary-shape with rows:[] when not available
+    const counts = { Planned: 0, Active: 0, Returned: 0, Cancelled: 0 };
+    rows.forEach(r => { if (r.Status && counts[r.Status] !== undefined) counts[r.Status]++; });
     return {
       ok: true,
-      total: a.total || 0,
-      active: a.active || 0,
-      planned: a.planned || 0,
-      returned: a.returned || 0,
-      cancelled: a.cancelled || 0,
-      total_para_moved: a.total_para_moved || 0,
+      total: rows.length,
+      active: counts.Active,
+      planned: counts.Planned,
+      returned: counts.Returned,
+      cancelled: counts.Cancelled,
+      total_para_moved: a.total_para_moved || rows.length,
       by_movement: a.by_movement || {},
       by_donor: a.by_donor || {},
       by_recipient: a.by_recipient || {},
       matrix: a.matrix || {},
-      rows: a.sample || []   // sample rows for inspection
+      rows  // raw rows now populated from D1
     };
   },
 
   async mobilization_plan(user, env, params, dj) {
-    // Apps Script returns rows from sheet. data.json doesn't have raw sheet rows.
-    // Return empty rows + headers; frontend usually shows summary anyway.
-    return { ok: true, rows: [], total: 0, headers: [] };
+    // Read pivoted long-format from D1 and pivot back to wide for frontend
+    // Filter: ?dh_day=4..14, ?unit_id=PM, ?value=ARF1 (station code)
+    let where = '', binds = [];
+    const conditions = [];
+    if (params.dh_day) {
+      conditions.push(`dh_day = ?${binds.length + 1}`);
+      binds.push(parseInt(params.dh_day, 10));
+    }
+    if (params.unit_id) {
+      conditions.push(`unit_id = ?${binds.length + 1}`);
+      binds.push(params.unit_id);
+    }
+    if (params.value) {
+      conditions.push(`value = ?${binds.length + 1}`);
+      binds.push(params.value);
+    }
+    if (conditions.length) where = 'WHERE ' + conditions.join(' AND ');
+    const sql = `SELECT unit_id, unit_type, unit_size, home, slot_key, dh_day, shift, value
+                 FROM mobilization_plan ${where} ORDER BY unit_id, dh_day, shift`;
+    const r = await env.DB.prepare(sql).bind(...binds).all();
+    const longRows = r.results || [];
+    // Pivot back: { unit_id: 'PM', 'Unit Type': 'PM', '4DH-S1': 'D7', '4DH-S2': 'N19', ... }
+    const wide = {};
+    longRows.forEach(row => {
+      if (!wide[row.unit_id]) {
+        wide[row.unit_id] = {
+          'Unit ID': row.unit_id,
+          'Unit Type': row.unit_type,
+          'Size': row.unit_size,
+          'Home': row.home
+        };
+      }
+      wide[row.unit_id][row.slot_key] = row.value;
+    });
+    const rows = Object.values(wide);
+    // Build sorted slot key list for frontend
+    const slotKeys = [...new Set(longRows.map(r => r.slot_key))].sort((a, b) => {
+      const ma = a.match(/(\d+)DH-S(\d+)/), mb = b.match(/(\d+)DH-S(\d+)/);
+      if (!ma || !mb) return a.localeCompare(b);
+      return parseInt(ma[1]) - parseInt(mb[1]) || parseInt(ma[2]) - parseInt(mb[2]);
+    });
+    const headers = ['Unit ID', 'Unit Type', 'Size', 'Home', ...slotKeys];
+    return { ok: true, rows, total: rows.length, headers, long_format_count: longRows.length };
   },
 
   async units_list(user, env, params, dj) {
