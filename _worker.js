@@ -1170,7 +1170,7 @@ const ACTIONS = {
 
   async dispatch_event(user, env, params) {
     const incidentId = params.incident_id;
-    const eventRaw = (params.event || '').toLowerCase();
+    const eventRaw = (params.event || params.event_type || '').toLowerCase();
     if (!incidentId) return { ok: false, error: 'missing_incident_id' };
     // Canonical events tracked in incident_events table:
     const canonical = ['en_route','on_scene','patient_contact','transfer_start','hospital_arrival','handover'];
@@ -1238,7 +1238,7 @@ const ACTIONS = {
 
   async dispatch_close(user, env, params) {
     const incidentId = params.incident_id;
-    let outcome = (params.outcome || '').toLowerCase();
+    let outcome = (params.outcome || params.decision || '').toLowerCase();
     if (!incidentId) return { ok: false, error: 'missing_incident_id' };
     // Accept frontend aliases (Treat/Transfer/Refusal) → canonical
     const aliasMap = {
