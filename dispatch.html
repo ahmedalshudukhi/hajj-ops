@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Dispatch · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.16">
+<link rel="stylesheet" href="assets/style.css?v=0.2.17">
 
 <style>
   body { background: var(--bg); }
@@ -301,12 +301,12 @@
   ⚠ <span id="repoBannerCount">0</span> reposition request<span id="repoBannerS">s</span> pending approval — click to review
 </div>
 
-<script src="assets/config.js?v=0.2.16"></script>
-<script src="assets/tempo.js?v=0.2.16"></script>
-<script src="assets/auth.js?v=0.2.16"></script>
-<script src="assets/sublocations.js?v=0.2.16"></script>
-<script src="assets/topbar.js?v=0.2.16"></script>
-<script src="assets/dateBar.js?v=0.2.16"></script>
+<script src="assets/config.js?v=0.2.17"></script>
+<script src="assets/tempo.js?v=0.2.17"></script>
+<script src="assets/auth.js?v=0.2.17"></script>
+<script src="assets/sublocations.js?v=0.2.17"></script>
+<script src="assets/topbar.js?v=0.2.17"></script>
+<script src="assets/dateBar.js?v=0.2.17"></script>
 <script>
 (function () {
 
@@ -725,17 +725,26 @@
   function renderStats() {
     const items = Object.values(incidentsById);
     const today = new Date(); today.setHours(0,0,0,0);
+    // Canonical statuses: pending, on_scene, transporting, complete, cancelled (+ legacy: closed, open)
+    const CLOSED = new Set(['closed','complete','cancelled']);
+    const isOpen   = s => !CLOSED.has(s);
+    const isClosed = s => CLOSED.has(s);
     let open = 0, closedToday = 0, red = 0, inTransfer = 0;
     items.forEach(i => {
-      if (i.Status === 'open') open++;
-      if (i.Status === 'closed' && i.Closed_At && new Date(i.Closed_At) >= today) closedToday++;
-      if ((i.Category || '').toLowerCase() === 'red' && i.Status === 'open') red++;
-      if (i.Status === 'open' && i.Transfer_Start && !i.Closed_At) inTransfer++;
+      const status = i.Status || '';
+      const cat = (i.Category || '').toLowerCase();
+      if (isOpen(status))                                    open++;
+      if (isClosed(status) && i.Closed_At &&
+          new Date(i.Closed_At) >= today)                    closedToday++;
+      if (cat === 'red' && isOpen(status))                   red++;
+      if (status === 'transporting' ||
+          (isOpen(status) && i.Transfer_Start && !i.Closed_At)) inTransfer++;
     });
-    document.getElementById('statOpen').textContent = open;
-    document.getElementById('statResus').textContent = red;
-    document.getElementById('statTransfer').textContent = inTransfer;
-    document.getElementById('statClosed').textContent = closedToday;
+    const setText = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n; };
+    setText('statOpen',     open);
+    setText('statResus',    red);
+    setText('statTransfer', inTransfer);
+    setText('statClosed',   closedToday);
   }
 
   function buildCard(inc) {
@@ -1141,6 +1150,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.16"></script>
+<script src="assets/version.js?v=0.2.17"></script>
 </body>
 </html>
