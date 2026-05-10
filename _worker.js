@@ -370,6 +370,28 @@ const ROLE_GATE = {
   handoff_script: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'],
   system_health: null,
   heat_index: ['cluster_supervisor','dispatcher','leadership','admin','sar'],
+  timeline: ['cluster_supervisor','dispatcher','leadership','admin'],
+  triage_suggest: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'],
+  hospitals_list: null,
+  hospital_set_status: ['leadership','admin','dispatcher'],
+  hospital_seed: ['admin'],
+  unit_checkin: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'],
+  units_status_grid: ['cluster_supervisor','dispatcher','leadership','admin','sar'],
+  messages_send: null,
+  messages_list: null,
+  messages_threads: null,
+  incidents_search: ['cluster_supervisor','dispatcher','leadership','admin'],
+  pcr_draft: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'],
+  pcr_save: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'],
+  pcr_list_mine: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'],
+  pcr_list_all: ['leadership','admin'],
+  checklist_list: null,
+  checklist_save: null,
+  checklist_run: null,
+  announcement_templates: ['dispatcher','cluster_supervisor','leadership','admin'],
+  station_directory: null,
+  escalation_matrix: null,
+  shift_status: null,
   sar_summary: ['sar','admin'],
   dispatch_list: ['cluster_supervisor','dispatcher','leadership','admin'],
   dashboard_active: ['cluster_supervisor','dispatcher','leadership','admin'],
@@ -2019,6 +2041,647 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
       result = { ok: false, error: 'weather_unavailable', detail: e.message };
     }
     return result;
+  },
+
+  // ==============================================================
+  // timeline — Gantt-style data for visualization
+  // ==============================================================
+  async timeline(user, env, params) {
+    const now = Math.floor(Date.now() / 1000);
+    const lookback_hours = Math.min(parseInt(params.lookback_hours || 6, 10), 48);
+    const winStart = now - lookback_hours * 3600;
+    const includeDrills = params.include_drills === '1' || params.include_drills === true;
+    const stationFilter = params.station ? String(params.station).toUpperCase() : null;
+    const triageFilter = params.triage ? String(params.triage).toLowerCase() : null;
+
+    let where = `WHERE (ts >= ?1 OR (status NOT IN ('complete','closed','cancelled')))`;
+    const binds = [winStart];
+    if (!includeDrills) where += ` AND COALESCE(is_drill,0) = 0`;
+    if (stationFilter) { where += ` AND station = ?` + (binds.length + 1); binds.push(stationFilter); }
+    if (triageFilter) { where += ` AND triage = ?` + (binds.length + 1); binds.push(triageFilter); }
+
+    try {
+      const incR = await env.DB.prepare(
+        `SELECT incident_id, ts, station, sub_location, triage, status, complaint,
+                cardiac_arrest, unit_assigned, closed_at, COALESCE(is_drill,0) AS is_drill
+         FROM dispatch_log ${where}
+         ORDER BY ts DESC LIMIT 200`
+      ).bind(...binds).all();
+      const incidents = incR.results || [];
+      const ids = incidents.map(i => i.incident_id);
+      let eventsByInc = {};
+      if (ids.length > 0) {
+        const placeholders = ids.map((_, i) => '?' + (i + 1)).join(',');
+        try {
+          const evR = await env.DB.prepare(
+            `SELECT incident_id, event_type, ts FROM incident_events
+             WHERE incident_id IN (${placeholders}) ORDER BY ts ASC`
+          ).bind(...ids).all();
+          (evR.results || []).forEach(e => {
+            if (!eventsByInc[e.incident_id]) eventsByInc[e.incident_id] = [];
+            eventsByInc[e.incident_id].push({ type: e.event_type, ts: e.ts });
+          });
+        } catch (_) {}
+      }
+      const lanes = incidents.map(inc => {
+        const events = eventsByInc[inc.incident_id] || [];
+        const phases = [{ phase: 'dispatched', start: inc.ts }];
+        ['en_route', 'on_scene', 'transporting'].forEach(p => {
+          const ev = events.find(e => e.type === p);
+          if (ev) phases.push({ phase: p, start: ev.ts });
+        });
+        const endTs = inc.closed_at || now;
+        phases.forEach((p, i) => p.end = (i + 1 < phases.length) ? phases[i+1].start : endTs);
+        return {
+          incident_id: inc.incident_id, station: inc.station, sub_location: inc.sub_location,
+          triage: inc.triage, status: inc.status, complaint: inc.complaint,
+          cardiac_arrest: inc.cardiac_arrest, unit_assigned: inc.unit_assigned,
+          is_drill: inc.is_drill, ts: inc.ts, closed_at: inc.closed_at,
+          duration_sec: endTs - inc.ts, phases,
+          is_open: !inc.closed_at && !['complete','closed','cancelled'].includes(inc.status)
+        };
+      });
+      return { ok: true, generated_at: now, window: { start: winStart, end: now, lookback_hours }, count: lanes.length, lanes };
+    } catch (e) { return { ok: false, error: 'timeline_failed', detail: e.message }; }
+  },
+
+  // ==============================================================
+  // triage_suggest — rule-based triage suggestion
+  // ==============================================================
+  async triage_suggest(user, env, params) {
+    const complaint = String(params.complaint || '').toLowerCase().trim();
+    const cardiac = params.cardiac_arrest === true || params.cardiac_arrest === 'true' || params.cardiac_arrest === '1';
+    const age = parseInt(params.age || 0, 10) || null;
+    const consciousness = String(params.consciousness || '').toLowerCase();
+    let suggested = 'green', confidence = 'low';
+    const reasons = [];
+    if (cardiac) { suggested = 'red'; confidence = 'high'; reasons.push('Cardiac arrest flag set'); }
+    else if (consciousness.includes('unresponsive') || consciousness.includes('unconscious')) {
+      suggested = 'red'; confidence = 'high'; reasons.push('Unresponsive');
+    } else {
+      const REDS = ['cardiac arrest','cpr','no pulse','unconscious','unresponsive','active seizure','seizing now','status epilepticus','severe bleeding','hemorrhage','arterial bleed','heat stroke','anaphylaxis','anaphylactic','stroke','cva','fast positive','major trauma','crush','stampede','airway compromise','cannot breathe','choking','shock','hypotension severe'];
+      const YELLOWS = ['chest pain','shortness of breath','sob','dyspnea','head injury','fracture','broken','altered mental status','confusion','ams','heat exhaustion','moderate bleed','laceration','severe pain','abdominal pain severe','allergic reaction','gi bleed','diabetic emergency','hypoglycemia','hyperglycemia','pregnancy emergency','asthma attack'];
+      const GREENS = ['minor cut','abrasion','sprain','mild dehydration','sunburn','lost','separated','welfare check','refusal of care','blister','mild headache','minor bruise'];
+      const matches = (kws) => kws.some(kw => complaint.includes(kw));
+      if (matches(REDS)) { suggested = 'red'; confidence = 'medium'; reasons.push('Red keyword match'); }
+      else if (matches(YELLOWS)) { suggested = 'yellow'; confidence = 'medium'; reasons.push('Yellow keyword match'); }
+      else if (matches(GREENS)) { suggested = 'green'; confidence = 'medium'; reasons.push('Green keyword match'); }
+      else if (complaint.length > 0) { suggested = 'yellow'; confidence = 'low'; reasons.push('No clear keyword match — defaulting yellow for safety'); }
+      else reasons.push('No complaint provided');
+    }
+    if (age && age >= 70 && suggested === 'green') { suggested = 'yellow'; reasons.push('Elderly (' + age + ') bump'); }
+    if (age && age <= 5 && suggested === 'green') { suggested = 'yellow'; reasons.push('Pediatric (' + age + ') bump'); }
+    return { ok: true, suggested, confidence, reasons, decision_path: 'rule-based · ' + reasons.length + ' factors' };
+  },
+
+  // ==============================================================
+  // hospitals — receiving facility directory + ED bed status
+  // ==============================================================
+  async _ensureHospitalsTable(env) {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS hospitals (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, name_ar TEXT,
+      city TEXT, address TEXT, phone TEXT, radio_channel TEXT,
+      capabilities TEXT, helipad INTEGER DEFAULT 0,
+      ed_status TEXT DEFAULT 'normal', ed_capacity_pct INTEGER DEFAULT 0,
+      ed_note TEXT, ed_status_ts INTEGER, ed_status_by TEXT,
+      lat REAL, lng REAL, distance_km REAL,
+      sort_order INTEGER DEFAULT 100,
+      created_at INTEGER, updated_at INTEGER
+    )`).run();
+  },
+
+  async hospital_seed(user, env) {
+    await ACTIONS._ensureHospitalsTable(env);
+    const now = Math.floor(Date.now() / 1000);
+    const seeds = [
+      ['HSP-001', 'King Fahd Hospital (Mecca)', 'مستشفى الملك فهد بمكة', 'Mecca', 'Aziziyah, Mecca', '+966125660000', 'CH-1', 'ER, Trauma, Cath Lab, ICU, Stroke', 1, 21.4267, 39.8492, 0, 1],
+      ['HSP-002', 'King Abdullah Medical City', 'مدينة الملك عبدالله الطبية', 'Mecca', 'Al-Mashayer, Mecca', '+966125740000', 'CH-1', 'ER, Trauma, ICU, Stroke, Cardiac', 1, 21.3833, 39.8611, 0, 2],
+      ['HSP-003', 'Mina Emergency Hospital', 'مستشفى منى للطوارئ', 'Mina', 'Mina, Saudi Arabia', '+966125330000', 'CH-2', 'ER, Heat illness, Trauma', 0, 21.4119, 39.8917, 0, 3],
+      ['HSP-004', 'Arafat Field Hospital', 'مستشفى عرفات الميداني', 'Arafat', 'Arafat plain', '+966125440000', 'CH-3', 'ER, Heat illness, Resus', 0, 21.3548, 39.9831, 0, 4],
+      ['HSP-005', 'Muzdalifah Field Hospital', 'مستشفى مزدلفة الميداني', 'Muzdalifah', 'Muzdalifah', '+966125550000', 'CH-4', 'ER, Heat illness', 0, 21.4022, 39.9333, 0, 5],
+      ['HSP-006', 'King Faisal Hospital (Mecca)', 'مستشفى الملك فيصل', 'Mecca', 'Sharaie, Mecca', '+966125770000', 'CH-1', 'ER, ICU', 0, 21.4500, 39.8200, 0, 6],
+      ['HSP-007', 'Hera General Hospital', 'مستشفى حراء العام', 'Mecca', 'Al-Aziziyah, Mecca', '+966125540000', 'CH-1', 'ER, General', 0, 21.4350, 39.8400, 0, 7]
+    ];
+    let n = 0;
+    for (const s of seeds) {
+      try {
+        await env.DB.prepare(
+          `INSERT OR IGNORE INTO hospitals
+           (id, name, name_ar, city, address, phone, radio_channel, capabilities, helipad, lat, lng, distance_km, sort_order, ed_status, ed_capacity_pct, created_at, updated_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 'normal', 0, ?14, ?14)`
+        ).bind(...s, now).run();
+        n++;
+      } catch (e) {}
+    }
+    return { ok: true, seeded_or_existing: n };
+  },
+
+  async hospitals_list(user, env, params) {
+    try {
+      await ACTIONS._ensureHospitalsTable(env);
+      const r = await env.DB.prepare(
+        `SELECT * FROM hospitals ORDER BY sort_order ASC, name ASC`
+      ).all();
+      return { ok: true, hospitals: r.results || [], count: (r.results || []).length };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  async hospital_set_status(user, env, params) {
+    const id = String(params.id || '');
+    const status = String(params.status || 'normal').toLowerCase();
+    const cap = parseInt(params.ed_capacity_pct || 0, 10);
+    const note = String(params.note || '').slice(0, 300);
+    if (!['normal','busy','divert','closed'].includes(status)) return { ok: false, error: 'invalid_status' };
+    if (!id) return { ok: false, error: 'missing_id' };
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      await ACTIONS._ensureHospitalsTable(env);
+      await env.DB.prepare(
+        `UPDATE hospitals SET ed_status = ?1, ed_capacity_pct = ?2, ed_note = ?3,
+                              ed_status_ts = ?4, ed_status_by = ?5, updated_at = ?4 WHERE id = ?6`
+      ).bind(status, cap, note, now, user.name || user.nid, id).run();
+      await env.DB.prepare(
+        `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
+         VALUES (?1, 'hospital_set_status', 'hospital', ?2, ?3)`
+      ).bind(user.nid, id, JSON.stringify({ status, cap, note })).run();
+      return { ok: true, ts: now };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // unit_checkin — paramedic check-in (location, status)
+  // units_status_grid — quick view for dispatcher
+  // ==============================================================
+  async unit_checkin(user, env, params) {
+    const unit_code = String(params.unit_code || '').toUpperCase();
+    const station = String(params.station || '').toUpperCase();
+    const status = String(params.status || 'available').toLowerCase();
+    const note = String(params.note || '').slice(0, 200);
+    if (!unit_code) return { ok: false, error: 'missing_unit_code' };
+    if (!['available','busy','dispatched','oos','maintenance','break'].includes(status))
+      return { ok: false, error: 'invalid_status' };
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      await env.DB.prepare(
+        `INSERT INTO unit_status_log (unit_code, status, station, ts, set_by_nid, note)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
+      ).bind(unit_code, status, station, now, user.nid, note).run();
+      return { ok: true, ts: now };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  async units_status_grid(user, env, params, dj) {
+    try {
+      const r = await env.DB.prepare(
+        `SELECT unit_code, status, station, ts, note, set_by_nid FROM (
+           SELECT unit_code, status, station, ts, note, set_by_nid,
+                  ROW_NUMBER() OVER (PARTITION BY unit_code ORDER BY ts DESC) AS rn
+           FROM unit_status_log
+         ) WHERE rn = 1`
+      ).all();
+      const stat = {};
+      (r.results || []).forEach(x => stat[x.unit_code] = x);
+      const units = (dj && dj.units_detail) || [];
+      const now = Math.floor(Date.now() / 1000);
+      const enriched = units.map(u => {
+        const s = stat[u.id] || {};
+        return {
+          unit_code: u.id,
+          type: u.type,
+          home_station: u.home,
+          status: s.status || 'available',
+          current_station: s.station || u.home,
+          last_check_ts: s.ts || null,
+          last_check_by: s.set_by_nid || null,
+          last_note: s.note || null,
+          minutes_since_check: s.ts ? Math.floor((now - s.ts) / 60) : null,
+          stale: s.ts ? (now - s.ts) > 1800 : true   // > 30 min = stale
+        };
+      });
+      // Tally
+      const tally = { available: 0, busy: 0, dispatched: 0, oos: 0, maintenance: 0, break: 0, total: enriched.length, stale: 0 };
+      enriched.forEach(u => {
+        if (tally[u.status] !== undefined) tally[u.status]++;
+        if (u.stale) tally.stale++;
+      });
+      return { ok: true, generated_at: now, units: enriched, tally };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // messages — internal direct messaging + threads
+  // ==============================================================
+  async _ensureMessagesTable(env) {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS messages (
+      id TEXT PRIMARY KEY,
+      thread_key TEXT NOT NULL,
+      from_nid TEXT NOT NULL,
+      from_name TEXT,
+      to_nid TEXT,
+      to_name TEXT,
+      body TEXT,
+      channel TEXT DEFAULT 'dm',
+      ts INTEGER NOT NULL,
+      read_at INTEGER
+    )`).run();
+    await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_key, ts)`).run();
+    await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_messages_to ON messages(to_nid, read_at)`).run();
+  },
+
+  async messages_send(user, env, params) {
+    const to_nid = String(params.to_nid || '').trim();
+    const body = String(params.body || '').slice(0, 2000);
+    const channel = String(params.channel || 'dm').slice(0, 30);
+    if (!body) return { ok: false, error: 'missing_body' };
+    if (channel === 'dm' && !to_nid) return { ok: false, error: 'missing_to_nid' };
+    const now = Math.floor(Date.now() / 1000);
+    const id = 'MSG-' + now + '-' + Math.floor(Math.random() * 9999);
+    // Resolve recipient name
+    let to_name = '';
+    try {
+      const w = await env.DB.prepare(`SELECT name FROM allowlist WHERE nid = ?1 LIMIT 1`).bind(to_nid).first();
+      if (w) to_name = w.name;
+    } catch (_) {}
+    // Thread key (deterministic for DMs, channel name for channels)
+    let thread_key;
+    if (channel === 'dm') {
+      const a = [user.nid, to_nid].sort();
+      thread_key = 'dm:' + a[0] + ':' + a[1];
+    } else {
+      thread_key = 'ch:' + channel;
+    }
+    try {
+      await ACTIONS._ensureMessagesTable(env);
+      await env.DB.prepare(
+        `INSERT INTO messages (id, thread_key, from_nid, from_name, to_nid, to_name, body, channel, ts)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`
+      ).bind(id, thread_key, user.nid, user.name, to_nid, to_name, body, channel, now).run();
+      return { ok: true, id, thread_key, ts: now };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  async messages_list(user, env, params) {
+    const thread_key = String(params.thread_key || '');
+    const since = parseInt(params.since || 0, 10);
+    if (!thread_key) return { ok: false, error: 'missing_thread_key' };
+    try {
+      await ACTIONS._ensureMessagesTable(env);
+      const r = await env.DB.prepare(
+        `SELECT id, thread_key, from_nid, from_name, to_nid, to_name, body, channel, ts, read_at
+         FROM messages WHERE thread_key = ?1 AND ts >= ?2 ORDER BY ts ASC LIMIT 200`
+      ).bind(thread_key, since).all();
+      // Mark messages addressed to current user as read
+      try {
+        await env.DB.prepare(
+          `UPDATE messages SET read_at = ?1
+           WHERE thread_key = ?2 AND to_nid = ?3 AND read_at IS NULL`
+        ).bind(Math.floor(Date.now()/1000), thread_key, user.nid).run();
+      } catch (_) {}
+      return { ok: true, messages: r.results || [] };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  async messages_threads(user, env, params) {
+    try {
+      await ACTIONS._ensureMessagesTable(env);
+      // Get last message per thread the user is part of
+      const r = await env.DB.prepare(
+        `SELECT m.thread_key, m.body, m.from_name, m.from_nid, m.to_name, m.to_nid, m.ts,
+                (SELECT COUNT(*) FROM messages m2 WHERE m2.thread_key = m.thread_key AND m2.to_nid = ?1 AND m2.read_at IS NULL) AS unread
+         FROM messages m
+         INNER JOIN (
+           SELECT thread_key, MAX(ts) AS maxts FROM messages
+           WHERE from_nid = ?1 OR to_nid = ?1 OR thread_key LIKE 'ch:%'
+           GROUP BY thread_key
+         ) latest ON m.thread_key = latest.thread_key AND m.ts = latest.maxts
+         ORDER BY m.ts DESC LIMIT 50`
+      ).bind(user.nid).all();
+      return { ok: true, threads: r.results || [] };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // incidents_search — full incident library search
+  // ==============================================================
+  async incidents_search(user, env, params) {
+    const q = String(params.q || '').trim();
+    const station = String(params.station || '').toUpperCase();
+    const triage = String(params.triage || '').toLowerCase();
+    const status_filter = String(params.status || '').toLowerCase();
+    const include_drills = params.include_drills === '1' || params.include_drills === true;
+    const from_ts = params.from_ts ? parseInt(params.from_ts, 10) : null;
+    const to_ts = params.to_ts ? parseInt(params.to_ts, 10) : null;
+    const limit = Math.min(parseInt(params.limit || 100, 10), 500);
+
+    const where = [];
+    const binds = [];
+    if (q) {
+      where.push(`(incident_id LIKE ?${binds.length + 1} OR complaint LIKE ?${binds.length + 1} OR sub_location LIKE ?${binds.length + 1})`);
+      binds.push('%' + q + '%');
+    }
+    if (station) { where.push(`station = ?${binds.length + 1}`); binds.push(station); }
+    if (triage) { where.push(`triage = ?${binds.length + 1}`); binds.push(triage); }
+    if (status_filter === 'open') where.push(`status NOT IN ('complete','closed','cancelled')`);
+    else if (status_filter === 'closed') where.push(`status IN ('complete','closed')`);
+    else if (status_filter === 'cancelled') where.push(`status = 'cancelled'`);
+    if (!include_drills) where.push(`COALESCE(is_drill,0) = 0`);
+    if (from_ts != null) { where.push(`ts >= ?${binds.length + 1}`); binds.push(from_ts); }
+    if (to_ts != null) { where.push(`ts <= ?${binds.length + 1}`); binds.push(to_ts); }
+    const wsql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    try {
+      const r = await env.DB.prepare(
+        `SELECT incident_id, ts, station, sub_location, triage, status, complaint,
+                cardiac_arrest, unit_assigned, closed_at, COALESCE(is_drill,0) AS is_drill,
+                age, gender, patient_count
+         FROM dispatch_log ${wsql}
+         ORDER BY ts DESC LIMIT ${limit}`
+      ).bind(...binds).all();
+      return { ok: true, count: (r.results || []).length, results: r.results || [] };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // pcr — Patient Care Report drafting
+  // ==============================================================
+  async _ensurePcrTable(env) {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS pcr_drafts (
+      id TEXT PRIMARY KEY,
+      incident_id TEXT,
+      author_nid TEXT NOT NULL,
+      author_name TEXT,
+      patient_age INTEGER, patient_gender TEXT, patient_nationality TEXT,
+      chief_complaint TEXT, history TEXT, allergies TEXT, medications TEXT,
+      vitals_initial TEXT, vitals_final TEXT,
+      gcs_e INTEGER, gcs_v INTEGER, gcs_m INTEGER,
+      assessment TEXT, interventions TEXT, response_to_treatment TEXT,
+      disposition TEXT, transport_to TEXT, transport_unit TEXT,
+      handoff_to TEXT, on_scene_ts INTEGER, departed_ts INTEGER, arrived_ts INTEGER,
+      status TEXT DEFAULT 'draft',
+      created_at INTEGER, updated_at INTEGER
+    )`).run();
+    await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_pcr_author ON pcr_drafts(author_nid, updated_at DESC)`).run();
+    await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_pcr_incident ON pcr_drafts(incident_id)`).run();
+  },
+
+  async pcr_draft(user, env, params) {
+    const incident_id = String(params.incident_id || '').trim();
+    if (!incident_id) return { ok: false, error: 'missing_incident_id' };
+    try {
+      await ACTIONS._ensurePcrTable(env);
+      // Look for existing PCR for this incident by this author
+      const ex = await env.DB.prepare(
+        `SELECT * FROM pcr_drafts WHERE incident_id = ?1 AND author_nid = ?2 LIMIT 1`
+      ).bind(incident_id, user.nid).first();
+      if (ex) return { ok: true, pcr: ex, prefilled: false };
+      // Auto-fill from incident
+      const inc = await env.DB.prepare(
+        `SELECT * FROM dispatch_log WHERE incident_id = ?1 LIMIT 1`
+      ).bind(incident_id).first();
+      if (!inc) return { ok: false, error: 'incident_not_found' };
+      // Get on_scene event ts
+      let onSceneTs = null;
+      try {
+        const ev = await env.DB.prepare(
+          `SELECT ts FROM incident_events WHERE incident_id = ?1 AND event_type = 'on_scene' ORDER BY ts ASC LIMIT 1`
+        ).bind(incident_id).first();
+        if (ev) onSceneTs = ev.ts;
+      } catch (_) {}
+      const now = Math.floor(Date.now() / 1000);
+      const id = 'PCR-' + now + '-' + Math.floor(Math.random() * 9999);
+      const draft = {
+        id, incident_id, author_nid: user.nid, author_name: user.name,
+        patient_age: inc.age || null, patient_gender: inc.gender || null,
+        chief_complaint: inc.complaint || '', transport_unit: inc.unit_assigned || '',
+        on_scene_ts: onSceneTs, transport_to: inc.transport_to || null,
+        status: 'draft', created_at: now, updated_at: now
+      };
+      await env.DB.prepare(
+        `INSERT INTO pcr_drafts (id, incident_id, author_nid, author_name, patient_age, patient_gender,
+                                  chief_complaint, transport_unit, on_scene_ts, transport_to,
+                                  status, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12)`
+      ).bind(id, incident_id, user.nid, user.name, draft.patient_age, draft.patient_gender,
+             draft.chief_complaint, draft.transport_unit, draft.on_scene_ts, draft.transport_to,
+             'draft', now).run();
+      return { ok: true, pcr: draft, prefilled: true };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  async pcr_save(user, env, params) {
+    const id = String(params.id || '');
+    if (!id) return { ok: false, error: 'missing_id' };
+    const allowed = ['patient_age','patient_gender','patient_nationality','chief_complaint','history','allergies','medications','vitals_initial','vitals_final','gcs_e','gcs_v','gcs_m','assessment','interventions','response_to_treatment','disposition','transport_to','transport_unit','handoff_to','on_scene_ts','departed_ts','arrived_ts','status'];
+    const updates = [];
+    const binds = [];
+    let i = 1;
+    allowed.forEach(k => {
+      if (k in params) { updates.push(k + ' = ?' + i++); binds.push(params[k]); }
+    });
+    if (!updates.length) return { ok: false, error: 'no_fields_to_update' };
+    const now = Math.floor(Date.now() / 1000);
+    updates.push('updated_at = ?' + i++);
+    binds.push(now);
+    binds.push(id, user.nid);
+    try {
+      await ACTIONS._ensurePcrTable(env);
+      await env.DB.prepare(
+        `UPDATE pcr_drafts SET ${updates.join(', ')}
+         WHERE id = ?${i++} AND author_nid = ?${i}`
+      ).bind(...binds).run();
+      return { ok: true, ts: now };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  async pcr_list_mine(user, env, params) {
+    try {
+      await ACTIONS._ensurePcrTable(env);
+      const r = await env.DB.prepare(
+        `SELECT * FROM pcr_drafts WHERE author_nid = ?1 ORDER BY updated_at DESC LIMIT 100`
+      ).bind(user.nid).all();
+      return { ok: true, drafts: r.results || [] };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  async pcr_list_all(user, env, params) {
+    try {
+      await ACTIONS._ensurePcrTable(env);
+      const r = await env.DB.prepare(
+        `SELECT * FROM pcr_drafts ORDER BY updated_at DESC LIMIT 200`
+      ).all();
+      return { ok: true, drafts: r.results || [] };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // checklist — operational checklists (shift open/close, MCI activation, etc.)
+  // ==============================================================
+  async _ensureChecklistTables(env) {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS checklist_runs (
+      id TEXT PRIMARY KEY,
+      template_id TEXT NOT NULL,
+      template_name TEXT,
+      runner_nid TEXT NOT NULL,
+      runner_name TEXT,
+      station TEXT,
+      progress TEXT,
+      completed_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`).run();
+  },
+
+  async checklist_list(user, env, params) {
+    // Templates are baked in for now (later: table-backed)
+    const TEMPLATES = [
+      { id: 'shift_open', name: 'Shift Open Checklist', items: [
+        'Sign-in to CAD', 'Review handoff document from prior shift', 'Confirm unit assignments',
+        'Test radio comms (CH-1, CH-2, CH-3)', 'Inspect ALS bag (drugs/dates)', 'Check defib battery + pads',
+        'Verify oxygen tank levels', 'Confirm hospital divert status', 'Brief team on shift priorities'
+      ]},
+      { id: 'shift_close', name: 'Shift Close Checklist', items: [
+        'Complete all open PCRs', 'Restock used supplies', 'Document any equipment issues',
+        'Submit incident reports for closure', 'Generate handoff document', 'Brief incoming shift lead',
+        'Sign off CAD'
+      ]},
+      { id: 'mci_activation', name: 'MCI Activation', items: [
+        'Confirm MCI threshold met (≥5 simultaneous serious casualties)', 'Notify OCC immediately',
+        'Declare MCI in CAD (Command Center → MCI)', 'Establish casualty collection point upstream',
+        'Assign Triage / Treatment / Transport officers', 'Begin START triage', 'Place red/yellow/green/black tags',
+        'Notify nearest hospitals (divert assessment)', 'Request additional units', 'Set up command post',
+        'Document all actions for after-action review'
+      ]},
+      { id: 'cardiac_arrest', name: 'Cardiac Arrest On-Scene', items: [
+        'Confirm pulse absent (5-10 sec)', 'Begin compressions 100-120/min, depth 5-6cm',
+        'Attach defibrillator/AED', 'Analyze rhythm, shock if indicated', 'IV/IO access',
+        'Adrenaline 1mg q3-5min IV/IO', 'Consider amiodarone 300mg after 3rd shock',
+        'Treat reversible causes (4H 4T)', 'Mechanical CPR for transport if available',
+        'Receiving hospital pre-alert', 'Document all interventions'
+      ]},
+      { id: 'heat_stroke', name: 'Heat Stroke', items: [
+        'Confirm T > 40°C + altered mental status', 'Move to cool area, remove excess clothing',
+        'Aggressive cooling: ice packs (groin/axillae/neck)', 'Cool mist + fan',
+        'IV access — NS 500mL bolus', 'Monitor core temperature',
+        'Avoid antipyretics (ineffective)', 'Watch for seizures, rhabdomyolysis',
+        'Rapid transport — high mortality', 'Pre-alert receiving hospital'
+      ]},
+      { id: 'unit_morning', name: 'Unit Morning Inspection', items: [
+        'Vehicle fuel + fluids', 'Lights, sirens, warning devices', 'Radios + spare batteries',
+        'Cardiac monitor + defib pads', 'O2 tank levels (main + portable)', 'ALS bag drug expiries',
+        'Suction + airway adjuncts', 'IV start kit + fluids', 'Splints + immobilization',
+        'PPE + gloves stock', 'Stretcher operation', 'Patient compartment cleanliness'
+      ]}
+    ];
+    return { ok: true, templates: TEMPLATES };
+  },
+
+  async checklist_run(user, env, params) {
+    const template_id = String(params.template_id || '');
+    const action = String(params.action || 'start');  // start | progress | complete | get
+    const id = String(params.id || '');
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      await ACTIONS._ensureChecklistTables(env);
+      if (action === 'start') {
+        if (!template_id) return { ok: false, error: 'missing_template_id' };
+        const newId = 'CL-' + now + '-' + Math.floor(Math.random() * 9999);
+        await env.DB.prepare(
+          `INSERT INTO checklist_runs (id, template_id, template_name, runner_nid, runner_name, station, progress, created_at, updated_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, '{}', ?7, ?7)`
+        ).bind(newId, template_id, params.template_name || '', user.nid, user.name, params.station || '', now).run();
+        return { ok: true, id: newId, action: 'started' };
+      }
+      if (action === 'progress' && id) {
+        await env.DB.prepare(
+          `UPDATE checklist_runs SET progress = ?1, updated_at = ?2 WHERE id = ?3 AND runner_nid = ?4`
+        ).bind(JSON.stringify(params.progress || {}), now, id, user.nid).run();
+        return { ok: true, ts: now };
+      }
+      if (action === 'complete' && id) {
+        await env.DB.prepare(
+          `UPDATE checklist_runs SET completed_at = ?1, updated_at = ?1
+           WHERE id = ?2 AND runner_nid = ?3`
+        ).bind(now, id, user.nid).run();
+        return { ok: true, completed_at: now };
+      }
+      if (action === 'get') {
+        const r = await env.DB.prepare(
+          `SELECT * FROM checklist_runs WHERE runner_nid = ?1 ORDER BY updated_at DESC LIMIT 30`
+        ).bind(user.nid).all();
+        return { ok: true, runs: r.results || [] };
+      }
+      return { ok: false, error: 'invalid_action' };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // Convenience aliases (alt names for clarity in some pages)
+  async checklist_save(user, env, params) { return ACTIONS.checklist_run(user, env, { ...params, action: 'progress' }); },
+
+  // ==============================================================
+  // announcement_templates — pre-canned broadcast messages
+  // ==============================================================
+  async announcement_templates(user, env) {
+    return { ok: true, templates: [
+      { id: 'shift_change', label: 'Shift change reminder', text: 'Reminder: Shift change in 30 minutes. Complete open PCRs and prepare handoff document.', level: 'info' },
+      { id: 'heat_warning', label: 'Heat warning', text: 'Heat advisory: Temperatures are reaching dangerous levels. Increase patient hydration assessments. Treat heat exhaustion aggressively.', level: 'warn' },
+      { id: 'movement_active', label: 'Movement active', text: 'Movement is now active. Surge readiness expected. Pre-position units per movement plan.', level: 'info' },
+      { id: 'low_supplies', label: 'Supplies running low', text: 'Notice: ALS bags require restock. Submit needs through your cluster supervisor.', level: 'info' },
+      { id: 'mci_drill', label: 'MCI drill', text: 'A scheduled MCI exercise will be conducted today. All real incidents continue to be handled normally. Drill incidents will be flagged in the system.', level: 'info' },
+      { id: 'comms_check', label: 'Comms check', text: 'Radio check on all channels (CH-1/2/3). Respond on channel.', level: 'info' },
+      { id: 'security_alert', label: 'Security advisory', text: 'Security advisory issued. Maintain situational awareness. Coordinate with on-site security before approach.', level: 'warn' },
+      { id: 'critical_only', label: 'CRITICAL — system issue', text: 'CRITICAL: Operational issue detected. Switch to backup procedures. OCC will issue updates.', level: 'critical' }
+    ]};
+  },
+
+  // ==============================================================
+  // station_directory — full station info for any UI
+  // ==============================================================
+  async station_directory(user, env) {
+    const stations = [
+      { code: 'ARF1', name: 'Arafat 1', name_ar: 'عرفات ١', cluster: 'Arafat', radio: 'CH-3', sequence: 1, has_clinic: true, has_helipad: false, hospital_nearest: 'HSP-004' },
+      { code: 'ARF2', name: 'Arafat 2', name_ar: 'عرفات ٢', cluster: 'Arafat', radio: 'CH-3', sequence: 2, has_clinic: true, has_helipad: false, hospital_nearest: 'HSP-004' },
+      { code: 'ARF3', name: 'Arafat 3', name_ar: 'عرفات ٣', cluster: 'Arafat', radio: 'CH-3', sequence: 3, has_clinic: true, has_helipad: true, hospital_nearest: 'HSP-004' },
+      { code: 'MUZ1', name: 'Muzdalifah 1', name_ar: 'مزدلفة ١', cluster: 'Muzdalifah', radio: 'CH-4', sequence: 4, has_clinic: true, has_helipad: false, hospital_nearest: 'HSP-005' },
+      { code: 'MUZ2', name: 'Muzdalifah 2', name_ar: 'مزدلفة ٢', cluster: 'Muzdalifah', radio: 'CH-4', sequence: 5, has_clinic: true, has_helipad: false, hospital_nearest: 'HSP-005' },
+      { code: 'MUZ3', name: 'Muzdalifah 3', name_ar: 'مزدلفة ٣', cluster: 'Muzdalifah', radio: 'CH-4', sequence: 6, has_clinic: true, has_helipad: false, hospital_nearest: 'HSP-005' },
+      { code: 'MIN1', name: 'Mina 1', name_ar: 'منى ١', cluster: 'Mina', radio: 'CH-2', sequence: 7, has_clinic: true, has_helipad: false, hospital_nearest: 'HSP-003' },
+      { code: 'MIN2', name: 'Mina 2', name_ar: 'منى ٢', cluster: 'Mina', radio: 'CH-2', sequence: 8, has_clinic: true, has_helipad: false, hospital_nearest: 'HSP-003' },
+      { code: 'MIN3', name: 'Mina 3', name_ar: 'منى ٣', cluster: 'Mina', radio: 'CH-2', sequence: 9, has_clinic: true, has_helipad: true, hospital_nearest: 'HSP-003' }
+    ];
+    return { ok: true, stations };
+  },
+
+  // ==============================================================
+  // escalation_matrix — fixed contact list per category
+  // ==============================================================
+  async escalation_matrix(user, env) {
+    return { ok: true, levels: [
+      { tier: 1, role: 'Cluster Supervisor', when: 'First-line clinical/operational issue', contact: 'Radio CH-2/3/4 by cluster' },
+      { tier: 2, role: 'Chief Paramedic (CHF)', when: 'Multi-cluster issue, MCI ramp-up, supply crisis', contact: 'Bukhari · radio + phone' },
+      { tier: 3, role: 'Deputy Chief Paramedic (DCH)', when: 'Backup CHF, secondary command', contact: 'Hayil Aljabri · radio + phone' },
+      { tier: 4, role: 'Medical Director Lead (MDL)', when: 'Clinical governance, drug protocol issues', contact: 'Dr. Khalid Aljuaidy · phone' },
+      { tier: 5, role: 'Deputy Project Manager (DPM)', when: 'Operational direction, resource conflicts', contact: 'Dr. Nawaf Alsaadon · phone' },
+      { tier: 6, role: 'Project Manager (PM)', when: 'Strategic decisions, external coordination', contact: 'Ahmed Alshudukhi · phone + WhatsApp' },
+      { tier: 7, role: 'External — MoH / SRCA', when: 'Beyond HMG scope, mass casualty, regional surge', contact: 'Liaison via OCC' },
+      { tier: 8, role: 'HMG Senior Medical Director', when: 'Highest internal escalation', contact: 'Through PM' }
+    ]};
+  },
+
+  // ==============================================================
+  // shift_status — current shift indicator for UI
+  // ==============================================================
+  async shift_status(user, env) {
+    const now = Math.floor(Date.now() / 1000);
+    const ksaHour = ((now + 3*3600) / 3600 | 0) % 24;
+    let shift = 'day';
+    let nextChange = null;
+    if (ksaHour >= 7 && ksaHour < 19) {
+      shift = 'day';
+      nextChange = '19:00 KSA';
+    } else {
+      shift = 'night';
+      nextChange = ksaHour >= 19 ? '07:00 KSA next day' : '07:00 KSA';
+    }
+    return { ok: true, shift, ksa_hour: ksaHour, next_change: nextChange };
   },
 
   // ==============================================================
