@@ -720,7 +720,7 @@ const ACTIONS = {
       home_station: (u.home || '').toUpperCase(),
       current_station: (u.home || '').toUpperCase(),
       category: u.category || '',
-      state: 'unknown',
+      state: 'available',
       open_incidents: 0,
       schedule_label: '',
       manual_status: '',
@@ -771,7 +771,11 @@ const ACTIONS = {
       units.forEach(u => { u.open_incidents = inc[u.code] || 0; });
     } catch (_) {}
 
-    return { ok: true, units };
+    // Compute summary for dispatch dropdown header
+    const summary = { available: 0, busy: 0, off_duty: 0, maintenance: 0, oos: 0, unknown: 0, total: units.length };
+    units.forEach(u => { if (summary[u.state] !== undefined) summary[u.state]++; });
+
+    return { ok: true, units, summary };
   },
 
   // --- composed (multi-source) ---

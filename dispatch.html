@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Dispatch · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.8">
+<link rel="stylesheet" href="assets/style.css?v=0.2.9">
 
 <style>
   body { background: var(--bg); }
@@ -296,11 +296,16 @@
 
 <div class="floater"><span class="dot"></span><span id="syncStatus">Live · syncing every 5s</span></div>
 
-<script src="assets/config.js?v=0.2.8"></script>
-<script src="assets/tempo.js?v=0.2.8"></script>
-<script src="assets/auth.js?v=0.2.8"></script>
-<script src="assets/sublocations.js?v=0.2.8"></script>
-<script src="assets/topbar.js?v=0.2.8"></script>
+<!-- Pending reposition banner (admin/leadership/cluster_supervisor) — links to sv.html -->
+<div id="repoBanner" hidden style="position:fixed; top:60px; right:16px; z-index:100; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.4); color:#fcd34d; padding:8px 12px; border-radius:6px; font-size:12px; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.3);" onclick="window.location.href='sv'">
+  ⚠ <span id="repoBannerCount">0</span> reposition request<span id="repoBannerS">s</span> pending approval — click to review
+</div>
+
+<script src="assets/config.js?v=0.2.9"></script>
+<script src="assets/tempo.js?v=0.2.9"></script>
+<script src="assets/auth.js?v=0.2.9"></script>
+<script src="assets/sublocations.js?v=0.2.9"></script>
+<script src="assets/topbar.js?v=0.2.9"></script>
 <script>
 (function () {
 
@@ -376,11 +381,11 @@
 
       let opts = '<option value="">Select unit · ' + (sum.available || 0) + ' available, ' + (sum.busy || 0) + ' busy</option>';
 
-      // AVAILABLE first
-      ['available','busy','off_duty','maintenance','oos'].forEach(function(state) {
+      // AVAILABLE first — INCLUDE 'unknown' so units without explicit state still render
+      ['available','busy','off_duty','maintenance','oos','unknown'].forEach(function(state) {
         const grp = groups[state];
         if (!grp.length) return;
-        const label = ({ available:'🟢 Available', busy:'🟡 Busy (on call)', off_duty:'⚫ Off duty', maintenance:'🛠 Maintenance', oos:'🔴 Out of service' })[state];
+        const label = ({ available:'🟢 Available', busy:'🟡 Busy (on call)', off_duty:'⚫ Off duty', maintenance:'🛠 Maintenance', oos:'🔴 Out of service', unknown:'· Available (no status)' })[state];
         opts += '<optgroup label="' + label + ' · ' + grp.length + '">';
         grp.forEach(function(u) {
           const station = u.current_station || u.home_station || '';
@@ -630,6 +635,27 @@
     try { localStorage.setItem('hajj_dispatch_cache', JSON.stringify(incidentsById)); } catch (_) {}
     renderCards();
     renderStats();
+
+    // Refresh pending-reposition banner
+    refreshRepoBanner();
+  }
+
+  async function refreshRepoBanner() {
+    const role = (HAJJ.getUser() || {}).role;
+    if (!['admin','leadership','cluster_supervisor'].includes(role)) return;
+    const banner = document.getElementById('repoBanner');
+    if (!banner) return;
+    try {
+      const r = await HAJJ.authedCallSWR('reposition_list');
+      const pending = (r && r.pending) ? r.pending.length : 0;
+      if (pending > 0) {
+        document.getElementById('repoBannerCount').textContent = pending;
+        document.getElementById('repoBannerS').textContent = pending === 1 ? '' : 's';
+        banner.hidden = false;
+      } else {
+        banner.hidden = true;
+      }
+    } catch (_) {}
   }
   // Dynamic tempo — refresh interval changes with Hajj phase
   let _tempoTimer = null;
@@ -1079,6 +1105,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.8"></script>
+<script src="assets/version.js?v=0.2.9"></script>
 </body>
 </html>
