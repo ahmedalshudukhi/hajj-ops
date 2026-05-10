@@ -1248,11 +1248,8 @@ async function handleMigrateHistory(request, env) {
   if (request.method !== 'POST') {
     return jsonResponse({ ok: false, error: 'method_not_allowed' }, 405);
   }
-  // Auth (Bearer token in Authorization header)
-  const authH = request.headers.get('Authorization') || '';
-  const token = authH.startsWith('Bearer ') ? authH.slice(7) : null;
-  if (!token) return jsonResponse({ ok: false, error: 'no_token' }, 401);
-  const user = await getUserBySessionToken(env, token);
+  // Auth via authResolve (same helper as other handlers)
+  const user = await authResolve(request, env);
   if (!user) return jsonResponse({ ok: false, error: 'session_expired' }, 401);
   if (user.role !== 'admin' && user.role !== 'leadership') {
     return jsonResponse({ ok: false, error: 'forbidden', role: user.role }, 403);
