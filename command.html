@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0a0e1a">
 <title>OCC Command Center · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.29">
+<link rel="stylesheet" href="assets/style.css?v=0.2.30">
 <style>
   body {
     background: radial-gradient(ellipse at top, #0d1830 0%, #04060e 70%);
@@ -301,6 +301,7 @@
 <body>
 <div class="occ-shell">
   <div id="mciBanner" class="mci-banner"></div>
+  <div id="drillBanner" style="display:none; background:linear-gradient(90deg,#a855f7,#7e22ce,#a855f7); background-size:200% 100%; color:#fff; padding:10px 20px; text-align:center; font-weight:700; letter-spacing:0.18em; text-transform:uppercase; font-size:14px; border-radius:12px; margin-bottom:-4px; animation:mci-stripes 4s linear infinite;"></div>
 
   <header class="occ-head">
     <div class="left">
@@ -316,6 +317,7 @@
       <span class="live-pulse">Live</span>
     </div>
     <div class="occ-actions">
+      <button class="btn-occ" id="btnDrill" style="background:rgba(168,85,247,0.16); color:#d8b4fe; border-color:rgba(168,85,247,0.4);">Drill</button>
       <button class="btn-occ" id="btnBroadcast">Broadcast</button>
       <button class="btn-occ danger" id="btnMci">MCI</button>
     </div>
@@ -383,6 +385,14 @@
         <h2>Cluster Operations</h2>
       </div>
       <div class="cluster-grid" id="clusterGrid"></div>
+
+      <div class="section-h" style="margin-top: 12px;">
+        <h2>Predictive Surge · Next 8h</h2>
+        <span class="meta" id="vSurgeMeta">—</span>
+      </div>
+      <div id="surgeBody" style="margin-top:6px;">
+        <div style="color:#6b7d9e; font-size:12px;">Loading forecast…</div>
+      </div>
     </section>
 
     <!-- RIGHT: Alerts + Activity -->
@@ -424,9 +434,9 @@
   </div>
 </div>
 
-<script src="assets/auth.js?v=0.2.29"></script>
-<script src="assets/shortcuts.js?v=0.2.29"></script>
-<script src="assets/version.js?v=0.2.29"></script>
+<script src="assets/auth.js?v=0.2.30"></script>
+<script src="assets/shortcuts.js?v=0.2.30"></script>
+<script src="assets/version.js?v=0.2.30"></script>
 <script>
 (async function() {
   // Role gate
@@ -667,6 +677,34 @@
     document.getElementById('drill').classList.add('visible');
   }
 
+  // === DRILL button + banner ===
+  function renderDrill(dr) {
+    const el = document.getElementById('drillBanner');
+    if (dr && dr.active) {
+      el.style.display = 'block';
+      el.textContent = '🎓 DRILL MODE ACTIVE — ' + (dr.scenario || 'Training') + ' — Started by ' + (dr.started_by_name || '?') + ' — All new incidents tagged as drill';
+    } else {
+      el.style.display = 'none';
+    }
+  }
+
+  document.getElementById('btnDrill').addEventListener('click', async () => {
+    const s = await HAJJ.authedCall('drill_status', {});
+    const isActive = s && s.ok && s.drill && s.drill.active;
+    if (isActive) {
+      if (!confirm('END drill mode? New incidents will return to real ops mode.')) return;
+      const r = await HAJJ.authedCall('drill_set', { active: false });
+      if (r && r.ok) refresh();
+      return;
+    }
+    const scenario = prompt('Drill scenario (e.g. "Mass casualty exercise — bus collision Arafat"):');
+    if (scenario == null) return;
+    if (!confirm('START drill mode? All new incidents will be flagged as drill (excluded from live counts and surge alerts).')) return;
+    const r = await HAJJ.authedCall('drill_set', { active: true, scenario: scenario || 'Training' });
+    if (r && r.ok) refresh();
+    else alert('Drill set failed');
+  });
+
   // === MCI button + modal ===
   document.getElementById('btnMci').addEventListener('click', async () => {
     const s = await HAJJ.authedCall('mci_status', {});
@@ -693,13 +731,55 @@
   // === Refresh loop ===
   async function refresh() {
     try {
-      const [r, p] = await Promise.all([
+      const [r, p, s, d] = await Promise.all([
         HAJJ.authedCallSWR('command_summary'),
-        HAJJ.authedCall('presence_list', { window: 300 })
+        HAJJ.authedCall('presence_list', { window: 300 }),
+        HAJJ.authedCall('surge_forecast', { hours: 8 }),
+        HAJJ.authedCall('drill_status', {})
       ]);
       if (r && r.ok) render(r);
       if (p && p.ok) renderPresence(p);
+      if (s && s.ok) renderSurge(s);
+      if (d && d.ok) renderDrill(d.drill);
     } catch (e) { console.error('refresh error', e); }
+  }
+
+  function renderSurge(s) {
+    if (!s || !s.ok) return;
+    const el = document.getElementById('surgeBody');
+    document.getElementById('vSurgeMeta').textContent = (s.recommendations.length || 0) + ' alerts';
+    if (!s.forecasts || !s.forecasts.length) { el.innerHTML = '<div style="color:#6b7d9e;">No data</div>'; return; }
+    // Render: row per cluster, columns are next 8 hours
+    const clusters = ['Arafat','Muzdalifah','Mina'];
+    let html = '<table style="width:100%; border-collapse:separate; border-spacing:2px; font-size:11px;">';
+    html += '<tr><th style="text-align:left; padding:4px 6px; color:#6b7d9e; font-weight:600; letter-spacing:0.05em;">Cluster</th>';
+    s.forecasts.forEach(f => {
+      html += '<th style="text-align:center; padding:4px 2px; color:#93a4cd; font-variant-numeric:tabular-nums;">' + String(f.ksa_hour).padStart(2,'0') + '</th>';
+    });
+    html += '</tr>';
+    clusters.forEach(cl => {
+      html += '<tr><td style="padding:4px 6px; color:#cdf1ff; font-weight:600;">' + cl + '</td>';
+      s.forecasts.forEach(f => {
+        const r = f.clusters[cl];
+        const risk = r ? r.risk : 0;
+        let bg = 'rgba(34,197,94,0.18)'; let txt = '#86efac';
+        if (risk >= 70) { bg = 'rgba(239,68,68,0.28)'; txt = '#fecaca'; }
+        else if (risk >= 50) { bg = 'rgba(245,158,11,0.28)'; txt = '#fde68a'; }
+        else if (risk >= 30) { bg = 'rgba(99,179,237,0.20)'; txt = '#bfdbfe'; }
+        const tip = r && r.reasons.length ? r.reasons.join(' · ') : '';
+        html += '<td title="' + tip.replace(/"/g, '&quot;') + '" style="text-align:center; padding:5px 2px; background:' + bg + '; color:' + txt + '; border-radius:4px; font-weight:700; cursor:help;">' + risk + '</td>';
+      });
+      html += '</tr>';
+    });
+    html += '</table>';
+    if (s.recommendations && s.recommendations.length) {
+      html += '<div style="margin-top:10px; display:flex; flex-direction:column; gap:6px;">';
+      s.recommendations.slice(0, 3).forEach(rec => {
+        html += '<div style="background:rgba(245,158,11,0.13); border-left:3px solid #f59e0b; padding:7px 10px; border-radius:6px; font-size:11px; color:#fde68a;">⚠ ' + rec.recommendation + '</div>';
+      });
+      html += '</div>';
+    }
+    el.innerHTML = html;
   }
 
   function renderPresence(p) {

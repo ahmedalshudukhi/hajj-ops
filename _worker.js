@@ -364,6 +364,9 @@ const ROLE_GATE = {
   audit_search: ['admin','leadership'],
   presence_ping: null,                  // any authed user
   presence_list: ['cluster_supervisor','dispatcher','leadership','admin'],
+  surge_forecast: ['cluster_supervisor','dispatcher','leadership','admin'],
+  drill_status: ['cluster_supervisor','dispatcher','leadership','admin'],
+  drill_set: ['leadership','admin'],
   sar_summary: ['sar','admin'],
   dispatch_list: ['cluster_supervisor','dispatcher','leadership','admin'],
   dashboard_active: ['cluster_supervisor','dispatcher','leadership','admin'],
@@ -1161,7 +1164,7 @@ const ACTIONS = {
       const liveR = await env.DB.prepare(
         `SELECT incident_id, station, triage, cardiac_arrest, status, ts
          FROM dispatch_log
-         WHERE status NOT IN ('complete','cancelled','closed')`
+         WHERE status NOT IN ('complete','cancelled','closed') AND COALESCE(is_drill,0) = 0`
       ).all();
       const ARFAT = ['ARF1','ARF2','ARF3'];
       const MUZ = ['MUZ1','MUZ2','MUZ3'];
@@ -1188,7 +1191,7 @@ const ACTIONS = {
         `SELECT
            SUM(CASE WHEN ts >= ?1 THEN 1 ELSE 0 END) AS dispatched,
            SUM(CASE WHEN closed_at >= ?1 THEN 1 ELSE 0 END) AS closed
-         FROM dispatch_log`
+         FROM dispatch_log WHERE COALESCE(is_drill,0) = 0`
       ).bind(hourAgo).first();
       result.hour.dispatched = Number(hR?.dispatched) || 0;
       result.hour.closed = Number(hR?.closed) || 0;
@@ -1577,6 +1580,169 @@ const ACTIONS = {
       })) };
     } catch (e) {
       return { ok: false, error: 'feed_failed', detail: e.message };
+    }
+  },
+
+  // ==============================================================
+  // surge_forecast — predictive surge intelligence
+  // Rule-based for Hajj 1447H windows + time-of-day + recent trend
+  // ==============================================================
+  async surge_forecast(user, env, params) {
+    const now = Math.floor(Date.now() / 1000);
+    const lookahead_hours = Math.min(parseInt(params.hours || 8, 10), 24);
+    // KSA (UTC+3) hour
+    const ksaNow = new Date((now + 3*3600) * 1000);
+    const startKsaHour = ksaNow.getUTCHours();
+    const dh = this._hajjDay(now);
+
+    // Rule library: returns risk score (0-100) for each cluster per window
+    // For each hour in next N, compute risk by cluster
+    const ARFAT = 'Arafat', MUZ = 'Muzdalifah', MIN = 'Mina';
+    function dhBaseline(dhStr, ksaHour, cluster) {
+      // Riyadh-aware Hajj day timing rules
+      const dhNum = (dhStr.match(/DH (\d+)/) || [])[1];
+      const n = dhNum ? parseInt(dhNum, 10) : 0;
+      let risk = 10;  // base
+      let reasons = [];
+      if (n === 8) {
+        // Tarwiyah day — massive movement to Mina, prep for Arafat the next day
+        if (cluster === MIN && (ksaHour >= 5 && ksaHour <= 14)) { risk += 50; reasons.push('Tarwiyah Mina arrivals'); }
+        if (cluster === ARFAT && (ksaHour >= 14)) { risk += 25; reasons.push('Pre-Arafat positioning'); }
+      }
+      if (n === 9) {
+        // Day of Arafat — peak. Wuquf at Arafat, then Muzdalifah at sunset, then Nafra night
+        if (cluster === ARFAT && (ksaHour >= 6 && ksaHour <= 17)) { risk += 60; reasons.push('Wuquf Arafat - peak'); }
+        if (cluster === ARFAT && (ksaHour >= 12 && ksaHour <= 16)) { risk += 25; reasons.push('Afternoon heat'); }
+        if (cluster === MUZ && (ksaHour >= 17 && ksaHour <= 23)) { risk += 70; reasons.push('Muzdalifah sunset/Nafra'); }
+        if (cluster === MIN && (ksaHour >= 22)) { risk += 50; reasons.push('Nafra arrivals to Mina'); }
+        if (cluster === MIN && (ksaHour <= 4)) { risk += 50; reasons.push('Nafra peak (post-midnight)'); }
+      }
+      if (n === 10) {
+        // Eid al-Adha. Stoning Jamarat al-Aqaba. Major Mina activity
+        if (cluster === MIN && (ksaHour >= 6 && ksaHour <= 18)) { risk += 55; reasons.push('Stoning Day 1 - Eid'); }
+        if (cluster === MIN && (ksaHour >= 12 && ksaHour <= 16)) { risk += 20; reasons.push('Afternoon heat'); }
+      }
+      if (n >= 11 && n <= 13) {
+        // Continued stoning (Tashreeq days)
+        if (cluster === MIN && (ksaHour >= 13 && ksaHour <= 18)) { risk += 40; reasons.push('Stoning Day ' + (n-9) + ' (Tashreeq)'); }
+        if (cluster === MIN && (ksaHour >= 12 && ksaHour <= 16)) { risk += 15; reasons.push('Afternoon heat'); }
+      }
+      // Heat illness risk in any afternoon during Hajj
+      if (n >= 5 && n <= 13 && (ksaHour >= 11 && ksaHour <= 16)) {
+        risk += 10;
+        if (!reasons.length) reasons.push('Heat exposure window');
+      }
+      // Pre-dawn elderly fall risk
+      if ((ksaHour >= 3 && ksaHour <= 5) && n >= 5) {
+        risk += 5;
+        reasons.push('Pre-dawn frailty');
+      }
+      return { risk: Math.min(risk, 100), reasons };
+    }
+
+    // Pull recent incident velocity (last hour) per cluster
+    const trend = { Arafat: 0, Muzdalifah: 0, Mina: 0 };
+    try {
+      const r = await env.DB.prepare(
+        `SELECT station, COUNT(*) AS n FROM dispatch_log
+         WHERE ts >= ?1 AND COALESCE(is_drill,0) = 0 GROUP BY station`
+      ).bind(now - 3600).all();
+      (r.results || []).forEach(x => {
+        const st = String(x.station || '');
+        if (['ARF1','ARF2','ARF3'].includes(st)) trend.Arafat += x.n;
+        else if (['MUZ1','MUZ2','MUZ3'].includes(st)) trend.Muzdalifah += x.n;
+        else if (['MIN1','MIN2','MIN3'].includes(st)) trend.Mina += x.n;
+      });
+    } catch (_) {}
+
+    const forecasts = [];
+    for (let h = 0; h < lookahead_hours; h++) {
+      const ksaHour = (startKsaHour + h) % 24;
+      const ts = now + h * 3600;
+      const dhAt = this._hajjDay(ts);
+      const cluster_risks = {};
+      [ARFAT, MUZ, MIN].forEach(cl => {
+        const base = dhBaseline(dhAt, ksaHour, cl);
+        // Bump by current trend (each unit of trend adds 5 risk pts up to 30)
+        const trendBonus = Math.min(30, trend[cl] * 5);
+        if (trendBonus > 0) base.reasons.push(`${trend[cl]} incidents in past hour`);
+        cluster_risks[cl] = { risk: Math.min(100, base.risk + trendBonus), reasons: base.reasons };
+      });
+      forecasts.push({
+        offset_hours: h,
+        ksa_hour: ksaHour,
+        ts,
+        ts_iso: new Date(ts * 1000).toISOString(),
+        hajj_day: dhAt,
+        clusters: cluster_risks,
+        peak_risk: Math.max(...Object.values(cluster_risks).map(c => c.risk))
+      });
+    }
+
+    // Top alerts: high-risk windows in next 4 hours
+    const next4 = forecasts.slice(0, 4);
+    const recommendations = [];
+    next4.forEach(f => {
+      Object.entries(f.clusters).forEach(([cl, info]) => {
+        if (info.risk >= 70) {
+          recommendations.push({
+            cluster: cl,
+            risk: info.risk,
+            ts: f.ts,
+            ksa_hour: f.ksa_hour,
+            recommendation: `Consider pre-positioning units for ${cl} at ${String(f.ksa_hour).padStart(2,'0')}:00 — ${info.reasons.join(', ')}`
+          });
+        }
+      });
+    });
+
+    return {
+      ok: true,
+      generated_at: now,
+      hajj_day: dh,
+      ksa_now_hour: startKsaHour,
+      lookahead_hours,
+      recent_trend_by_cluster: trend,
+      forecasts,
+      recommendations
+    };
+  },
+
+  // ==============================================================
+  // drill_status / drill_set — drill mode toggle (separates training from real ops)
+  // ==============================================================
+  async drill_status(user, env) {
+    try {
+      const r = await env.DB.prepare(
+        `SELECT value FROM sync_state WHERE key = 'drill_mode' LIMIT 1`
+      ).first();
+      if (r && r.value) return { ok: true, drill: JSON.parse(r.value) };
+    } catch (_) {}
+    return { ok: true, drill: { active: false } };
+  },
+
+  async drill_set(user, env, params) {
+    const active = !!params.active;
+    const now = Math.floor(Date.now() / 1000);
+    const dr = active ? {
+      active: true,
+      scenario: String(params.scenario || 'Training drill').slice(0, 200),
+      started_at: now,
+      started_by: user.nid,
+      started_by_name: user.name
+    } : { active: false, ended_at: now, ended_by: user.nid };
+    try {
+      await env.DB.prepare(
+        `INSERT INTO sync_state (key, value, updated_at) VALUES ('drill_mode', ?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = ?2`
+      ).bind(JSON.stringify(dr), now).run();
+      await env.DB.prepare(
+        `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
+         VALUES (?1, ?2, 'drill', ?3, ?4)`
+      ).bind(user.nid, active ? 'drill_start' : 'drill_end', dr.scenario || 'system', JSON.stringify(dr)).run();
+      return { ok: true, drill: dr };
+    } catch (e) {
+      return { ok: false, error: 'drill_set_failed', detail: e.message };
     }
   },
 
@@ -2040,6 +2206,16 @@ const ACTIONS = {
   // ==================== WRITES ====================
 
   async dispatch_create(user, env, params) {
+    // === DRILL MODE: tag this incident as drill if drill mode is active ===
+    let _is_drill = 0;
+    try {
+      const dm = await env.DB.prepare(`SELECT value FROM sync_state WHERE key = 'drill_mode' LIMIT 1`).first();
+      if (dm && dm.value) {
+        const j = JSON.parse(dm.value);
+        if (j && j.active) _is_drill = 1;
+      }
+    } catch (_) {}
+    if (params && typeof params === 'object') params._is_drill = _is_drill;
     // Accept frontend legacy aliases (zone/category/case/case_field/unit) for backward compat with GAS-era forms
     const stationRaw = params.station || params.zone || params.region || '';
     const station = String(stationRaw).toUpperCase();
@@ -2089,7 +2265,12 @@ const ACTIONS = {
         `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
          VALUES (?1, 'dispatch_create', 'incident', ?2, ?3)`
       ).bind(user.nid, incidentId, JSON.stringify({ station, triage, status, complaint, unit: unitAssigned })).run();
-      return { ok: true, incident_id: incidentId, status, ts: now };
+      if (_is_drill === 1) {
+        try {
+          await env.DB.prepare(`UPDATE dispatch_log SET is_drill = 1 WHERE incident_id = ?1`).bind(incidentId).run();
+        } catch (_) {}
+      }
+      return { ok: true, incident_id: incidentId, status, ts: now, is_drill: _is_drill };
     } catch (e) {
       return { ok: false, error: 'insert_failed', detail: e.message };
     }

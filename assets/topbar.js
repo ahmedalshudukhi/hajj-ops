@@ -175,6 +175,7 @@
     overlay.id = 'cadGlobalOverlay';
     overlay.innerHTML = `
       <div id="cadMciBanner" style="display:none; background:linear-gradient(90deg,#ef4444,#b91c1c,#ef4444); background-size:200% 100%; color:#fff; padding:8px 18px; text-align:center; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; font-size:13px; animation:cad-mci-stripes 4s linear infinite;"></div>
+      <div id="cadDrillBanner" style="display:none; background:linear-gradient(90deg,#a855f7,#7e22ce,#a855f7); background-size:200% 100%; color:#fff; padding:8px 18px; text-align:center; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; font-size:13px; animation:cad-mci-stripes 4s linear infinite;"></div>
       <div id="cadBroadcastBar" style="display:none;"></div>
       <style>
         @keyframes cad-mci-stripes { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
@@ -256,10 +257,21 @@
 
     async function refresh() {
       try {
-        const [mciR, bcR] = await Promise.all([
+        const [mciR, bcR, drR] = await Promise.all([
           HAJJ.authedCall('mci_status', {}),
-          HAJJ.authedCall('broadcast_list', { since: Math.floor(Date.now()/1000) - 7200 })
+          HAJJ.authedCall('broadcast_list', { since: Math.floor(Date.now()/1000) - 7200 }),
+          HAJJ.authedCall('drill_status', {})
         ]);
+        // Drill banner
+        const drillEl = document.getElementById('cadDrillBanner');
+        if (drillEl) {
+          if (drR && drR.ok && drR.drill && drR.drill.active) {
+            drillEl.style.display = 'block';
+            drillEl.textContent = '🎓 DRILL — ' + (drR.drill.scenario || 'Training') + ' — Started by ' + (drR.drill.started_by_name || '?');
+          } else {
+            drillEl.style.display = 'none';
+          }
+        }
         // MCI
         const mciEl = document.getElementById('cadMciBanner');
         if (mciR && mciR.ok && mciR.mci && mciR.mci.active) {
