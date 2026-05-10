@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Active Insights · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.17">
+<link rel="stylesheet" href="assets/style.css?v=0.2.18">
 
 <style>
   body { background: var(--bg); }
@@ -185,6 +185,33 @@
 <body>
 
 <div id="topbar"></div>
+<div id="scopeBanner" style="
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:10px 20px; background:rgba(99,102,241,0.08);
+  border-bottom:1px solid rgba(99,102,241,0.25);
+  font-size:13px; flex-wrap:wrap;">
+  <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+    <span style="display:inline-block; width:8px; height:8px; border-radius:50%;
+      background:#22c55e; box-shadow:0 0 0 0 rgba(34,197,94,0.6);
+      animation: pulse-dot 2s ease-in-out infinite;"></span>
+    <span><strong>Showing:</strong> <span id="scopeLabel" style="color:#a5b4fc;">Loading…</span></span>
+    <span style="color:#888;">·</span>
+    <span style="color:#888;">Open incidents are LIVE (always real-time)</span>
+  </div>
+  <div style="display:flex; align-items:center; gap:10px; color:#94a3b8;">
+    <span id="lastRefreshLabel">Last update: —</span>
+    <button id="manualRefresh" type="button" style="
+      background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.4);
+      color:#a5b4fc; padding:4px 10px; border-radius:6px; font-size:12px;
+      cursor:pointer;">↻ Refresh</button>
+  </div>
+</div>
+<style>
+  @keyframes pulse-dot {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.6); }
+    50%      { box-shadow: 0 0 0 8px rgba(34,197,94,0); }
+  }
+</style>
 
 <div class="content">
 
@@ -357,11 +384,11 @@
 
 </div>
 
-<script src="assets/config.js?v=0.2.17"></script>
-<script src="assets/tempo.js?v=0.2.17"></script>
-<script src="assets/auth.js?v=0.2.17"></script>
-<script src="assets/topbar.js?v=0.2.17"></script>
-<script src="assets/dateBar.js?v=0.2.17"></script>
+<script src="assets/config.js?v=0.2.18"></script>
+<script src="assets/tempo.js?v=0.2.18"></script>
+<script src="assets/auth.js?v=0.2.18"></script>
+<script src="assets/topbar.js?v=0.2.18"></script>
+<script src="assets/dateBar.js?v=0.2.18"></script>
 <script>
 (function () {
 
@@ -462,6 +489,7 @@
   }
 
   function render(r) {
+    renderScopeBanner(r);
     renderHero(r);
     renderStations(r.dispatch);
     renderResponseTime(r.dispatch.response_time);
@@ -472,6 +500,45 @@
     renderRecentPcr(r.pcr.recent || []);
     renderStationStatus(r.stations || []);
     renderHourlyTempo(r.dispatch.recent || []);
+  }
+
+  function dhDayFromISO(iso) {
+    if (!iso) return null;
+    const dh1 = new Date('2026-05-27T00:00:00');
+    const target = new Date(iso + 'T00:00:00');
+    const diff = Math.round((target - dh1) / 86400000) + 1;
+    if (diff >= 1 && diff <= 14) return 'DH ' + diff;
+    if (diff === 0) return 'D-1';
+    return null;
+  }
+
+  function fmtDateLabel(iso) {
+    if (!iso) return '—';
+    const dh = dhDayFromISO(iso);
+    return dh ? (dh + ' (' + iso.slice(5) + ')') : iso;
+  }
+
+  function renderScopeBanner(r) {
+    const labEl = document.getElementById('scopeLabel');
+    const refEl = document.getElementById('lastRefreshLabel');
+    const scope = (r && r.scope) || {};
+    if (labEl) {
+      let label;
+      if (scope.start_date && scope.end_date && scope.start_date === scope.end_date) {
+        label = fmtDateLabel(scope.start_date);
+      } else if (scope.start_date && scope.end_date) {
+        label = fmtDateLabel(scope.start_date) + ' → ' + fmtDateLabel(scope.end_date)
+              + (scope.days ? ' · ' + scope.days + ' days' : '');
+      } else {
+        label = 'Today';
+      }
+      labEl.textContent = label;
+    }
+    if (refEl) {
+      const now = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      refEl.textContent = 'Last update: ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+    }
   }
 
   function renderHero(r) {
@@ -522,10 +589,18 @@
 
   function renderResponseTime(rt) {
     rt = rt || {};
-    document.getElementById('rtMean').textContent = msToMin(rt.mean_ms);
-    document.getElementById('rtP50').textContent  = msToMin(rt.p50_ms);
-    document.getElementById('rtP95').textContent  = msToMin(rt.p95_ms);
-    document.getElementById('rtMeta').textContent = 'n=' + (rt.count || 0);
+    const meanEl = document.getElementById('hMeanRt');
+    const p95El = document.getElementById('hP95Rt');
+    const cntEl = document.getElementById('hRtCount');
+    if (!rt.count || rt.count === 0) {
+      if (meanEl) meanEl.textContent = '—';
+      if (p95El) p95El.textContent = '—';
+      if (cntEl) cntEl.textContent = '0 samples';
+      return;
+    }
+    if (meanEl) meanEl.textContent = msToMin(rt.mean_ms);
+    if (p95El) p95El.textContent = msToMin(rt.p95_ms);
+    if (cntEl) cntEl.textContent = rt.count + ' samples';
   }
 
   function renderAcuity(p) {
@@ -1035,9 +1110,14 @@
     });
   }
 
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('manualRefresh');
+    if (btn) btn.addEventListener('click', () => { if (typeof refresh === 'function') refresh(); });
+  });
+
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.17"></script>
+<script src="assets/version.js?v=0.2.18"></script>
 </body>
 </html>

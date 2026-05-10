@@ -311,6 +311,7 @@ async function handleApi(request, env, ctx, pathname) {
 
   // Historical data import (admin only, POST JSON body)
   if (pathname === "/api/v2/migrate_history") return handleMigrateHistory(request, env);
+  if (pathname === "/api/v2/migrate_pcr") return handleMigratePCR(request, env);
 
   // Legacy /api/v1/*
   if (pathname.startsWith("/api/v1/") || pathname === "/api/v1") {
@@ -940,34 +941,45 @@ const ACTIONS = {
       result.dispatch.by_station[st] = { open: 0, red_open: 0, in_transfer: 0, closed_today: 0 };
     });
 
-    // 1. Pull all dispatches in scope. Open ALSO from prior days (so "open incidents" reflects truly open work even if older).
+    // 1a. LIVE counts — currently-open incidents are time-INVARIANT. Always show real-time truth
+    //     regardless of date window (an incident open from 3 days ago should still show as open today).
+    try {
+      const liveR = await env.DB.prepare(
+        `SELECT incident_id, station, triage, cardiac_arrest, status
+         FROM dispatch_log
+         WHERE status NOT IN ('complete','cancelled','closed')`
+      ).all();
+      (liveR.results || []).forEach(inc => {
+        result.dispatch.open++;
+        const station = inc.station || 'UNK';
+        const bs = result.dispatch.by_station[station] || (result.dispatch.by_station[station] = { open: 0, red_open: 0, in_transfer: 0, closed_today: 0 });
+        bs.open++;
+        if (inc.triage === 'red')          { result.dispatch.red_open++;     bs.red_open++; }
+        if (inc.cardiac_arrest)              result.dispatch.cardiac_open++;
+        if (inc.status === 'transporting') { result.dispatch.in_transfer++; bs.in_transfer++; }
+      });
+    } catch (e) {
+      result.dispatch._live_err = String(e.message);
+    }
+
+    // 1b. SCOPED query for the date window — populates incidents[], heatmap, recent[],
+    //     response_time, closed_today (renamed from "today" but means in scope)
     try {
       const incR = await env.DB.prepare(
         `SELECT incident_id, ts, station, sub_location, source, complaint, triage,
                 cardiac_arrest, unit_assigned, status, patient_count, notes,
                 closed_at, closed_by_nid
          FROM dispatch_log
-         WHERE status NOT IN ('complete','cancelled','closed')
-            OR (closed_at >= ?1 AND closed_at <= ?2)
+         WHERE (closed_at >= ?1 AND closed_at <= ?2)
             OR (ts >= ?1 AND ts <= ?2)
          ORDER BY ts DESC LIMIT 1000`
       ).bind(startTs, endTs).all();
       const incidents = incR.results || [];
 
       incidents.forEach(inc => {
-        // 'closed' is a legacy/imported status — treat as not-open like 'complete'
-        const isOpen = !['complete','cancelled','closed'].includes(inc.status);
         const closedInScope = inc.closed_at && inc.closed_at >= startTs && inc.closed_at <= endTs;
         const station = inc.station || 'UNK';
         const bs = result.dispatch.by_station[station] || (result.dispatch.by_station[station] = { open: 0, red_open: 0, in_transfer: 0, closed_today: 0 });
-
-        if (isOpen) {
-          result.dispatch.open++;
-          bs.open++;
-          if (inc.triage === 'red') { result.dispatch.red_open++; bs.red_open++; }
-          if (inc.cardiac_arrest) result.dispatch.cardiac_open++;
-          if (inc.status === 'transporting') { result.dispatch.in_transfer++; bs.in_transfer++; }
-        }
         if (closedInScope) {
           result.dispatch.closed_today++;
           bs.closed_today++;
@@ -1717,6 +1729,115 @@ async function handleMigrateHistory(request, env) {
   } catch (_) {}
 
   return jsonResponse({ ok: true, results, server_time: new Date().toISOString() });
+}
+
+// ===================================================================
+// /api/v2/migrate_pcr — Bulk import historical PCRs from PCR Apps Script
+// Admin/leadership-only. POST JSON body. Inserts via INSERT OR IGNORE.
+// ===================================================================
+async function handleMigratePCR(request, env) {
+  if (request.method !== 'POST') {
+    return jsonResponse({ ok: false, error: 'method_not_allowed' }, 405);
+  }
+  const user = await authResolve(request, env);
+  if (!user) return jsonResponse({ ok: false, error: 'session_expired' }, 401);
+  if (user.role !== 'admin' && user.role !== 'leadership') {
+    return jsonResponse({ ok: false, error: 'forbidden', role: user.role }, 403);
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (e) {
+    return jsonResponse({ ok: false, error: 'invalid_json', message: e.message }, 400);
+  }
+
+  const pcrs = Array.isArray(body.pcrs) ? body.pcrs : (Array.isArray(body) ? body : []);
+  const result = { pulled: pcrs.length, inserted: 0, skipped: 0, errors: [] };
+
+  // Pre-fetch valid NIDs for FK safety
+  const validNids = new Set();
+  try {
+    const r = await env.DB.prepare(`SELECT nid FROM allowlist`).all();
+    (r.results || []).forEach(row => validNids.add(String(row.nid)));
+  } catch (_) {}
+  const safeNid = (nid) => {
+    if (!nid) return null;
+    return validNids.has(String(nid)) ? String(nid) : null;
+  };
+
+  for (const pcr of pcrs) {
+    try {
+      // Accept many possible field names — GAS PCR sheets vary
+      const pcrId = pcr.PCR_ID || pcr.pcr_id || pcr.id || pcr.Id;
+      if (!pcrId) { result.errors.push({ reason: 'missing_pcr_id', sample: JSON.stringify(pcr).slice(0, 100) }); continue; }
+
+      let ts = 0;
+      const tsRaw = pcr.Timestamp || pcr.timestamp || pcr.Created_At || pcr.created_at || pcr.ts || pcr.Date || pcr.date;
+      if (tsRaw) {
+        if (typeof tsRaw === 'number') ts = tsRaw > 1e12 ? Math.floor(tsRaw / 1000) : Math.floor(tsRaw);
+        else { const d = new Date(tsRaw); ts = isNaN(d) ? 0 : Math.floor(d.getTime() / 1000); }
+      }
+      if (!ts) ts = Math.floor(Date.now() / 1000);
+
+      const station = String(pcr.Station || pcr.Zone || pcr.station || '').toUpperCase() || null;
+      const unitCode = pcr.Unit || pcr.unit_code || pcr.Unit_Code || null;
+      const incidentId = pcr.Incident_ID || pcr.incident_id || null;
+      const triage = String(pcr.Triage || pcr.Category || pcr.triage_category || '').toLowerCase() || null;
+      const disposition = String(pcr.Disposition || pcr.disposition || pcr.Decision || '').toLowerCase().replace(/\s+/g, '_') || null;
+
+      // Build vitals JSON from common keys
+      const vitals = {};
+      ['BP','HR','RR','SpO2','SPO2','Temp','Temperature','GCS','Pain'].forEach(k => {
+        if (pcr[k] !== undefined && pcr[k] !== null && pcr[k] !== '') vitals[k.toLowerCase()] = pcr[k];
+      });
+      const vitalsJson = Object.keys(vitals).length ? JSON.stringify(vitals) : null;
+
+      const insertResult = await env.DB.prepare(
+        `INSERT OR IGNORE INTO qpcr_log (
+           pcr_id, ts, incident_id, station, unit_code,
+           patient_name, patient_age, patient_gender, patient_nationality,
+           chief_complaint, triage_category, vitals_json, treatment, disposition,
+           transferred_to, responder_nid, notes, raw_json
+         ) VALUES (
+           ?1, ?2, ?3, ?4, ?5,
+           ?6, ?7, ?8, ?9,
+           ?10, ?11, ?12, ?13, ?14,
+           ?15, ?16, ?17, ?18
+         )`
+      ).bind(
+        String(pcrId), ts, incidentId, station, unitCode,
+        pcr.Patient_Name || pcr.patient_name || null,
+        parseInt(pcr.Age || pcr.patient_age || '0', 10) || null,
+        pcr.Gender || pcr.patient_gender || null,
+        pcr.Nationality || pcr.patient_nationality || null,
+        pcr.Chief_Complaint || pcr.chief_complaint || pcr.Complaint || null,
+        triage,
+        vitalsJson,
+        pcr.Treatment || pcr.treatment || null,
+        disposition,
+        pcr.Transferred_To || pcr.transferred_to || pcr.Hospital || null,
+        safeNid(pcr.Responder_NID || pcr.responder_nid || pcr.Crew),
+        pcr.Notes || pcr.notes || null,
+        JSON.stringify(pcr).slice(0, 4000)
+      ).run();
+
+      if (insertResult.meta && insertResult.meta.changes > 0) result.inserted++;
+      else result.skipped++;
+    } catch (e) {
+      result.errors.push({ pcr_id: pcr.PCR_ID || pcr.pcr_id || '?', error: String(e.message).slice(0, 200) });
+    }
+  }
+
+  // Audit log
+  try {
+    await env.DB.prepare(
+      `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
+       VALUES (?1, 'migrate_pcr', 'bulk', 'pcr_import', ?2)`
+    ).bind(user.nid, JSON.stringify(result)).run();
+  } catch (_) {}
+
+  return jsonResponse({ ok: true, result });
 }
 
 async function handleExecV2(request, env) {
