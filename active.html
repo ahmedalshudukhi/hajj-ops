@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Active Insights · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.5">
+<link rel="stylesheet" href="assets/style.css?v=0.2.6">
 
 <style>
   body { background: var(--bg); }
@@ -358,10 +358,10 @@
 
 </div>
 
-<script src="assets/config.js?v=0.2.5"></script>
-<script src="assets/tempo.js?v=0.2.5"></script>
-<script src="assets/auth.js?v=0.2.5"></script>
-<script src="assets/topbar.js?v=0.2.5"></script>
+<script src="assets/config.js?v=0.2.6"></script>
+<script src="assets/tempo.js?v=0.2.6"></script>
+<script src="assets/auth.js?v=0.2.6"></script>
+<script src="assets/topbar.js?v=0.2.6"></script>
 <script>
 (function () {
 
@@ -439,13 +439,16 @@
   function setLive(ok, err) {
     const el = document.getElementById('liveText');
     if (ok) {
-      el.textContent = 'Live · last sync ' + nowHM();
-      document.getElementById('errBanner').hidden = true;
+      if (el) el.textContent = 'Live · last sync ' + nowHM();
+      const eb = document.getElementById('errBanner');
+      if (eb) eb.hidden = true;
     } else {
-      el.textContent = 'Sync failed';
+      if (el) el.textContent = 'Sync failed';
       const banner = document.getElementById('errBanner');
-      banner.hidden = false;
-      banner.textContent = 'Could not refresh data: ' + err;
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = 'Could not refresh data: ' + err;
+      }
     }
   }
 
@@ -1019,6 +1022,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.5"></script>
+<script src="assets/version.js?v=0.2.6"></script>
 </body>
 </html>

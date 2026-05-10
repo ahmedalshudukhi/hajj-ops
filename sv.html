@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SV · HMG Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.5">
-<script src="assets/config.js?v=0.2.5"></script>
-<script src="assets/tempo.js?v=0.2.5"></script>
-<script src="assets/auth.js?v=0.2.5"></script>
-<script src="assets/sublocations.js?v=0.2.5"></script>
-<script src="assets/topbar.js?v=0.2.5"></script>
+<link rel="stylesheet" href="assets/style.css?v=0.2.6">
+<script src="assets/config.js?v=0.2.6"></script>
+<script src="assets/tempo.js?v=0.2.6"></script>
+<script src="assets/auth.js?v=0.2.6"></script>
+<script src="assets/sublocations.js?v=0.2.6"></script>
+<script src="assets/topbar.js?v=0.2.6"></script>
 <style>
   .sv-wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
   .sv-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
@@ -169,16 +169,21 @@
   const role = String(user.role || '').toLowerCase();
   const cluster = String(user.cluster || '').toLowerCase();
 
-  // Topbar setup
-  document.getElementById('topClusterLabel').textContent =
-    role === 'cluster_supervisor' ? ('Cluster: ' + (cluster || '—'))
-    : role === 'leadership' ? 'Leadership · all clusters'
-    : 'Admin · all clusters';
+  // Topbar setup — legacy elements; topbar.js now renders the topbar.
+  // Defensive null-safe writes in case any old HTML survives:
+  const _topClusterEl = document.getElementById('topClusterLabel');
+  if (_topClusterEl) {
+    _topClusterEl.textContent =
+      role === 'cluster_supervisor' ? ('Cluster: ' + (cluster || '—'))
+      : role === 'leadership' ? 'Leadership · all clusters'
+      : 'Admin · all clusters';
+  }
 
   if (role === 'leadership' || role === 'admin') {
-    document.getElementById('lobbyLink').style.display = '';
-    document.getElementById('activeLink').style.display = '';
-    document.getElementById('dispatchLink').style.display = '';
+    ['lobbyLink', 'activeLink', 'dispatchLink'].forEach(function(id) {
+      const el = document.getElementById(id);
+      if (el) el.style.display = '';
+    });
   }
 
   // logoutLink handled by topbar.js (cadSignOut)
@@ -627,6 +632,6 @@
   </div>
 </div>
 
-<script src="assets/version.js?v=0.2.5"></script>
+<script src="assets/version.js?v=0.2.6"></script>
 </body>
 </html>

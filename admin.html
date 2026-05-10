@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Admin · HMG Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.5">
-<script src="assets/config.js?v=0.2.5"></script>
-<script src="assets/tempo.js?v=0.2.5"></script>
-<script src="assets/auth.js?v=0.2.5"></script>
-<script src="assets/topbar.js?v=0.2.5"></script>
+<link rel="stylesheet" href="assets/style.css?v=0.2.6">
+<script src="assets/config.js?v=0.2.6"></script>
+<script src="assets/tempo.js?v=0.2.6"></script>
+<script src="assets/auth.js?v=0.2.6"></script>
+<script src="assets/topbar.js?v=0.2.6"></script>
 <style>
   .admin-wrap { max-width: 1200px; margin: 0 auto; padding: 16px; }
   .admin-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; overflow-x: auto; }
@@ -217,9 +217,10 @@
   CADTopbar.render({ title: "Admin", subtitle: "pre-hajj" });
 
 
-  // Topbar phase indicator
+  // Topbar phase indicator (legacy element — topbar.js handles this now)
   if (window.HAJJ_TEMPO) {
-    document.getElementById('topPhase').textContent = window.HAJJ_TEMPO.phase();
+    const tp = document.getElementById('topPhase');
+    if (tp) tp.textContent = window.HAJJ_TEMPO.phase();
   }
 
   // Logout
@@ -456,6 +457,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.5"></script>
+<script src="assets/version.js?v=0.2.6"></script>
 </body>
 </html>

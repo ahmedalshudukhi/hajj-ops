@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Dispatch · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.5">
+<link rel="stylesheet" href="assets/style.css?v=0.2.6">
 
 <style>
   body { background: var(--bg); }
@@ -296,11 +296,11 @@
 
 <div class="floater"><span class="dot"></span><span id="syncStatus">Live · syncing every 5s</span></div>
 
-<script src="assets/config.js?v=0.2.5"></script>
-<script src="assets/tempo.js?v=0.2.5"></script>
-<script src="assets/auth.js?v=0.2.5"></script>
-<script src="assets/sublocations.js?v=0.2.5"></script>
-<script src="assets/topbar.js?v=0.2.5"></script>
+<script src="assets/config.js?v=0.2.6"></script>
+<script src="assets/tempo.js?v=0.2.6"></script>
+<script src="assets/auth.js?v=0.2.6"></script>
+<script src="assets/sublocations.js?v=0.2.6"></script>
+<script src="assets/topbar.js?v=0.2.6"></script>
 <script>
 (function () {
 
@@ -416,22 +416,27 @@
 
 
   const user = HAJJ.getUser() || {};
-  document.getElementById('dispName').textContent = user.name || '—';
+  // dispName, dispRole, navLobby, navActive, clock — all handled by topbar.js now
+  // (topbar renders title + role badge + clock + nav links)
+  // Defensive null-safe writes in case any old HTML element survives:
+  const _nameEl = document.getElementById('dispName');
+  if (_nameEl) _nameEl.textContent = user.name || '—';
   const rb = document.getElementById('dispRole');
-  rb.textContent = String(user.role || '').replace(/_/g, ' ');
-  rb.className = 'badge ' + (user.role === 'admin' || user.role === 'leadership' ? 'badge--blue' : 'badge--amber');
+  if (rb) {
+    rb.textContent = String(user.role || '').replace(/_/g, ' ');
+    rb.className = 'badge ' + (user.role === 'admin' || user.role === 'leadership' ? 'badge--blue' : 'badge--amber');
+  }
   // logoutBtn handled by topbar.js (cadSignOut)
 
-  // Nav visibility — leadership/admin can see lobby + active; dispatcher just gets My schedule
-  if (user.role === 'leadership' || user.role === 'admin') {
-    document.getElementById('navLobby').hidden = false;
-    document.getElementById('navActive').hidden = false;
-  }
+  // Nav visibility — handled by topbar.js based on role
+  // Old code referenced navLobby/navActive elements that no longer exist.
 
   // ============ Clock ============
   function tickClock() {
     const d = new Date();
-    document.getElementById('clock').textContent =
+    const el = document.getElementById('clock');
+    if (!el) return;   // topbar has its own clock; legacy #clock may not exist
+    el.textContent =
       String(d.getHours()).padStart(2,'0') + ':' +
       String(d.getMinutes()).padStart(2,'0') + ':' +
       String(d.getSeconds()).padStart(2,'0');
@@ -925,6 +930,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.5"></script>
+<script src="assets/version.js?v=0.2.6"></script>
 </body>
 </html>
