@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Admin · HMG Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.1">
-<script src="assets/config.js?v=0.2.1"></script>
-<script src="assets/tempo.js?v=0.2.1"></script>
-<script src="assets/auth.js?v=0.2.1"></script>
-<script src="assets/topbar.js?v=0.2.1"></script>
+<link rel="stylesheet" href="assets/style.css?v=0.2.2">
+<script src="assets/config.js?v=0.2.2"></script>
+<script src="assets/tempo.js?v=0.2.2"></script>
+<script src="assets/auth.js?v=0.2.2"></script>
+<script src="assets/topbar.js?v=0.2.2"></script>
 <style>
   .admin-wrap { max-width: 1200px; margin: 0 auto; padding: 16px; }
   .admin-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; overflow-x: auto; }
@@ -223,10 +223,7 @@
   }
 
   // Logout
-  document.getElementById('logoutLink').addEventListener('click', function(e) {
-    e.preventDefault();
-    HAJJ.logout();
-  });
+  // logoutLink handled by topbar.js (cadSignOut)
 
   // Tab switching
   document.querySelectorAll('.admin-tab').forEach(function(btn) {
@@ -459,6 +456,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.1"></script>
+<script src="assets/version.js?v=0.2.2"></script>
 </body>
 </html>

@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SAR Operations Summary · HMG EMS</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.1">
-<script src="assets/config.js?v=0.2.1"></script>
-<script src="assets/tempo.js?v=0.2.1"></script>
-<script src="assets/auth.js?v=0.2.1"></script>
-<script src="assets/topbar.js?v=0.2.1"></script>
+<link rel="stylesheet" href="assets/style.css?v=0.2.2">
+<script src="assets/config.js?v=0.2.2"></script>
+<script src="assets/tempo.js?v=0.2.2"></script>
+<script src="assets/auth.js?v=0.2.2"></script>
+<script src="assets/topbar.js?v=0.2.2"></script>
 <style>
   .sar-wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
   .sar-banner {
@@ -99,9 +99,7 @@
   CADTopbar.render({ title: "SAR partner", subtitle: "read-only summary" });
 
 
-  document.getElementById('logoutLink').addEventListener('click', function(e) {
-    e.preventDefault(); HAJJ.logout();
-  });
+  // logoutLink handled by topbar.js (cadSignOut)
 
   function setLive(connected, msg) {
     const el = document.getElementById('liveLabel');
@@ -169,6 +167,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.1"></script>
+<script src="assets/version.js?v=0.2.2"></script>
 </body>
 </html>
