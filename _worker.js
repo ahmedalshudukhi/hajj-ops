@@ -350,6 +350,14 @@ const ROLE_GATE = {
   admin_audit_list: ['admin'],
   admin_apply_validation: ['admin'],
   active_summary: ['cluster_supervisor','dispatcher','leadership','admin'],
+  command_summary: ['leadership','admin','dispatcher'],
+  mci_status: ['leadership','admin','dispatcher','cluster_supervisor'],
+  mci_set: ['leadership','admin'],
+  broadcast_send: ['leadership','admin'],
+  broadcast_list: ['cluster_supervisor','dispatcher','leadership','admin'],
+  broadcast_ack: null,                 // any authed user
+  unit_suggest: ['dispatcher','leadership','admin'],
+  activity_feed: ['cluster_supervisor','dispatcher','leadership','admin'],
   sar_summary: ['sar','admin'],
   dispatch_list: ['cluster_supervisor','dispatcher','leadership','admin'],
   dashboard_active: ['cluster_supervisor','dispatcher','leadership','admin'],
@@ -1104,6 +1112,475 @@ const ACTIONS = {
     }
 
     return result;
+  },
+
+  // ==============================================================
+  // command_summary — Executive Command Center single-call payload
+  // Combines: live KPIs, station heatmap, alerts, recent activity,
+  // resource grid, MCI status. Used by /command page (TV-ready OCC).
+  // ==============================================================
+  async command_summary(user, env, params, dj) {
+    const now = Math.floor(Date.now() / 1000);
+    const result = {
+      ok: true,
+      generated_at: now,
+      user: { name: user.name, role: user.role, nid: user.nid },
+      // Live ops counts
+      live: {
+        open: 0, red_open: 0, cardiac_open: 0, in_transfer: 0,
+        on_scene: 0, en_route: 0,
+        by_station: {},
+        by_cluster: { Arafat: 0, Muzdalifah: 0, Mina: 0, Other: 0 }
+      },
+      // Last hour stats
+      hour: { dispatched: 0, closed: 0, response_time_p95_sec: null },
+      // Today (UTC date window)
+      today: { dispatched: 0, closed: 0, by_triage: {} },
+      // Stations: each has live data + per-station ops
+      stations: [],
+      // Alerts: surge predictions, anomalies
+      alerts: [],
+      // Recent activity feed (last 30)
+      activity: [],
+      // Resource snapshot
+      resources: { units: { total: 0, available: 0, busy: 0, oos: 0 } },
+      // MCI mode
+      mci: { active: false, level: null, declared_at: null, declared_by: null, reason: null },
+      // Hajj day
+      hajj_day: this._hajjDay(now)
+    };
+
+    // === LIVE — currently open incidents (no date filter) ===
+    try {
+      const liveR = await env.DB.prepare(
+        `SELECT incident_id, station, triage, cardiac_arrest, status, ts
+         FROM dispatch_log
+         WHERE status NOT IN ('complete','cancelled','closed')`
+      ).all();
+      const ARFAT = ['ARF1','ARF2','ARF3'];
+      const MUZ = ['MUZ1','MUZ2','MUZ3'];
+      const MIN = ['MIN1','MIN2','MIN3'];
+      (liveR.results || []).forEach(inc => {
+        result.live.open++;
+        if (inc.triage === 'red') result.live.red_open++;
+        if (inc.cardiac_arrest)   result.live.cardiac_open++;
+        if (inc.status === 'transporting') result.live.in_transfer++;
+        if (inc.status === 'on_scene')     result.live.on_scene++;
+        const st = inc.station || 'UNK';
+        result.live.by_station[st] = (result.live.by_station[st] || 0) + 1;
+        if (ARFAT.includes(st))   result.live.by_cluster.Arafat++;
+        else if (MUZ.includes(st))   result.live.by_cluster.Muzdalifah++;
+        else if (MIN.includes(st))   result.live.by_cluster.Mina++;
+        else result.live.by_cluster.Other++;
+      });
+    } catch (e) { result._live_err = String(e.message); }
+
+    // === LAST HOUR ===
+    try {
+      const hourAgo = now - 3600;
+      const hR = await env.DB.prepare(
+        `SELECT
+           SUM(CASE WHEN ts >= ?1 THEN 1 ELSE 0 END) AS dispatched,
+           SUM(CASE WHEN closed_at >= ?1 THEN 1 ELSE 0 END) AS closed
+         FROM dispatch_log`
+      ).bind(hourAgo).first();
+      result.hour.dispatched = Number(hR?.dispatched) || 0;
+      result.hour.closed = Number(hR?.closed) || 0;
+
+      // P95 response time over last hour
+      const rtR = await env.DB.prepare(
+        `SELECT (e.ts - d.ts) AS delta
+         FROM dispatch_log d
+         INNER JOIN (
+           SELECT incident_id, MIN(ts) AS ts FROM incident_events
+           WHERE event_type = 'on_scene' GROUP BY incident_id
+         ) e ON e.incident_id = d.incident_id
+         WHERE d.ts >= ?1 AND (e.ts - d.ts) BETWEEN 0 AND 86400
+         ORDER BY delta DESC`
+      ).bind(hourAgo).all();
+      const deltas = (rtR.results || []).map(r => r.delta).filter(d => d > 0);
+      if (deltas.length > 0) {
+        const idx = Math.floor(deltas.length * 0.05); // already DESC, so 5% from top = p95
+        result.hour.response_time_p95_sec = deltas[idx] || deltas[0];
+      }
+    } catch (e) { result._hour_err = String(e.message); }
+
+    // === TODAY (UTC window) ===
+    try {
+      const todayStart = Math.floor(new Date().setHours(0,0,0,0) / 1000);
+      const tR = await env.DB.prepare(
+        `SELECT triage, COUNT(*) AS n
+         FROM dispatch_log WHERE ts >= ?1 GROUP BY triage`
+      ).bind(todayStart).all();
+      let totalToday = 0;
+      (tR.results || []).forEach(r => {
+        result.today.by_triage[r.triage || 'other'] = r.n;
+        totalToday += r.n;
+      });
+      result.today.dispatched = totalToday;
+      const cR = await env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM dispatch_log WHERE closed_at >= ?1`
+      ).bind(todayStart).first();
+      result.today.closed = Number(cR?.n) || 0;
+    } catch (e) { result._today_err = String(e.message); }
+
+    // === STATIONS — full breakdown ===
+    try {
+      const stations = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+      const stR = await env.DB.prepare(
+        `SELECT station, status, capacity_pct, sub_location, ts
+         FROM (
+           SELECT station, status, capacity_pct, sub_location, ts,
+                  ROW_NUMBER() OVER (PARTITION BY station ORDER BY ts DESC) AS rn
+           FROM station_status_log
+         )
+         WHERE rn = 1`
+      ).all();
+      const stMap = {};
+      (stR.results || []).forEach(r => stMap[r.station] = r);
+      stations.forEach(st => {
+        const s = stMap[st] || {};
+        const cluster = ['ARF1','ARF2','ARF3'].includes(st) ? 'Arafat'
+                      : ['MUZ1','MUZ2','MUZ3'].includes(st) ? 'Muzdalifah' : 'Mina';
+        result.stations.push({
+          code: st,
+          cluster,
+          status: s.status || 'unknown',
+          capacity_pct: s.capacity_pct,
+          sub_location: s.sub_location,
+          updated_at: s.ts ? new Date(s.ts * 1000).toISOString() : null,
+          live_open: result.live.by_station[st] || 0
+        });
+      });
+    } catch (e) { result._stations_err = String(e.message); }
+
+    // === ALERTS — algorithmic surge & anomaly detection ===
+    try {
+      // Alert 1: any station with ≥3 open incidents
+      result.stations.forEach(s => {
+        if (s.live_open >= 3) {
+          result.alerts.push({
+            level: s.live_open >= 5 ? 'critical' : 'warning',
+            kind: 'station_surge',
+            station: s.code,
+            text: `${s.code}: ${s.live_open} open incidents`,
+            ts: now
+          });
+        }
+      });
+      // Alert 2: > 5 reds across system
+      if (result.live.red_open >= 5) {
+        result.alerts.push({
+          level: 'critical', kind: 'red_surge',
+          text: `${result.live.red_open} RED triage open simultaneously`, ts: now
+        });
+      }
+      // Alert 3: cardiac arrests open
+      if (result.live.cardiac_open > 0) {
+        result.alerts.push({
+          level: 'critical', kind: 'cardiac_arrest',
+          text: `${result.live.cardiac_open} cardiac arrest${result.live.cardiac_open>1?'s':''} active`, ts: now
+        });
+      }
+      // Alert 4: incident rate spike
+      if (result.hour.dispatched >= 10) {
+        result.alerts.push({
+          level: result.hour.dispatched >= 20 ? 'critical' : 'warning',
+          kind: 'volume_spike',
+          text: `${result.hour.dispatched} incidents in past hour`, ts: now
+        });
+      }
+      // Alert 5: response time degraded
+      if (result.hour.response_time_p95_sec && result.hour.response_time_p95_sec > 600) {
+        result.alerts.push({
+          level: result.hour.response_time_p95_sec > 1200 ? 'critical' : 'warning',
+          kind: 'response_time',
+          text: `P95 response time: ${Math.round(result.hour.response_time_p95_sec/60)} min`, ts: now
+        });
+      }
+    } catch (e) { result._alerts_err = String(e.message); }
+
+    // === ACTIVITY FEED — last 30 events from audit_log ===
+    try {
+      const aR = await env.DB.prepare(
+        `SELECT a.ts, a.actor_nid, a.action, a.resource, a.resource_id, a.details,
+                w.name AS actor_name
+         FROM audit_log a LEFT JOIN allowlist w ON w.nid = a.actor_nid
+         ORDER BY a.ts DESC LIMIT 30`
+      ).all();
+      result.activity = (aR.results || []).map(r => ({
+        ts: r.ts,
+        ts_iso: new Date(r.ts * 1000).toISOString(),
+        actor: r.actor_name || r.actor_nid || 'system',
+        action: r.action,
+        resource: r.resource,
+        resource_id: r.resource_id,
+        // Details JSON (truncated)
+        details: r.details ? r.details.slice(0, 200) : null
+      }));
+    } catch (e) { result._activity_err = String(e.message); }
+
+    // === RESOURCES — units status ===
+    try {
+      const uR = await env.DB.prepare(
+        `SELECT unit_code, status FROM (
+           SELECT unit_code, status, ts,
+                  ROW_NUMBER() OVER (PARTITION BY unit_code ORDER BY ts DESC) AS rn
+           FROM unit_status_log
+         ) WHERE rn = 1`
+      ).all();
+      const stat = {};
+      (uR.results || []).forEach(r => { stat[r.status] = (stat[r.status] || 0) + 1; });
+      const units = (dj && dj.units_detail) || [];
+      result.resources.units.total = units.length;
+      result.resources.units.available = stat.available || 0;
+      result.resources.units.busy = (stat.busy || 0) + (stat.dispatched || 0);
+      result.resources.units.oos = (stat.oos || 0) + (stat.maintenance || 0);
+      // Default everyone as available if no status logged
+      const accounted = result.resources.units.available + result.resources.units.busy + result.resources.units.oos;
+      const unaccounted = Math.max(0, units.length - accounted);
+      result.resources.units.available += unaccounted;
+    } catch (e) { result._resources_err = String(e.message); }
+
+    // === MCI STATUS — read latest from sync_state ===
+    try {
+      const mR = await env.DB.prepare(
+        `SELECT value FROM sync_state WHERE key = 'mci_status' LIMIT 1`
+      ).first();
+      if (mR && mR.value) {
+        try { result.mci = JSON.parse(mR.value); } catch (_) {}
+      }
+    } catch (e) {}
+
+    return result;
+  },
+
+  // ==============================================================
+  // mci_status / mci_set — Mass Casualty Incident mode toggle
+  // ==============================================================
+  async mci_status(user, env) {
+    try {
+      const r = await env.DB.prepare(
+        `SELECT value FROM sync_state WHERE key = 'mci_status' LIMIT 1`
+      ).first();
+      if (r && r.value) return { ok: true, mci: JSON.parse(r.value) };
+    } catch (_) {}
+    return { ok: true, mci: { active: false } };
+  },
+
+  async mci_set(user, env, params) {
+    const active = !!params.active;
+    const now = Math.floor(Date.now() / 1000);
+    const mci = active ? {
+      active: true,
+      level: params.level || 'level_1',  // level_1 / level_2 / level_3
+      reason: String(params.reason || '').slice(0, 500),
+      declared_at: now,
+      declared_by: user.nid,
+      declared_by_name: user.name
+    } : { active: false, deactivated_at: now, deactivated_by: user.nid };
+
+    try {
+      await env.DB.prepare(
+        `INSERT INTO sync_state (key, value, updated_at) VALUES ('mci_status', ?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = ?2`
+      ).bind(JSON.stringify(mci), now).run();
+      await env.DB.prepare(
+        `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
+         VALUES (?1, ?2, 'mci', ?3, ?4)`
+      ).bind(user.nid, active ? 'mci_activate' : 'mci_deactivate',
+             mci.level || 'system', JSON.stringify(mci)).run();
+      return { ok: true, mci };
+    } catch (e) {
+      return { ok: false, error: 'mci_set_failed', detail: e.message };
+    }
+  },
+
+  // ==============================================================
+  // broadcast_send / broadcast_list / broadcast_ack — system-wide alerts
+  // ==============================================================
+  async broadcast_send(user, env, params) {
+    const text = String(params.text || '').slice(0, 1000);
+    const audience = params.audience || 'all'; // all|cluster|station|role
+    const target = String(params.target || '').slice(0, 200);
+    const level = params.level || 'info';      // info|warn|critical
+    if (!text) return { ok: false, error: 'missing_text' };
+    const now = Math.floor(Date.now() / 1000);
+    const id = 'BC-' + now + '-' + Math.floor(Math.random() * 9999);
+    try {
+      await env.DB.prepare(
+        `CREATE TABLE IF NOT EXISTS broadcasts (
+           id TEXT PRIMARY KEY, ts INTEGER NOT NULL, sender_nid TEXT,
+           sender_name TEXT, text TEXT NOT NULL, audience TEXT, target TEXT,
+           level TEXT, expires_at INTEGER
+         )`).run();
+      await env.DB.prepare(
+        `CREATE TABLE IF NOT EXISTS broadcast_acks (
+           broadcast_id TEXT, nid TEXT, ts INTEGER NOT NULL,
+           PRIMARY KEY (broadcast_id, nid)
+         )`).run();
+      await env.DB.prepare(
+        `INSERT INTO broadcasts (id, ts, sender_nid, sender_name, text, audience, target, level, expires_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`
+      ).bind(id, now, user.nid, user.name, text, audience, target, level, now + 3600).run();
+      await env.DB.prepare(
+        `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
+         VALUES (?1, 'broadcast_send', 'broadcast', ?2, ?3)`
+      ).bind(user.nid, id, JSON.stringify({ text, audience, target, level })).run();
+      return { ok: true, id, ts: now };
+    } catch (e) {
+      return { ok: false, error: 'broadcast_failed', detail: e.message };
+    }
+  },
+
+  async broadcast_list(user, env, params) {
+    const since = parseInt(params.since || (Math.floor(Date.now() / 1000) - 7200), 10);
+    try {
+      const r = await env.DB.prepare(
+        `SELECT * FROM broadcasts WHERE ts >= ?1 ORDER BY ts DESC LIMIT 50`
+      ).bind(since).all();
+      // Mark ones the current user has acked
+      const ackR = await env.DB.prepare(
+        `SELECT broadcast_id FROM broadcast_acks WHERE nid = ?1`
+      ).bind(user.nid).all();
+      const acked = new Set((ackR.results || []).map(x => x.broadcast_id));
+      const list = (r.results || []).map(b => ({ ...b, acked: acked.has(b.id) }));
+      return { ok: true, broadcasts: list };
+    } catch (e) {
+      // Tables don't exist yet — return empty
+      return { ok: true, broadcasts: [] };
+    }
+  },
+
+  async broadcast_ack(user, env, params) {
+    const id = String(params.id || '');
+    if (!id) return { ok: false, error: 'missing_id' };
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      await env.DB.prepare(
+        `INSERT OR IGNORE INTO broadcast_acks (broadcast_id, nid, ts) VALUES (?1, ?2, ?3)`
+      ).bind(id, user.nid, now).run();
+      return { ok: true, ack_at: now };
+    } catch (e) {
+      return { ok: false, error: 'ack_failed', detail: e.message };
+    }
+  },
+
+  // ==============================================================
+  // unit_suggest — Smart "best unit for incident X" recommendation
+  // Algorithm: prefer (1) station match, (2) cluster match, (3) availability, (4) ALS for red
+  // ==============================================================
+  async unit_suggest(user, env, params, dj) {
+    const station = String(params.station || '').toUpperCase();
+    const triage = String(params.triage || '').toLowerCase();
+    if (!station) return { ok: false, error: 'missing_station' };
+    const ARFAT = new Set(['ARF1','ARF2','ARF3']);
+    const MUZ = new Set(['MUZ1','MUZ2','MUZ3']);
+    const MIN = new Set(['MIN1','MIN2','MIN3']);
+    const cluster = ARFAT.has(station) ? ARFAT : MUZ.has(station) ? MUZ : MIN.has(station) ? MIN : null;
+
+    const units = (dj && dj.units_detail) || [];
+    if (units.length === 0) return { ok: true, suggestions: [] };
+
+    // Get current unit statuses
+    let statusByUnit = {};
+    try {
+      const r = await env.DB.prepare(
+        `SELECT unit_code, status FROM (
+           SELECT unit_code, status, ts,
+                  ROW_NUMBER() OVER (PARTITION BY unit_code ORDER BY ts DESC) AS rn
+           FROM unit_status_log
+         ) WHERE rn = 1`
+      ).all();
+      (r.results || []).forEach(x => statusByUnit[x.unit_code] = x.status);
+    } catch (_) {}
+
+    // Get current "busy" by checking dispatch_log
+    let busyUnits = new Set();
+    try {
+      const r = await env.DB.prepare(
+        `SELECT DISTINCT unit_assigned FROM dispatch_log
+         WHERE status NOT IN ('complete','cancelled','closed')
+         AND unit_assigned IS NOT NULL AND unit_assigned != ''`
+      ).all();
+      (r.results || []).forEach(x => busyUnits.add(x.unit_assigned));
+    } catch (_) {}
+
+    const scored = units.map(u => {
+      const home = String(u.home || '').toUpperCase();
+      let score = 0;
+      let reason = [];
+      // Same station: +100
+      if (home === station) { score += 100; reason.push('same station'); }
+      // Same cluster: +40
+      else if (cluster && cluster.has(home)) { score += 40; reason.push('same cluster'); }
+      // Available status: +20
+      const stat = statusByUnit[u.id] || 'available';
+      if (stat === 'available') { score += 20; reason.push('available'); }
+      else if (stat === 'busy' || stat === 'dispatched') { score -= 50; reason.push('busy'); }
+      else if (stat === 'oos' || stat === 'maintenance') { score -= 200; reason.push(stat); }
+      // Currently on incident: heavy penalty
+      if (busyUnits.has(u.id)) { score -= 100; reason.push('on incident'); }
+      // ALS for red: bonus
+      if (triage === 'red' && (u.type || '').toUpperCase().includes('ALS')) {
+        score += 30; reason.push('ALS for red');
+      }
+      // Penalize basic ambulances for red
+      if (triage === 'red' && (u.type || '').toUpperCase().includes('B-AMB')) {
+        score -= 20;
+      }
+      return {
+        unit_code: u.id,
+        type: u.type,
+        home_station: home,
+        score,
+        reason,
+        status: stat,
+        on_incident: busyUnits.has(u.id)
+      };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+    return { ok: true, suggestions: scored.slice(0, 5), all_count: scored.length };
+  },
+
+  // ==============================================================
+  // activity_feed — recent system activity, aggregated and humanized
+  // ==============================================================
+  async activity_feed(user, env, params) {
+    const limit = Math.min(parseInt(params.limit || 100, 10), 200);
+    const since = parseInt(params.since || (Math.floor(Date.now() / 1000) - 3600), 10);
+    try {
+      const r = await env.DB.prepare(
+        `SELECT a.ts, a.actor_nid, a.action, a.resource, a.resource_id, a.details,
+                w.name AS actor_name, w.role AS actor_role
+         FROM audit_log a
+         LEFT JOIN allowlist w ON w.nid = a.actor_nid
+         WHERE a.ts >= ?1
+         ORDER BY a.ts DESC LIMIT ?2`
+      ).bind(since, limit).all();
+      return { ok: true, events: (r.results || []).map(e => ({
+        ts: e.ts,
+        ts_iso: new Date(e.ts * 1000).toISOString(),
+        actor: e.actor_name || 'system',
+        actor_role: e.actor_role,
+        action: e.action,
+        resource: e.resource,
+        resource_id: e.resource_id,
+        details: e.details
+      })) };
+    } catch (e) {
+      return { ok: false, error: 'feed_failed', detail: e.message };
+    }
+  },
+
+  _hajjDay(ts) {
+    // DH 1 = May 27, 2026 = unix ts 1779408000 (00:00 +03:00)
+    const dh1 = Date.UTC(2026, 4, 27) / 1000 - 3 * 3600;  // May 27 +03 midnight
+    const day = Math.floor((ts - dh1) / 86400) + 1;
+    if (day < 1) return 'D-' + (1 - day);
+    if (day > 14) return 'Post-DH';
+    return 'DH ' + day;
   },
 
   async dashboard_active(user, env, params, dj) {

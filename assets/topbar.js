@@ -68,6 +68,7 @@
   // ---- All pages and which roles can see them ----
   const PAGES = [
     { href: 'lobby.html',    label: 'Lobby',     roles: ['leadership','admin','dispatcher','cluster_supervisor'] },
+    { href: 'command.html',  label: 'Command',   roles: ['leadership','admin','dispatcher'] },
     { href: 'active.html',   label: 'Active',    roles: ['leadership','admin','dispatcher','cluster_supervisor'] },
     { href: 'dispatch.html', label: 'Dispatch',  roles: ['dispatcher','leadership','admin'] },
     { href: 'sv.html',       label: 'Cluster',   roles: ['cluster_supervisor','leadership','admin'] },
