@@ -1272,6 +1272,22 @@ async function handleMigrateHistory(request, env) {
     station_status: { pulled: stationStatus.length, inserted: 0, errors: [] }
   };
 
+  // Pre-fetch valid NIDs to handle FK constraint gracefully — historical
+  // records may reference NIDs no longer in the allowlist (test users, etc.)
+  const validNids = new Set();
+  try {
+    const r = await env.DB.prepare(`SELECT nid FROM allowlist`).all();
+    (r.results || []).forEach(row => validNids.add(String(row.nid)));
+  } catch (_) {}
+  const safeNid = (nid) => {
+    if (!nid) return user.nid;
+    return validNids.has(String(nid)) ? String(nid) : user.nid;
+  };
+  const safeNidOrNull = (nid) => {
+    if (!nid) return null;
+    return validNids.has(String(nid)) ? String(nid) : null;
+  };
+
   // ===== 1. Dispatch incidents =====
   for (const inc of dispatch) {
     try {
@@ -1304,7 +1320,7 @@ async function handleMigrateHistory(request, env) {
         if (typeof closedRaw === 'number') closedAt = closedRaw > 1e12 ? Math.floor(closedRaw / 1000) : Math.floor(closedRaw);
         else closedAt = Math.floor(new Date(closedRaw).getTime() / 1000) || null;
       }
-      const closedBy = inc.Closed_By || inc.closed_by_nid || null;
+      const closedBy = safeNidOrNull(inc.Closed_By || inc.closed_by_nid);
       const pcrId = inc.PCR_ID || inc.Q_PCR_ID || inc.pcr_id || null;
 
       await env.DB.prepare(
@@ -1314,7 +1330,9 @@ async function handleMigrateHistory(request, env) {
          VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)`
       ).bind(
         incidentId, ts, station, subLoc, source, complaint, triage, cardiac,
-        unit, status, patientCount, notes, createdBy, closedAt, closedBy, pcrId
+        unit, status, patientCount, notes,
+        safeNid(inc.Created_By || inc.created_by_nid),
+        closedAt, closedBy, pcrId
       ).run();
       results.dispatch.inserted++;
     } catch (e) {
@@ -1331,7 +1349,7 @@ async function handleMigrateHistory(request, env) {
       if (!unit || !fromSt || !toSt) { results.reposition.errors.push('missing_fields'); continue; }
       const reason = row.Reason || row.reason || '';
       const status = String(row.Status || row.status || 'requested').toLowerCase();
-      const requestedBy = row.Requested_By || row.requested_by_nid || user.nid;
+      const requestedBy = safeNid(row.Requested_By || row.requested_by_nid);
       let requestedAt = 0;
       const tsRaw = row.Timestamp || row.requested_at || row.Created_At;
       if (tsRaw) {
