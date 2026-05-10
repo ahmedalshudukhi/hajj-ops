@@ -77,7 +77,8 @@
     { href: 'reports.html',  label: 'Reports',   roles: ['leadership','admin','dispatcher','cluster_supervisor'] },
     { href: 'protocols.html', label: 'Protocols', roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin'] },
     { href: 'me.html',       label: 'My schedule', roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin'] },
-    { href: 'diagnostic.html', label: 'Diag',       roles: ['admin'] }
+    { href: 'diagnostic.html', label: 'Diag',       roles: ['admin'] },
+    { href: 'system.html',  label: 'System',    roles: ['admin','leadership'] }
   ];
 
   function pagesForRole(role) {

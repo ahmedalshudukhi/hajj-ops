@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0a0e1a">
+<title>System Health · Hajj 2026</title>
+<link rel="stylesheet" href="assets/style.css?v=0.2.32">
+<style>
+  body { background: #0a0e1a; color: #e7ecf7; font-family: 'Inter', system-ui, sans-serif; }
+  .sh-shell { max-width: 1080px; margin: 0 auto; padding: 20px; }
+  .sh-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 14px; }
+  .sh-card { background: rgba(20,28,50,0.6); border: 1px solid rgba(99,179,237,0.18); border-radius: 12px; padding: 16px 20px; }
+  .sh-card h3 { margin: 0 0 6px; font-size: 12px; color: #93a4cd; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 600; }
+  .sh-card .v { font-size: 32px; font-weight: 800; color: #e8f1ff; line-height: 1; margin: 6px 0; font-variant-numeric: tabular-nums; }
+  .sh-card .v.good { color: #6ee7b7; }
+  .sh-card .v.warn { color: #fcd34d; }
+  .sh-card .v.crit { color: #ff7e7e; }
+  .sh-card .sub { font-size: 12px; color: #6b7d9e; }
+  .sh-table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+  .sh-table th, .sh-table td { text-align: left; padding: 8px 12px; border-bottom: 1px solid rgba(99,179,237,0.1); font-size: 13px; }
+  .sh-table th { color: #93a4cd; letter-spacing: 0.06em; text-transform: uppercase; font-size: 11px; }
+  .sh-table td.ok { color: #6ee7b7; font-weight: 600; }
+  .sh-table td.fail { color: #ff7e7e; font-weight: 600; }
+  .sh-time { font-family: ui-monospace, Menlo, monospace; color: #93a4cd; font-size: 12px; }
+  .sh-refresh { background: rgba(56,189,248,0.18); color: #cdf1ff; border: 1px solid rgba(56,189,248,0.4); padding: 7px 14px; border-radius: 7px; cursor: pointer; font-weight: 600; }
+</style>
+</head>
+<body>
+<div id="topbar"></div>
+<div class="sh-shell">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+    <div>
+      <h1 style="font-size: 28px; margin: 16px 0 4px;">System Health</h1>
+      <p style="color:#93a4cd; margin: 0;">Live status of Hajj CAD infrastructure.</p>
+    </div>
+    <button class="sh-refresh" id="btnRefresh">↻ Refresh</button>
+  </div>
+  <div id="shBody"><div style="color:#6b7d9e; padding: 20px 0;">Loading…</div></div>
+</div>
+<script src="assets/auth.js?v=0.2.32"></script>
+<script src="assets/shortcuts.js?v=0.2.32"></script>
+<script src="assets/topbar.js?v=0.2.32"></script>
+<script src="assets/version.js?v=0.2.32"></script>
+<script>
+(async function() {
+  if (!await HAJJ.requireRole(['admin','leadership'])) return;
+  CADTopbar.render({ title: "System Health" });
+
+  async function refresh() {
+    const body = document.getElementById('shBody');
+    body.innerHTML = '<div style="color:#6b7d9e; padding: 20px 0;">Loading…</div>';
+    const t0 = Date.now();
+    const [hR, heatR, mciR, drillR] = await Promise.all([
+      HAJJ.authedCall('system_health', {}),
+      HAJJ.authedCall('heat_index', {}),
+      HAJJ.authedCall('mci_status', {}),
+      HAJJ.authedCall('drill_status', {})
+    ]);
+    const apiMs = Date.now() - t0;
+    if (!hR || !hR.ok) { body.innerHTML = '<div style="color:#ff7e7e;">Health check failed</div>'; return; }
+
+    const counts = hR.counts || {};
+    const d1Ms = (hR.checks && hR.checks.d1 && hR.checks.d1.ms) || 0;
+    const d1Ok = (hR.checks && hR.checks.d1 && hR.checks.d1.ok);
+
+    const heatLine = (heatR && heatR.ok && heatR.temp_c != null) ?
+      `${Math.round(heatR.temp_c)}°C, feels ${heatR.feels_c != null ? Math.round(heatR.feels_c) + '°C' : '—'}, RH ${heatR.humidity_pct || '—'}% · risk: <strong>${(heatR.heat_risk && heatR.heat_risk.level || '—').replace('_',' ')}</strong>` : 'unavailable';
+
+    body.innerHTML = `
+      <div class="sh-grid">
+        <div class="sh-card">
+          <h3>Version</h3>
+          <div class="v">${(window.HAJJ_VERSION && window.HAJJ_VERSION.version) || '—'}</div>
+          <div class="sub">${(window.HAJJ_VERSION && window.HAJJ_VERSION.branch) || ''} · ${(window.HAJJ_VERSION && window.HAJJ_VERSION.sha) || ''}</div>
+        </div>
+        <div class="sh-card">
+          <h3>D1 Database</h3>
+          <div class="v ${d1Ok ? 'good' : 'crit'}">${d1Ms}ms</div>
+          <div class="sub">${d1Ok ? '✓ ping OK' : '✗ ping failed'}</div>
+        </div>
+        <div class="sh-card">
+          <h3>API Latency</h3>
+          <div class="v ${apiMs < 1500 ? 'good' : apiMs < 3000 ? 'warn' : 'crit'}">${apiMs}ms</div>
+          <div class="sub">round-trip 4 calls</div>
+        </div>
+        <div class="sh-card">
+          <h3>Total Incidents</h3>
+          <div class="v">${counts.total_incidents || 0}</div>
+          <div class="sub">all-time</div>
+        </div>
+        <div class="sh-card">
+          <h3>Live Open</h3>
+          <div class="v ${(counts.live_open || 0) >= 5 ? 'warn' : ''}">${counts.live_open || 0}</div>
+          <div class="sub">excludes drills</div>
+        </div>
+        <div class="sh-card">
+          <h3>Audit Events</h3>
+          <div class="v">${counts.audit_events || 0}</div>
+          <div class="sub">historic</div>
+        </div>
+        <div class="sh-card">
+          <h3>Users Online (5m)</h3>
+          <div class="v ${(counts.users_online_5m || 0) > 0 ? 'good' : ''}">${counts.users_online_5m || 0}</div>
+          <div class="sub">recent presence</div>
+        </div>
+      </div>
+
+      <h2 style="margin-top: 24px; font-size: 18px;">Operating Mode</h2>
+      <table class="sh-table">
+        <tr>
+          <th>Mode</th><th>State</th><th>Detail</th>
+        </tr>
+        <tr>
+          <td>MCI</td>
+          <td class="${mciR && mciR.ok && mciR.mci.active ? 'fail' : 'ok'}">${mciR && mciR.ok && mciR.mci.active ? 'ACTIVE' : 'inactive'}</td>
+          <td>${mciR && mciR.ok && mciR.mci.active ? (mciR.mci.reason || '—') + ' (by ' + (mciR.mci.declared_by_name || '—') + ')' : '—'}</td>
+        </tr>
+        <tr>
+          <td>Drill</td>
+          <td class="${drillR && drillR.ok && drillR.drill.active ? 'fail' : 'ok'}">${drillR && drillR.ok && drillR.drill.active ? 'ACTIVE' : 'inactive'}</td>
+          <td>${drillR && drillR.ok && drillR.drill.active ? (drillR.drill.scenario || '—') + ' (by ' + (drillR.drill.started_by_name || '—') + ')' : '—'}</td>
+        </tr>
+        <tr>
+          <td>Weather (Mecca)</td>
+          <td class="ok">${heatR && heatR.ok && heatR.temp_c != null ? 'live' : 'unavailable'}</td>
+          <td>${heatLine}</td>
+        </tr>
+      </table>
+
+      <div class="sh-time" style="margin-top: 16px;">Generated: ${hR.timestamp_iso}</div>
+    `;
+  }
+
+  document.getElementById('btnRefresh').addEventListener('click', refresh);
+  refresh();
+  setInterval(refresh, 30000);  // every 30s
+})();
+</script>
+</body>
+</html>

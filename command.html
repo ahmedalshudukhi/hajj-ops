@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0a0e1a">
 <title>OCC Command Center · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.31">
+<link rel="stylesheet" href="assets/style.css?v=0.2.32">
 <style>
   body {
     background: radial-gradient(ellipse at top, #0d1830 0%, #04060e 70%);
@@ -313,6 +313,7 @@
     </div>
     <div class="center">
       <span class="dh-pill" id="dhPill">DH —</span>
+      <span class="dh-pill" id="heatPill" style="display:none; background:rgba(245,158,11,0.13); color:#fde68a; border-color:rgba(245,158,11,0.3); cursor:help;" title="Click for heat illness details">🌡 —</span>
       <span class="clock" id="occClock">--:--:--</span>
       <span class="live-pulse">Live</span>
     </div>
@@ -434,9 +435,9 @@
   </div>
 </div>
 
-<script src="assets/auth.js?v=0.2.31"></script>
-<script src="assets/shortcuts.js?v=0.2.31"></script>
-<script src="assets/version.js?v=0.2.31"></script>
+<script src="assets/auth.js?v=0.2.32"></script>
+<script src="assets/shortcuts.js?v=0.2.32"></script>
+<script src="assets/version.js?v=0.2.32"></script>
 <script>
 (async function() {
   // Role gate
@@ -677,6 +678,29 @@
     document.getElementById('drill').classList.add('visible');
   }
 
+  function renderHeat(h) {
+    const pill = document.getElementById('heatPill');
+    if (!h || !h.ok || h.temp_c == null) { pill.style.display = 'none'; return; }
+    pill.style.display = '';
+    const lvl = (h.heat_risk && h.heat_risk.level) || 'low';
+    const colors = {
+      extreme:    { bg: 'rgba(239,68,68,0.25)', col: '#fecaca', bd: 'rgba(239,68,68,0.5)' },
+      very_high:  { bg: 'rgba(239,68,68,0.18)', col: '#fda4af', bd: 'rgba(239,68,68,0.4)' },
+      high:       { bg: 'rgba(245,158,11,0.22)', col: '#fde68a', bd: 'rgba(245,158,11,0.45)' },
+      elevated:   { bg: 'rgba(245,158,11,0.13)', col: '#fde68a', bd: 'rgba(245,158,11,0.3)' },
+      moderate:   { bg: 'rgba(96,165,250,0.13)', col: '#bfdbfe', bd: 'rgba(96,165,250,0.3)' },
+      low:        { bg: 'rgba(34,197,94,0.13)', col: '#86efac', bd: 'rgba(34,197,94,0.3)' },
+      unknown:    { bg: 'rgba(99,179,237,0.13)', col: '#cdf1ff', bd: 'rgba(99,179,237,0.3)' }
+    };
+    const c = colors[lvl] || colors.unknown;
+    pill.style.background = c.bg;
+    pill.style.color = c.col;
+    pill.style.borderColor = c.bd;
+    const feels = h.feels_c != null ? Math.round(h.feels_c) : null;
+    pill.innerHTML = '🌡 ' + Math.round(h.temp_c) + '°C' + (feels != null && feels !== Math.round(h.temp_c) ? ' (feels ' + feels + '°)' : '');
+    pill.title = 'Mecca · ' + Math.round(h.temp_c) + '°C, feels ' + (feels || '—') + '°C, RH ' + (h.humidity_pct || '—') + '% · Heat risk: ' + lvl.replace('_',' ').toUpperCase() + ' — ' + ((h.heat_risk && h.heat_risk.note) || '');
+  }
+
   // === DRILL button + banner ===
   function renderDrill(dr) {
     const el = document.getElementById('drillBanner');
@@ -731,16 +755,18 @@
   // === Refresh loop ===
   async function refresh() {
     try {
-      const [r, p, s, d] = await Promise.all([
+      const [r, p, s, d, h] = await Promise.all([
         HAJJ.authedCallSWR('command_summary'),
         HAJJ.authedCall('presence_list', { window: 300 }),
         HAJJ.authedCall('surge_forecast', { hours: 8 }),
-        HAJJ.authedCall('drill_status', {})
+        HAJJ.authedCall('drill_status', {}),
+        HAJJ.authedCall('heat_index', {})
       ]);
       if (r && r.ok) render(r);
       if (p && p.ok) renderPresence(p);
       if (s && s.ok) renderSurge(s);
       if (d && d.ok) renderDrill(d.drill);
+      if (h && h.ok) renderHeat(h);
     } catch (e) { console.error('refresh error', e); }
   }
 

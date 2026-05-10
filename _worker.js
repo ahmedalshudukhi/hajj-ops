@@ -369,6 +369,7 @@ const ROLE_GATE = {
   drill_set: ['leadership','admin'],
   handoff_script: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'],
   system_health: null,
+  heat_index: ['cluster_supervisor','dispatcher','leadership','admin','sar'],
   sar_summary: ['sar','admin'],
   dispatch_list: ['cluster_supervisor','dispatcher','leadership','admin'],
   dashboard_active: ['cluster_supervisor','dispatcher','leadership','admin'],
@@ -1947,6 +1948,77 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
       out.counts_error = e.message;
     }
     return out;
+  },
+
+  // ==============================================================
+  // heat_index — current weather + heat illness risk for Mecca/Mina/Arafat
+  // Uses Open-Meteo (free, no API key) cached at 10 min TTL via sync_state
+  // ==============================================================
+  async heat_index(user, env) {
+    const now = Math.floor(Date.now() / 1000);
+    // 10 min cache via sync_state
+    try {
+      const cached = await env.DB.prepare(
+        `SELECT value, updated_at FROM sync_state WHERE key = 'heat_index' LIMIT 1`
+      ).first();
+      if (cached && cached.value && (now - cached.updated_at) < 600) {
+        const j = JSON.parse(cached.value);
+        return { ok: true, cached: true, ...j };
+      }
+    } catch (_) {}
+
+    // Mecca coords: 21.4225, 39.8262
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=21.4225&longitude=39.8262&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,uv_index&timezone=Asia/Riyadh';
+    let result = { ok: true, generated_at: now };
+    try {
+      const r = await fetch(url, { cf: { cacheTtl: 600 } });
+      if (!r.ok) throw new Error('weather_fetch_failed');
+      const data = await r.json();
+      const c = data.current || {};
+      const T = c.temperature_2m;
+      const RH = c.relative_humidity_2m;
+      const Tapp = c.apparent_temperature;
+      const wind = c.wind_speed_10m;
+      const uv = c.uv_index;
+
+      // Heat illness risk score (0-100)
+      // Based on US National Weather Service heat index brackets adjusted for pilgrim activity
+      let risk = 0;
+      let riskLevel = 'low';
+      let riskNote = '';
+      const hi = Tapp != null ? Tapp : T;
+      if (hi == null) {
+        riskLevel = 'unknown';
+      } else if (hi >= 54) { risk = 100; riskLevel = 'extreme'; riskNote = 'Heat stroke imminent'; }
+      else if (hi >= 49) { risk = 90; riskLevel = 'very_high'; riskNote = 'Heat stroke likely with prolonged exposure'; }
+      else if (hi >= 41) { risk = 70; riskLevel = 'high'; riskNote = 'Heat stroke possible — heat exhaustion likely'; }
+      else if (hi >= 35) { risk = 50; riskLevel = 'elevated'; riskNote = 'Heat exhaustion likely with prolonged activity'; }
+      else if (hi >= 30) { risk = 30; riskLevel = 'moderate'; riskNote = 'Caution with elderly / vulnerable pilgrims'; }
+      else { risk = 10; riskLevel = 'low'; riskNote = 'Standard precautions'; }
+
+      result = {
+        ok: true,
+        generated_at: now,
+        location: 'Mecca / Mashaer',
+        temp_c: T,
+        feels_c: Tapp,
+        humidity_pct: RH,
+        wind_kmh: wind,
+        uv_index: uv,
+        heat_risk: { score: risk, level: riskLevel, note: riskNote },
+        cached: false
+      };
+      // Cache
+      try {
+        await env.DB.prepare(
+          `INSERT INTO sync_state (key, value, updated_at) VALUES ('heat_index', ?1, ?2)
+           ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = ?2`
+        ).bind(JSON.stringify(result), now).run();
+      } catch (_) {}
+    } catch (e) {
+      result = { ok: false, error: 'weather_unavailable', detail: e.message };
+    }
+    return result;
   },
 
   // ==============================================================
