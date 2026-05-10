@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a0e1a">
+<title>Reports & Analytics · Hajj 2026</title>
+<link rel="stylesheet" href="assets/style.css?v=0.2.27">
+<style>
+  body { background: #0a0e1a; color: #e7ecf7; font-family: 'Inter', system-ui, sans-serif; }
+  .rp-shell { max-width: 1280px; margin: 0 auto; padding: 20px; }
+
+  .rp-tabs { display:flex; gap:8px; flex-wrap:wrap; border-bottom:1px solid rgba(99,179,237,0.18); padding-bottom:12px; margin:12px 0 22px; }
+  .rp-tab {
+    padding:10px 18px; border-radius:8px; cursor:pointer;
+    background:rgba(20,28,50,0.5); border:1px solid rgba(99,179,237,0.15);
+    color:#93a4cd; font-weight:600; font-size:13px; letter-spacing:0.04em;
+    transition:all 0.18s;
+  }
+  .rp-tab:hover { background:rgba(99,179,237,0.1); color:#cdf1ff; }
+  .rp-tab.active { background:rgba(56,189,248,0.18); color:#cdf1ff; border-color:rgba(56,189,248,0.45); }
+  .rp-pane { display:none; }
+  .rp-pane.active { display:block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity:0; transform: translateY(4px); } to { opacity:1; transform:none; } }
+
+  .rp-controls {
+    background: rgba(20,28,50,0.6);
+    border: 1px solid rgba(99,179,237,0.18);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex; gap: 12px; flex-wrap: wrap; align-items: end;
+    margin-bottom: 18px;
+  }
+  .rp-controls label { display:block; font-size:11px; color:#93a4cd; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:5px; }
+  .rp-controls input, .rp-controls select {
+    padding: 9px 12px; border-radius: 7px;
+    background: rgba(15,23,42,0.7); color: #e7ecf7;
+    border: 1px solid rgba(99,179,237,0.25); font-size: 13px; min-width: 140px;
+  }
+  .rp-btn {
+    padding: 10px 18px; background: rgba(56,189,248,0.2); color: #cdf1ff;
+    border: 1px solid rgba(56,189,248,0.4); border-radius: 7px;
+    font-size: 13px; font-weight: 600; cursor: pointer; letter-spacing: 0.04em;
+  }
+  .rp-btn:hover { background: rgba(56,189,248,0.3); }
+  .rp-btn.print { background: rgba(34,197,94,0.16); color: #6ee7b7; border-color: rgba(34,197,94,0.4); }
+
+  /* === Report Card (printable) === */
+  .report-out {
+    background: #fff; color: #1a202c;
+    padding: 36px 42px;
+    border-radius: 12px;
+    margin-bottom: 16px;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.5);
+  }
+  .report-out h1 { font-size: 22px; margin: 0 0 6px; color: #0f172a; }
+  .report-out h2 { font-size: 16px; margin: 24px 0 10px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0; color: #0f172a; }
+  .report-out h3 { font-size: 13px; margin: 14px 0 6px; color: #334155; }
+  .report-out .head-meta { color: #64748b; font-size: 12px; margin-bottom: 16px; }
+  .report-out .head-meta strong { color: #0f172a; }
+
+  .report-out table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 12px; }
+  .report-out th { background: #f1f5f9; color: #0f172a; padding: 8px 12px; text-align: left; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; border: 1px solid #cbd5e1; }
+  .report-out td { padding: 7px 12px; border: 1px solid #e2e8f0; color: #1e293b; }
+  .report-out tr:nth-child(even) td { background: #f8fafc; }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 12px 0; }
+  .stat-tile {
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px;
+  }
+  .stat-tile .l { font-size: 10px; color: #64748b; letter-spacing: 0.13em; text-transform: uppercase; font-weight: 600; }
+  .stat-tile .v { font-size: 28px; font-weight: 800; color: #0f172a; line-height: 1; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .stat-tile.crit .v { color: #dc2626; }
+  .stat-tile.warn .v { color: #d97706; }
+  .stat-tile.good .v { color: #059669; }
+  .stat-tile.info .v { color: #0284c7; }
+
+  .triage-bar { display: flex; height: 32px; border-radius: 6px; overflow: hidden; margin: 6px 0; }
+  .triage-bar > div { display: flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 700; }
+  .triage-bar .red { background: #dc2626; }
+  .triage-bar .yellow { background: #d97706; }
+  .triage-bar .green { background: #059669; }
+  .triage-bar .black { background: #475569; }
+  .triage-bar .unknown { background: #94a3b8; }
+
+  .hour-chart { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; height: 100px; align-items: end; padding: 8px 0; border-bottom: 1px solid #cbd5e1; margin-bottom: 4px; }
+  .hour-bar { background: linear-gradient(to top, #0284c7, #38bdf8); border-radius: 2px 2px 0 0; min-height: 2px; position: relative; }
+  .hour-bar:hover::after {
+    content: attr(data-tooltip); position: absolute; bottom: 105%; left: 50%; transform: translateX(-50%);
+    background: #0f172a; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 10px; white-space: nowrap; z-index: 10;
+  }
+  .hour-axis { display: grid; grid-template-columns: repeat(24, 1fr); font-size: 9px; color: #64748b; padding: 0 2px; }
+  .hour-axis div { text-align: center; font-variant-numeric: tabular-nums; }
+
+  .open-incident {
+    background: #f8fafc; border-left: 4px solid #94a3b8; border: 1px solid #e2e8f0;
+    border-radius: 6px; padding: 10px 14px; margin: 6px 0;
+    display: grid; grid-template-columns: 90px 80px 90px 1fr 70px; gap: 12px; align-items: center; font-size: 12px;
+  }
+  .open-incident.red { border-left-color: #dc2626; background: #fef2f2; }
+  .open-incident.yellow { border-left-color: #d97706; background: #fffbeb; }
+  .open-incident.green { border-left-color: #059669; background: #f0fdf4; }
+  .open-incident .id { font-weight: 700; color: #0f172a; }
+  .open-incident .age { color: #64748b; font-variant-numeric: tabular-nums; }
+  .open-incident .age.old { color: #dc2626; font-weight: 700; }
+
+  .empty { padding: 24px; text-align: center; color: #94a3b8; font-style: italic; }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+  .badge.red { background: #fee2e2; color: #b91c1c; }
+  .badge.yellow { background: #fef3c7; color: #b45309; }
+  .badge.green { background: #d1fae5; color: #047857; }
+  .badge.black { background: #e2e8f0; color: #334155; }
+
+  .audit-row {
+    display: grid; grid-template-columns: 130px 110px 110px 1fr 90px;
+    gap: 8px; padding: 6px 8px; font-size: 11px; border-bottom: 1px solid #f1f5f9;
+    font-family: ui-monospace, Menlo, monospace;
+  }
+  .audit-row .a-action { font-weight: 600; color: #0284c7; }
+  .audit-row .a-actor { color: #0f172a; font-weight: 600; }
+  .audit-row.head { background: #f1f5f9; font-weight: 700; color: #0f172a; font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; }
+
+  /* === PRINT MEDIA === */
+  @media print {
+    body { background: #fff !important; color: #000; }
+    .rp-tabs, .rp-controls, #topbar, #cadGlobalOverlay { display: none !important; }
+    .rp-shell { max-width: 100% !important; padding: 0 !important; }
+    .report-out { box-shadow: none !important; padding: 0 !important; border-radius: 0; margin: 0; }
+    .report-out h2 { page-break-after: avoid; }
+    .stat-tile, .open-incident { page-break-inside: avoid; }
+    @page { margin: 1.5cm; size: A4; }
+  }
+
+  /* HMG branding for print */
+  .print-header { display: none; }
+  @media print {
+    .print-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-bottom: 12px; border-bottom: 2px solid #0f172a; margin-bottom: 18px;
+    }
+    .print-header .logo { font-size: 14px; font-weight: 700; color: #0f172a; letter-spacing: 0.05em; }
+    .print-header .meta { font-size: 11px; color: #64748b; }
+  }
+</style>
+</head>
+<body>
+<div id="topbar"></div>
+<div class="rp-shell">
+  <h1 style="font-size: 28px; margin: 16px 0 4px;">Reports & Analytics</h1>
+  <p style="color:#93a4cd; margin: 0 0 4px;">Operational reports, shift handoff documents, and audit search.</p>
+
+  <div class="rp-tabs">
+    <div class="rp-tab active" data-pane="daily">Daily Summary</div>
+    <div class="rp-tab" data-pane="handoff">Shift Handoff</div>
+    <div class="rp-tab" data-pane="incident">Incident Detail</div>
+    <div class="rp-tab" data-pane="audit">Audit Log</div>
+  </div>
+
+  <!-- DAILY SUMMARY -->
+  <div class="rp-pane active" data-pane="daily">
+    <div class="rp-controls">
+      <div>
+        <label>Date</label>
+        <input type="date" id="dailyDate" />
+      </div>
+      <button class="rp-btn" id="dailyGen">Generate Report</button>
+      <button class="rp-btn print" onclick="window.print()">🖨️ Print / Save PDF</button>
+    </div>
+    <div id="dailyOut"></div>
+  </div>
+
+  <!-- SHIFT HANDOFF -->
+  <div class="rp-pane" data-pane="handoff">
+    <div class="rp-controls">
+      <div>
+        <label>Lookback (hours)</label>
+        <select id="handoffHrs">
+          <option value="4">4 hours</option>
+          <option value="8" selected>8 hours</option>
+          <option value="12">12 hours</option>
+          <option value="24">24 hours</option>
+        </select>
+      </div>
+      <button class="rp-btn" id="handoffGen">Generate Handoff</button>
+      <button class="rp-btn print" onclick="window.print()">🖨️ Print / Save PDF</button>
+    </div>
+    <div id="handoffOut"></div>
+  </div>
+
+  <!-- INCIDENT DETAIL -->
+  <div class="rp-pane" data-pane="incident">
+    <div class="rp-controls">
+      <div>
+        <label>Incident ID</label>
+        <input type="text" id="incidentId" placeholder="e.g. INC-1778..." />
+      </div>
+      <button class="rp-btn" id="incidentGen">Load Detail</button>
+      <button class="rp-btn print" onclick="window.print()">🖨️ Print / Save PDF</button>
+    </div>
+    <div id="incidentOut"></div>
+  </div>
+
+  <!-- AUDIT -->
+  <div class="rp-pane" data-pane="audit">
+    <div class="rp-controls">
+      <div>
+        <label>Action contains</label>
+        <input type="text" id="auditAction" placeholder="dispatch, mci, etc." />
+      </div>
+      <div>
+        <label>Actor (NID)</label>
+        <input type="text" id="auditActor" placeholder="optional" />
+      </div>
+      <div>
+        <label>Resource ID</label>
+        <input type="text" id="auditResId" placeholder="optional" />
+      </div>
+      <div>
+        <label>From</label>
+        <input type="date" id="auditFrom" />
+      </div>
+      <div>
+        <label>To</label>
+        <input type="date" id="auditTo" />
+      </div>
+      <button class="rp-btn" id="auditGen">Search</button>
+    </div>
+    <div id="auditOut"></div>
+  </div>
+</div>
+
+<script src="assets/auth.js?v=0.2.27"></script>
+<script src="assets/topbar.js?v=0.2.27"></script>
+<script src="assets/version.js?v=0.2.27"></script>
+<script>
+(async function() {
+  if (!await HAJJ.requireRole(['leadership','admin','dispatcher','cluster_supervisor'])) return;
+  CADTopbar.render({ title: "Reports & Analytics" });
+
+  // Tab switching
+  document.querySelectorAll('.rp-tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.rp-tab').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.rp-pane').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      document.querySelector(`.rp-pane[data-pane="${t.dataset.pane}"]`).classList.add('active');
+    });
+  });
+
+  // Default date = today
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('dailyDate').value = today;
+
+  // === Helpers ===
+  function fmtSec(s) {
+    if (s == null) return '—';
+    if (s < 60) return s + 's';
+    const m = Math.floor(s / 60), r = s % 60;
+    return m + 'm' + (r > 0 ? ' ' + r + 's' : '');
+  }
+  function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function printHeader(title, subtitle) {
+    return `<div class="print-header">
+      <div class="logo">HMG · Aviation Medical Services · Hajj 2026</div>
+      <div class="meta">${title} · ${subtitle}</div>
+    </div>`;
+  }
+
+  // === DAILY ===
+  document.getElementById('dailyGen').addEventListener('click', async () => {
+    const date = document.getElementById('dailyDate').value;
+    const out = document.getElementById('dailyOut');
+    out.innerHTML = '<div class="empty">Loading…</div>';
+    const r = await HAJJ.authedCall('report_daily', { date });
+    if (!r || !r.ok) { out.innerHTML = '<div class="empty">Error: ' + (r && r.error || 'unknown') + '</div>'; return; }
+    renderDaily(out, r);
+  });
+
+  function renderDaily(out, r) {
+    const trCol = { red:'red', yellow:'yellow', green:'green', black:'black' };
+    const total = r.summary.total;
+    const triagePct = (n) => total > 0 ? Math.max(2, Math.round(n / total * 100)) : 0;
+
+    // Triage bar
+    const triages = ['red','yellow','green','black','unknown'];
+    let triageBar = '';
+    triages.forEach(t => {
+      const n = r.by_triage[t] || 0;
+      if (n > 0) triageBar += `<div class="${t}" style="width:${triagePct(n)}%;">${t.toUpperCase()} ${n}</div>`;
+    });
+
+    // Hourly chart
+    const maxHour = Math.max(1, ...r.by_hour.map(h => h.dispatched));
+    const hourBars = r.by_hour.map(h => {
+      const ht = Math.round(h.dispatched / maxHour * 100);
+      return `<div class="hour-bar" style="height:${ht}%;" data-tooltip="${String(h.hour).padStart(2,'0')}:00 — ${h.dispatched} dispatched"></div>`;
+    }).join('');
+    const hourAxis = r.by_hour.map(h => `<div>${String(h.hour).padStart(2,'0')}</div>`).join('');
+
+    // Stations table
+    const stationRows = Object.entries(r.by_station).sort(([,a],[,b]) => b.total - a.total).map(([st, d]) => {
+      const tri = Object.entries(d.by_triage).sort(([,a],[,b]) => b - a)
+        .map(([t,n]) => `<span class="badge ${t}">${t} ${n}</span>`).join(' ');
+      return `<tr><td><strong>${st}</strong></td><td>${d.total}</td><td>${tri || '—'}</td></tr>`;
+    }).join('');
+
+    // Top units
+    const unitRows = (r.top_units || []).map((u, i) => `
+      <tr><td>${i+1}</td><td><strong>${u.unit_code}</strong></td><td>${u.count}</td></tr>`).join('');
+
+    out.innerHTML = `
+    <div class="report-out">
+      ${printHeader('Daily Operations Report', r.date + ' · ' + r.hajj_day)}
+      <h1>Daily Operations Report</h1>
+      <div class="head-meta">
+        <strong>Date:</strong> ${r.date} · <strong>${r.hajj_day}</strong> · 
+        <strong>Generated:</strong> ${new Date(r.generated_at*1000).toLocaleString()} 
+        by ${r.generated_by.name} (${r.generated_by.role})
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-tile info"><div class="l">Total Dispatched</div><div class="v">${r.summary.total}</div></div>
+        <div class="stat-tile good"><div class="l">Closed</div><div class="v">${r.summary.closed}</div></div>
+        <div class="stat-tile warn"><div class="l">Still Open</div><div class="v">${r.summary.still_open}</div></div>
+        <div class="stat-tile"><div class="l">Cancelled</div><div class="v">${r.summary.cancelled}</div></div>
+        <div class="stat-tile crit"><div class="l">Cardiac Arrests</div><div class="v">${r.cardiac_arrests}</div></div>
+        <div class="stat-tile"><div class="l">MCI Events</div><div class="v">${r.mci_events.length}</div></div>
+      </div>
+
+      <h2>By Triage Category</h2>
+      ${total > 0 ? `<div class="triage-bar">${triageBar}</div>` : '<div class="empty">No incidents this date</div>'}
+
+      <h2>Response Times (n=${r.response_time.count})</h2>
+      <div class="stat-grid">
+        <div class="stat-tile good"><div class="l">Median</div><div class="v">${fmtSec(r.response_time.median_sec)}</div></div>
+        <div class="stat-tile info"><div class="l">Mean</div><div class="v">${fmtSec(r.response_time.mean_sec)}</div></div>
+        <div class="stat-tile warn"><div class="l">P95</div><div class="v">${fmtSec(r.response_time.p95_sec)}</div></div>
+        <div class="stat-tile crit"><div class="l">Max</div><div class="v">${fmtSec(r.response_time.max_sec)}</div></div>
+      </div>
+
+      <h2>Hourly Distribution (KSA local)</h2>
+      <div class="hour-chart">${hourBars}</div>
+      <div class="hour-axis">${hourAxis}</div>
+
+      <h2>By Station</h2>
+      ${stationRows ? `<table>
+        <thead><tr><th>Station</th><th>Total</th><th>By Triage</th></tr></thead>
+        <tbody>${stationRows}</tbody>
+      </table>` : '<div class="empty">No station data</div>'}
+
+      <h2>By Cluster</h2>
+      <div class="stat-grid">
+        <div class="stat-tile info"><div class="l">Arafat</div><div class="v">${r.by_cluster.Arafat}</div></div>
+        <div class="stat-tile info"><div class="l">Muzdalifah</div><div class="v">${r.by_cluster.Muzdalifah}</div></div>
+        <div class="stat-tile info"><div class="l">Mina</div><div class="v">${r.by_cluster.Mina}</div></div>
+        <div class="stat-tile"><div class="l">Other</div><div class="v">${r.by_cluster.Other}</div></div>
+      </div>
+
+      <h2>Top Units (by dispatch count)</h2>
+      ${unitRows ? `<table>
+        <thead><tr><th>Rank</th><th>Unit</th><th>Dispatches</th></tr></thead>
+        <tbody>${unitRows}</tbody>
+      </table>` : '<div class="empty">No unit attribution data</div>'}
+
+      ${r.key_events.length ? `<h2>Key Events</h2>
+      <table>
+        <thead><tr><th>Time</th><th>Action</th><th>Actor</th><th>Details</th></tr></thead>
+        <tbody>${r.key_events.map(e => `<tr>
+          <td>${new Date(e.ts*1000).toLocaleTimeString()}</td>
+          <td><strong>${e.action}</strong></td>
+          <td>${e.actor || '—'}</td>
+          <td style="font-size:11px; color:#64748b;">${escHtml((e.details || '').slice(0,180))}</td>
+        </tr>`).join('')}</tbody>
+      </table>` : ''}
+    </div>`;
+  }
+
+  // === HANDOFF ===
+  document.getElementById('handoffGen').addEventListener('click', async () => {
+    const lookback_hours = document.getElementById('handoffHrs').value;
+    const out = document.getElementById('handoffOut');
+    out.innerHTML = '<div class="empty">Loading…</div>';
+    const r = await HAJJ.authedCall('report_shift_handoff', { lookback_hours });
+    if (!r || !r.ok) { out.innerHTML = '<div class="empty">Error: ' + (r && r.error || 'unknown') + '</div>'; return; }
+    renderHandoff(out, r);
+  });
+
+  function renderHandoff(out, r) {
+    const openHtml = r.open_incidents.length ? r.open_incidents.map(i => `
+      <div class="open-incident ${i.triage || ''}">
+        <div class="id">${i.incident_id}</div>
+        <div><span class="badge ${i.triage || 'unknown'}">${i.triage || '?'}</span></div>
+        <div><strong>${i.station || '—'}</strong>${i.sub_location ? ' · ' + escHtml(i.sub_location) : ''}</div>
+        <div>${escHtml(i.chief_complaint || '—')} ${i.cardiac_arrest ? '<span class="badge red">CARDIAC</span>' : ''}</div>
+        <div class="age ${i.age_min >= 60 ? 'old' : ''}">${i.age_min}m</div>
+      </div>
+    `).join('') : '<div class="empty">No open incidents — clean handoff!</div>';
+
+    const stationRows = (r.station_status || []).map(s => `
+      <tr><td><strong>${s.station}</strong></td><td>${s.status || '—'}</td>
+      <td>${s.capacity_pct != null ? s.capacity_pct + '%' : '—'}</td>
+      <td>${s.sub_location || '—'}</td></tr>
+    `).join('');
+
+    out.innerHTML = `
+    <div class="report-out">
+      ${printHeader('Shift Handoff Document', new Date().toLocaleString())}
+      <h1>Shift Handoff Document</h1>
+      <div class="head-meta">
+        <strong>Generated:</strong> ${new Date(r.generated_at*1000).toLocaleString()}
+        by ${r.generated_by.name} (${r.generated_by.role}) ·
+        <strong>${r.hajj_day}</strong> ·
+        <strong>Lookback:</strong> ${r.shift_window.hours}h
+      </div>
+
+      ${r.mci.active ? `
+      <div style="background:#fee2e2; border-left:4px solid #dc2626; padding:14px 18px; border-radius:8px; margin:14px 0;">
+        <strong style="color:#991b1b; font-size:14px;">⚠ MCI MODE IS ACTIVE</strong><br>
+        <span style="color:#7f1d1d; font-size:12px;">Level: ${r.mci.level || '?'} · Reason: ${escHtml(r.mci.reason || '?')} · Declared by: ${r.mci.declared_by_name || '?'}</span>
+      </div>` : ''}
+
+      <h2>Items Requiring Attention</h2>
+      <ul style="font-size:13px; color:#1e293b; line-height:1.8;">
+        ${r.notes_for_next_shift.map(n => `<li>${escHtml(n)}</li>`).join('')}
+      </ul>
+
+      <h2>Open Incidents (${r.open_incidents.length})</h2>
+      <div style="font-size:11px; color:#64748b; margin-bottom:8px;">Sorted: cardiac arrests → reds → newest</div>
+      ${openHtml}
+
+      <h2>Activity in Last ${r.shift_window.hours}h</h2>
+      <div class="stat-grid">
+        <div class="stat-tile info"><div class="l">Dispatched</div><div class="v">${r.recent_dispatches_count}</div></div>
+        <div class="stat-tile good"><div class="l">Closed</div><div class="v">${r.recent_closures_count}</div></div>
+        <div class="stat-tile"><div class="l">Pending Repos.</div><div class="v">${r.pending_repositions}</div></div>
+      </div>
+
+      ${stationRows ? `<h2>Station Status</h2>
+      <table>
+        <thead><tr><th>Station</th><th>Status</th><th>Capacity</th><th>Sub-Loc</th></tr></thead>
+        <tbody>${stationRows}</tbody>
+      </table>` : ''}
+
+      <h2 style="margin-top:30px;">Sign-off</h2>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:30px; margin-top:14px;">
+        <div>
+          <div style="font-size:11px; color:#64748b; letter-spacing:0.06em; text-transform:uppercase;">Handing off (current shift)</div>
+          <div style="border-bottom:1px solid #1e293b; padding-bottom:6px; margin:30px 0 4px;">${r.generated_by.name}</div>
+          <div style="font-size:10px; color:#64748b;">Signature / Time</div>
+        </div>
+        <div>
+          <div style="font-size:11px; color:#64748b; letter-spacing:0.06em; text-transform:uppercase;">Receiving (next shift)</div>
+          <div style="border-bottom:1px solid #1e293b; padding-bottom:6px; margin:30px 0 4px;">&nbsp;</div>
+          <div style="font-size:10px; color:#64748b;">Signature / Time</div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // === INCIDENT DETAIL ===
+  document.getElementById('incidentGen').addEventListener('click', async () => {
+    const incident_id = document.getElementById('incidentId').value.trim();
+    const out = document.getElementById('incidentOut');
+    if (!incident_id) { out.innerHTML = '<div class="empty">Enter an incident ID</div>'; return; }
+    out.innerHTML = '<div class="empty">Loading…</div>';
+    const r = await HAJJ.authedCall('report_incident_detail', { incident_id });
+    if (!r || !r.ok) { out.innerHTML = '<div class="empty">Error: ' + (r && r.error || 'unknown') + '</div>'; return; }
+    renderIncident(out, r);
+  });
+
+  function renderIncident(out, r) {
+    const i = r.incident;
+    const eventRows = r.events.map(e => `<tr>
+      <td>${new Date(e.ts*1000).toLocaleTimeString()}</td>
+      <td><strong>${e.event_type}</strong></td>
+      <td>${e.actor || '—'}</td>
+      <td>${escHtml(e.notes || '')}</td>
+    </tr>`).join('');
+    const auditRows = r.audit.map(a => `<tr>
+      <td>${new Date(a.ts*1000).toLocaleTimeString()}</td>
+      <td><strong>${a.action}</strong></td>
+      <td>${a.actor || '—'}</td>
+      <td style="font-size:10px; color:#64748b;">${escHtml((a.details || '').slice(0,120))}</td>
+    </tr>`).join('');
+
+    out.innerHTML = `
+    <div class="report-out">
+      ${printHeader('Incident Report', i.incident_id)}
+      <h1>Incident Report · ${i.incident_id}</h1>
+      <div class="head-meta">
+        <strong>Dispatched:</strong> ${new Date(i.ts*1000).toLocaleString()} ·
+        <strong>Status:</strong> ${i.status || '—'} ·
+        <strong>Triage:</strong> <span class="badge ${i.triage}">${i.triage || '?'}</span>
+      </div>
+
+      <h2>Patient & Location</h2>
+      <table>
+        <tr><th style="width:30%;">Station</th><td><strong>${i.station || '—'}</strong></td></tr>
+        <tr><th>Sub-location</th><td>${i.sub_location || '—'}</td></tr>
+        <tr><th>Chief Complaint</th><td>${escHtml(i.chief_complaint || '—')}</td></tr>
+        <tr><th>Age / Gender</th><td>${i.age || '—'} / ${i.gender || '—'}</td></tr>
+        <tr><th>Cardiac Arrest</th><td>${i.cardiac_arrest ? '<span class="badge red">YES</span>' : 'No'}</td></tr>
+        <tr><th>Unit Assigned</th><td><strong>${i.unit_assigned || '—'}</strong></td></tr>
+        ${i.disposition ? `<tr><th>Disposition</th><td>${escHtml(i.disposition)}</td></tr>` : ''}
+        ${i.transport_to ? `<tr><th>Transport To</th><td>${escHtml(i.transport_to)}</td></tr>` : ''}
+        ${r.response_time_sec != null ? `<tr><th>Response Time</th><td><strong>${fmtSec(r.response_time_sec)}</strong></td></tr>` : ''}
+      </table>
+
+      <h2>Event Timeline (${r.events.length})</h2>
+      ${eventRows ? `<table>
+        <thead><tr><th>Time</th><th>Event</th><th>Actor</th><th>Notes</th></tr></thead>
+        <tbody>${eventRows}</tbody>
+      </table>` : '<div class="empty">No events logged</div>'}
+
+      <h2>Audit Trail (${r.audit.length})</h2>
+      ${auditRows ? `<table>
+        <thead><tr><th>Time</th><th>Action</th><th>Actor</th><th>Details</th></tr></thead>
+        <tbody>${auditRows}</tbody>
+      </table>` : '<div class="empty">No audit entries</div>'}
+    </div>`;
+  }
+
+  // === AUDIT SEARCH ===
+  document.getElementById('auditGen').addEventListener('click', async () => {
+    const params = {
+      action: document.getElementById('auditAction').value || undefined,
+      actor_nid: document.getElementById('auditActor').value || undefined,
+      resource_id: document.getElementById('auditResId').value || undefined
+    };
+    const fromD = document.getElementById('auditFrom').value;
+    const toD = document.getElementById('auditTo').value;
+    if (fromD) params.from_ts = Math.floor(new Date(fromD + 'T00:00:00+03:00').getTime() / 1000);
+    if (toD) params.to_ts = Math.floor(new Date(toD + 'T23:59:59+03:00').getTime() / 1000);
+
+    const out = document.getElementById('auditOut');
+    out.innerHTML = '<div class="empty">Searching…</div>';
+    const r = await HAJJ.authedCall('audit_search', params);
+    if (!r || !r.ok) { out.innerHTML = '<div class="empty">Error: ' + (r && r.error || 'unknown') + '</div>'; return; }
+    renderAudit(out, r);
+  });
+
+  function renderAudit(out, r) {
+    if (!r.results.length) { out.innerHTML = '<div class="empty">No results</div>'; return; }
+    out.innerHTML = `
+    <div class="report-out">
+      ${printHeader('Audit Search', `${r.count} results`)}
+      <h1>Audit Search · ${r.count} results</h1>
+      <div class="head-meta">Showing up to 500. Add filters to narrow.</div>
+      <div class="audit-row head">
+        <div>Time</div><div>Actor</div><div>Action</div><div>Details</div><div>Resource ID</div>
+      </div>
+      ${r.results.map(a => `
+        <div class="audit-row">
+          <div>${new Date(a.ts*1000).toLocaleString()}</div>
+          <div class="a-actor">${a.actor_name || a.actor_nid || '—'}</div>
+          <div class="a-action">${a.action}</div>
+          <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escHtml(a.details || '')}">${escHtml((a.details || '').slice(0,80))}</div>
+          <div>${a.resource_id || '—'}</div>
+        </div>
+      `).join('')}
+    </div>`;
+  }
+
+  // Auto-load today's daily on first view
+  document.getElementById('dailyGen').click();
+})();
+</script>
+</body>
+</html>

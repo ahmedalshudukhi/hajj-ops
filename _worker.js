@@ -358,6 +358,10 @@ const ROLE_GATE = {
   broadcast_ack: null,                 // any authed user
   unit_suggest: ['dispatcher','leadership','admin'],
   activity_feed: ['cluster_supervisor','dispatcher','leadership','admin'],
+  report_daily: ['leadership','admin','dispatcher','cluster_supervisor'],
+  report_shift_handoff: ['leadership','admin','dispatcher','cluster_supervisor'],
+  report_incident_detail: ['leadership','admin','dispatcher','cluster_supervisor'],
+  audit_search: ['admin','leadership'],
   sar_summary: ['sar','admin'],
   dispatch_list: ['cluster_supervisor','dispatcher','leadership','admin'],
   dashboard_active: ['cluster_supervisor','dispatcher','leadership','admin'],
@@ -1574,7 +1578,340 @@ const ACTIONS = {
     }
   },
 
-  _hajjDay(ts) {
+  // ==============================================================
+  // report_daily — full operational summary for any date
+  // Returns: per-triage counts, per-station, hourly breakdown,
+  //   top units, response time stats, key events
+  // ==============================================================
+  async report_daily(user, env, params) {
+    // Date param: YYYY-MM-DD or default today (Riyadh +03 timezone for ops)
+    const dateStr = String(params.date || '').slice(0, 10);
+    let dayStart, dayEnd, dateLabel;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const [y,m,d] = dateStr.split('-').map(Number);
+      // Riyadh +03 — day starts at 00:00 KSA
+      dayStart = Math.floor(Date.UTC(y, m-1, d, -3) / 1000);  // -3hr offset
+      dayEnd = dayStart + 86400;
+      dateLabel = dateStr;
+    } else {
+      const now = new Date();
+      // Riyadh date today
+      const ksa = new Date(now.getTime() + (3*3600 - now.getTimezoneOffset()*60) * 1000);
+      const y = ksa.getUTCFullYear(), m = ksa.getUTCMonth(), d = ksa.getUTCDate();
+      dayStart = Math.floor(Date.UTC(y, m, d, -3) / 1000);
+      dayEnd = dayStart + 86400;
+      dateLabel = ksa.toISOString().slice(0,10);
+    }
+
+    const out = {
+      ok: true,
+      date: dateLabel,
+      hajj_day: this._hajjDay((dayStart + dayEnd) / 2),
+      window: { start_ts: dayStart, end_ts: dayEnd },
+      generated_at: Math.floor(Date.now() / 1000),
+      generated_by: { name: user.name, role: user.role },
+      summary: { total: 0, closed: 0, still_open: 0, cancelled: 0 },
+      by_triage: {},
+      by_station: {},
+      by_hour: [],            // 24 buckets
+      by_cluster: { Arafat: 0, Muzdalifah: 0, Mina: 0, Other: 0 },
+      top_units: [],          // [{unit_code, count}]
+      response_time: { count: 0, mean_sec: null, median_sec: null, p95_sec: null, max_sec: null },
+      cardiac_arrests: 0,
+      mci_events: [],
+      key_events: []          // significant audit events
+    };
+
+    try {
+      // Fetch all incidents created on this day
+      const r = await env.DB.prepare(
+        `SELECT incident_id, triage, station, status, ts, closed_at,
+                cardiac_arrest, unit_assigned, sub_location
+         FROM dispatch_log WHERE ts >= ?1 AND ts < ?2 ORDER BY ts ASC`
+      ).bind(dayStart, dayEnd).all();
+      const incs = r.results || [];
+
+      out.summary.total = incs.length;
+      const ARFAT = ['ARF1','ARF2','ARF3'], MUZ = ['MUZ1','MUZ2','MUZ3'], MIN = ['MIN1','MIN2','MIN3'];
+      // Init hourly buckets (KSA hours)
+      for (let h = 0; h < 24; h++) out.by_hour.push({ hour: h, dispatched: 0, closed: 0, by_triage: {} });
+
+      const unitCounts = {};
+      incs.forEach(i => {
+        // Status
+        if (i.status === 'complete' || i.status === 'closed') out.summary.closed++;
+        else if (i.status === 'cancelled') out.summary.cancelled++;
+        else out.summary.still_open++;
+
+        // Triage
+        const tri = i.triage || 'unknown';
+        out.by_triage[tri] = (out.by_triage[tri] || 0) + 1;
+
+        // Station
+        const st = i.station || 'UNK';
+        if (!out.by_station[st]) out.by_station[st] = { total: 0, by_triage: {} };
+        out.by_station[st].total++;
+        out.by_station[st].by_triage[tri] = (out.by_station[st].by_triage[tri] || 0) + 1;
+
+        // Cluster
+        if (ARFAT.includes(st)) out.by_cluster.Arafat++;
+        else if (MUZ.includes(st)) out.by_cluster.Muzdalifah++;
+        else if (MIN.includes(st)) out.by_cluster.Mina++;
+        else out.by_cluster.Other++;
+
+        // Hour bucket (KSA local)
+        const ksaHour = Math.floor((i.ts - dayStart) / 3600);
+        if (ksaHour >= 0 && ksaHour < 24) {
+          out.by_hour[ksaHour].dispatched++;
+          out.by_hour[ksaHour].by_triage[tri] = (out.by_hour[ksaHour].by_triage[tri] || 0) + 1;
+        }
+        if (i.closed_at) {
+          const closedHour = Math.floor((i.closed_at - dayStart) / 3600);
+          if (closedHour >= 0 && closedHour < 24) out.by_hour[closedHour].closed++;
+        }
+
+        // Unit attribution
+        if (i.unit_assigned) {
+          unitCounts[i.unit_assigned] = (unitCounts[i.unit_assigned] || 0) + 1;
+        }
+        if (i.cardiac_arrest) out.cardiac_arrests++;
+      });
+
+      // Top units (top 10)
+      out.top_units = Object.entries(unitCounts)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 10)
+        .map(([unit_code, count]) => ({ unit_code, count }));
+
+      // Response time stats — JOIN with incident_events
+      const rtR = await env.DB.prepare(
+        `SELECT (e.ts - d.ts) AS delta
+         FROM dispatch_log d
+         INNER JOIN (
+           SELECT incident_id, MIN(ts) AS ts FROM incident_events
+           WHERE event_type = 'on_scene' GROUP BY incident_id
+         ) e ON e.incident_id = d.incident_id
+         WHERE d.ts >= ?1 AND d.ts < ?2
+           AND (e.ts - d.ts) BETWEEN 0 AND 86400
+         ORDER BY delta ASC`
+      ).bind(dayStart, dayEnd).all();
+      const deltas = (rtR.results || []).map(x => x.delta);
+      if (deltas.length > 0) {
+        const sum = deltas.reduce((s,v) => s+v, 0);
+        out.response_time.count = deltas.length;
+        out.response_time.mean_sec = Math.round(sum / deltas.length);
+        out.response_time.median_sec = deltas[Math.floor(deltas.length / 2)];
+        out.response_time.p95_sec = deltas[Math.floor(deltas.length * 0.95)];
+        out.response_time.max_sec = deltas[deltas.length - 1];
+      }
+
+      // Key events: MCI activations + critical broadcasts within day
+      try {
+        const keyR = await env.DB.prepare(
+          `SELECT a.ts, a.action, a.resource_id, a.details, w.name AS actor
+           FROM audit_log a LEFT JOIN allowlist w ON w.nid = a.actor_nid
+           WHERE a.ts >= ?1 AND a.ts < ?2
+             AND a.action IN ('mci_activate','mci_deactivate','broadcast_send')
+           ORDER BY a.ts ASC`
+        ).bind(dayStart, dayEnd).all();
+        out.key_events = (keyR.results || []).map(e => ({
+          ts: e.ts, ts_iso: new Date(e.ts*1000).toISOString(),
+          actor: e.actor, action: e.action, resource_id: e.resource_id, details: e.details
+        }));
+        out.mci_events = out.key_events.filter(e => e.action.startsWith('mci_'));
+      } catch (_) {}
+    } catch (e) {
+      out.error = String(e.message);
+    }
+    return out;
+  },
+
+  // ==============================================================
+  // report_shift_handoff — for shift change documentation
+  // Returns: open incidents, recent activity, station status, MCI status
+  // ==============================================================
+  async report_shift_handoff(user, env, params) {
+    const now = Math.floor(Date.now() / 1000);
+    const lookback = parseInt(params.lookback_hours || 4, 10) * 3600;
+    const out = {
+      ok: true,
+      generated_at: now,
+      generated_by: { name: user.name, role: user.role },
+      shift_window: { from_ts: now - lookback, to_ts: now, hours: lookback/3600 },
+      hajj_day: this._hajjDay(now),
+      open_incidents: [],
+      open_count_by_triage: {},
+      open_count_by_station: {},
+      recent_closures: [],
+      recent_dispatches_count: 0,
+      recent_closures_count: 0,
+      mci: { active: false },
+      station_status: [],
+      pending_repositions: 0,
+      notes_for_next_shift: []
+    };
+
+    try {
+      // Open incidents
+      const oR = await env.DB.prepare(
+        `SELECT incident_id, triage, station, sub_location, status, ts,
+                cardiac_arrest, unit_assigned, chief_complaint, age, gender
+         FROM dispatch_log
+         WHERE status NOT IN ('complete','closed','cancelled')
+         ORDER BY
+           CASE WHEN cardiac_arrest = 1 THEN 0 ELSE 1 END,
+           CASE triage WHEN 'red' THEN 0 WHEN 'yellow' THEN 1 ELSE 2 END,
+           ts DESC`
+      ).all();
+      out.open_incidents = (oR.results || []).map(i => ({
+        ...i,
+        age_min: Math.floor((now - i.ts) / 60),
+        ts_iso: new Date(i.ts * 1000).toISOString()
+      }));
+      out.open_incidents.forEach(i => {
+        const t = i.triage || 'unknown';
+        const s = i.station || 'UNK';
+        out.open_count_by_triage[t] = (out.open_count_by_triage[t] || 0) + 1;
+        out.open_count_by_station[s] = (out.open_count_by_station[s] || 0) + 1;
+      });
+
+      // Recent closures
+      const cR = await env.DB.prepare(
+        `SELECT incident_id, triage, station, ts, closed_at,
+                (closed_at - ts) AS duration_sec
+         FROM dispatch_log
+         WHERE closed_at >= ?1 AND closed_at < ?2
+         ORDER BY closed_at DESC LIMIT 30`
+      ).bind(now - lookback, now).all();
+      out.recent_closures = cR.results || [];
+      out.recent_closures_count = out.recent_closures.length;
+
+      // Recent dispatches count
+      const dR = await env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM dispatch_log WHERE ts >= ?1`
+      ).bind(now - lookback).first();
+      out.recent_dispatches_count = Number(dR?.n) || 0;
+
+      // MCI status
+      try {
+        const m = await env.DB.prepare(
+          `SELECT value FROM sync_state WHERE key = 'mci_status'`
+        ).first();
+        if (m && m.value) out.mci = JSON.parse(m.value);
+      } catch (_) {}
+
+      // Station status (latest per station)
+      const sR = await env.DB.prepare(
+        `SELECT station, status, capacity_pct, sub_location, ts
+         FROM (
+           SELECT station, status, capacity_pct, sub_location, ts,
+                  ROW_NUMBER() OVER (PARTITION BY station ORDER BY ts DESC) AS rn
+           FROM station_status_log
+         ) WHERE rn = 1`
+      ).all();
+      out.station_status = sR.results || [];
+
+      // Pending repositions
+      try {
+        const pR = await env.DB.prepare(
+          `SELECT COUNT(*) AS n FROM reposition_log WHERE status = 'requested'`
+        ).first();
+        out.pending_repositions = Number(pR?.n) || 0;
+      } catch (_) {}
+
+      // Generate notes for next shift
+      if (out.mci.active) out.notes_for_next_shift.push('⚠ MCI MODE IS ACTIVE — review level and reason');
+      const reds = out.open_count_by_triage.red || 0;
+      if (reds >= 3) out.notes_for_next_shift.push(`⚠ ${reds} RED triage incidents open`);
+      const cardiac = out.open_incidents.filter(i => i.cardiac_arrest).length;
+      if (cardiac > 0) out.notes_for_next_shift.push(`⚠ ${cardiac} cardiac arrest incident${cardiac>1?'s':''} active`);
+      const long = out.open_incidents.filter(i => i.age_min >= 60).length;
+      if (long > 0) out.notes_for_next_shift.push(`⚠ ${long} incident${long>1?'s':''} open >1hr — review for status update`);
+      if (out.pending_repositions > 0) out.notes_for_next_shift.push(`${out.pending_repositions} reposition request${out.pending_repositions>1?'s':''} pending approval`);
+      if (out.notes_for_next_shift.length === 0) out.notes_for_next_shift.push('No critical items requiring escalation');
+
+    } catch (e) {
+      out.error = String(e.message);
+    }
+    return out;
+  },
+
+  // ==============================================================
+  // report_incident_detail — full timeline of one incident
+  // ==============================================================
+  async report_incident_detail(user, env, params) {
+    const id = String(params.incident_id || '').trim();
+    if (!id) return { ok: false, error: 'missing_incident_id' };
+    try {
+      const incR = await env.DB.prepare(
+        `SELECT * FROM dispatch_log WHERE incident_id = ?1 LIMIT 1`
+      ).bind(id).first();
+      if (!incR) return { ok: false, error: 'not_found' };
+
+      const evR = await env.DB.prepare(
+        `SELECT e.event_type, e.ts, e.actor_nid, e.notes, w.name AS actor
+         FROM incident_events e
+         LEFT JOIN allowlist w ON w.nid = e.actor_nid
+         WHERE e.incident_id = ?1 ORDER BY e.ts ASC`
+      ).bind(id).all();
+
+      const auR = await env.DB.prepare(
+        `SELECT a.ts, a.action, a.actor_nid, a.details, w.name AS actor
+         FROM audit_log a
+         LEFT JOIN allowlist w ON w.nid = a.actor_nid
+         WHERE a.resource_id = ?1 ORDER BY a.ts ASC`
+      ).bind(id).all();
+
+      // Compute response time if we have on_scene
+      let response_sec = null;
+      const events = evR.results || [];
+      const onScene = events.find(e => e.event_type === 'on_scene');
+      if (onScene && incR.ts) response_sec = onScene.ts - incR.ts;
+
+      return {
+        ok: true,
+        incident: { ...incR, ts_iso: new Date(incR.ts * 1000).toISOString() },
+        events: events.map(e => ({ ...e, ts_iso: new Date(e.ts * 1000).toISOString() })),
+        audit: (auR.results || []).map(a => ({ ...a, ts_iso: new Date(a.ts * 1000).toISOString() })),
+        response_time_sec: response_sec
+      };
+    } catch (e) {
+      return { ok: false, error: 'detail_failed', detail: e.message };
+    }
+  },
+
+  // ==============================================================
+  // audit_search — filter audit log
+  // ==============================================================
+  async audit_search(user, env, params) {
+    const filters = [];
+    const binds = [];
+    let i = 1;
+    if (params.actor_nid) { filters.push('a.actor_nid = ?' + i++); binds.push(String(params.actor_nid)); }
+    if (params.action)    { filters.push("a.action LIKE ?" + i++); binds.push('%' + params.action + '%'); }
+    if (params.resource)  { filters.push('a.resource = ?' + i++); binds.push(String(params.resource)); }
+    if (params.resource_id) { filters.push('a.resource_id = ?' + i++); binds.push(String(params.resource_id)); }
+    if (params.from_ts)   { filters.push('a.ts >= ?' + i++); binds.push(parseInt(params.from_ts, 10)); }
+    if (params.to_ts)     { filters.push('a.ts <= ?' + i++); binds.push(parseInt(params.to_ts, 10)); }
+    const where = filters.length ? 'WHERE ' + filters.join(' AND ') : '';
+    const limit = Math.min(parseInt(params.limit || 200, 10), 500);
+    try {
+      const r = await env.DB.prepare(
+        `SELECT a.ts, a.actor_nid, a.action, a.resource, a.resource_id, a.details,
+                w.name AS actor_name, w.role AS actor_role
+         FROM audit_log a LEFT JOIN allowlist w ON w.nid = a.actor_nid
+         ${where}
+         ORDER BY a.ts DESC LIMIT ${limit}`
+      ).bind(...binds).all();
+      return { ok: true, count: (r.results || []).length, results: (r.results || []).map(e => ({
+        ...e, ts_iso: new Date(e.ts * 1000).toISOString()
+      })) };
+    } catch (e) {
+      return { ok: false, error: 'search_failed', detail: e.message };
+    }
+  },
+
+    _hajjDay(ts) {
     // DH 1 = May 27, 2026 = unix ts 1779408000 (00:00 +03:00)
     const dh1 = Date.UTC(2026, 4, 27) / 1000 - 3 * 3600;  // May 27 +03 midnight
     const day = Math.floor((ts - dh1) / 86400) + 1;
