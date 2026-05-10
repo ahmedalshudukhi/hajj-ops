@@ -344,6 +344,32 @@
   const SWR_TTL_MS = 30 * 1000; // 30s
   const SWR_KEY_PREFIX = 'hajj_swr_';
 
+  // Purge any SWR cache from a previous app version on first call.
+  // version.js loads after auth.js, so we evaluate this lazily.
+  let _swrPurgedFor = null;
+  function purgeStaleSwrCache() {
+    const v = (window.HAJJ_VERSION && window.HAJJ_VERSION.version) || 'dev';
+    if (_swrPurgedFor === v) return;
+    _swrPurgedFor = v;
+    const lastVer = sessionStorage.getItem('hajj_swr_version');
+    if (lastVer === v) return;
+    // Version changed — wipe all SWR cache entries
+    const toRemove = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i);
+      if (k && k.indexOf(SWR_KEY_PREFIX) === 0) toRemove.push(k);
+    }
+    toRemove.forEach(function(k) { sessionStorage.removeItem(k); });
+    // Also clear localStorage page caches that might hold stale shapes
+    ['hajj_active_cache','hajj_dispatch_cache','hajj_units_avail_cache'].forEach(function(k){
+      try { localStorage.removeItem(k); } catch(_){}
+    });
+    sessionStorage.setItem('hajj_swr_version', v);
+    if (toRemove.length && typeof console !== 'undefined') {
+      console.log('[CAD] SWR cache purged (v ' + (lastVer || 'none') + ' → ' + v + '): ' + toRemove.length + ' entries');
+    }
+  }
+
   // Endpoints safe to cache (read-only)
   const SWR_SAFE_ACTIONS = {
     active_summary: true, augmentations: true, roster_fill: true,
@@ -356,6 +382,7 @@
   };
 
   async function authedCallSWR(action, params) {
+    purgeStaleSwrCache();
     if (!SWR_SAFE_ACTIONS[action]) return authedCall(action, params);
 
     const key = SWR_KEY_PREFIX + action + ':' + JSON.stringify(params || {});
