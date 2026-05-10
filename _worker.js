@@ -1189,8 +1189,19 @@ const ACTIONS = {
 
   async dispatch_close(user, env, params) {
     const incidentId = params.incident_id;
-    const outcome = (params.outcome || '').toLowerCase();
+    let outcome = (params.outcome || '').toLowerCase();
     if (!incidentId) return { ok: false, error: 'missing_incident_id' };
+    // Accept frontend aliases (Treat/Transfer/Refusal) → canonical
+    const aliasMap = {
+      'treat': 'treated_released',
+      'treated': 'treated_released',
+      'transfer': 'transferred',
+      'refusal': 'refused',
+      'refuse': 'refused',
+      'cancel': 'cancelled',
+      'death': 'deceased'
+    };
+    if (aliasMap[outcome]) outcome = aliasMap[outcome];
     const validOutcomes = ['transferred','treated_released','refused','deceased','cancelled'];
     if (!validOutcomes.includes(outcome)) return { ok: false, error: 'invalid_outcome', outcome, valid: validOutcomes };
     const now = Math.floor(Date.now() / 1000);
@@ -1326,7 +1337,7 @@ const ACTIONS = {
       }
 
       await env.DB.prepare(
-        `UPDATE reposition_log SET status = 'approved', completed_at = ?1, completed_by_nid = ?2 WHERE id = ?3`
+        `UPDATE reposition_log SET status = 'approved', approved_at = ?1, approved_by_nid = ?2 WHERE id = ?3`
       ).bind(now, user.nid, id).run();
       await env.DB.prepare(
         `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
@@ -1355,7 +1366,7 @@ const ACTIONS = {
         }
       }
       await env.DB.prepare(
-        `UPDATE reposition_log SET status = 'rejected', completed_at = ?1, completed_by_nid = ?2,
+        `UPDATE reposition_log SET status = 'rejected', approved_at = ?1, approved_by_nid = ?2,
          notes = COALESCE(notes,'') || ?3 WHERE id = ?4`
       ).bind(now, user.nid, params.reason ? `\n[reject]: ${params.reason}` : '', id).run();
       await env.DB.prepare(

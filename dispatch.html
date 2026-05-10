@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Dispatch · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.11">
+<link rel="stylesheet" href="assets/style.css?v=0.2.12">
 
 <style>
   body { background: var(--bg); }
@@ -301,12 +301,12 @@
   ⚠ <span id="repoBannerCount">0</span> reposition request<span id="repoBannerS">s</span> pending approval — click to review
 </div>
 
-<script src="assets/config.js?v=0.2.11"></script>
-<script src="assets/tempo.js?v=0.2.11"></script>
-<script src="assets/auth.js?v=0.2.11"></script>
-<script src="assets/sublocations.js?v=0.2.11"></script>
-<script src="assets/topbar.js?v=0.2.11"></script>
-<script src="assets/dateBar.js?v=0.2.11"></script>
+<script src="assets/config.js?v=0.2.12"></script>
+<script src="assets/tempo.js?v=0.2.12"></script>
+<script src="assets/auth.js?v=0.2.12"></script>
+<script src="assets/sublocations.js?v=0.2.12"></script>
+<script src="assets/topbar.js?v=0.2.12"></script>
+<script src="assets/dateBar.js?v=0.2.12"></script>
 <script>
 (function () {
 
@@ -474,6 +474,7 @@
   const createMsg = document.getElementById('createMsg');
 
   createBtn.addEventListener('click', async function () {
+    console.log('[dispatch] Dispatch clicked');
     createMsg.innerHTML = '';
     const region = regionEl.value, zone = zoneEl.value;
     const source = val('source'), location = val('location'), caseField = val('caseField');
@@ -481,25 +482,40 @@
     const subLocation = val('subLocation');
     const category = val('category');
 
+    console.log('[dispatch] Form values:', { region, zone, source, caseField, unit, category, subLocation });
+
     if (!region || !zone) { showCreateErr('Pick region and zone.'); return; }
     if (!source)          { showCreateErr('Pick a source.'); return; }
     if (!caseField)       { showCreateErr('Pick a chief complaint.'); return; }
+    if (!category)        { showCreateErr('Pick a triage category (red/yellow/green/black).'); return; }
 
     createBtn.disabled = true;
     createBtn.innerHTML = '<span class="spinner"></span>&nbsp;&nbsp;Dispatching…';
 
     const r = await HAJJ.authedCall('dispatch_create', {
       sub_location: subLocation,
-      region: region, zone: zone, station: zone,
-      source: source, location: location, case_field: caseField,
-      unit: unit, type: type, shift: shift, category: category,
-      cardiac_arrest: document.getElementById('cardiacArrest').checked
+      station: zone,                  // primary key for backend
+      source: source,
+      complaint: caseField,           // canonical name
+      unit_assigned: unit,            // canonical name
+      triage: category,               // canonical name
+      cardiac_arrest: document.getElementById('cardiacArrest').checked,
+      // Legacy aliases — preserved for any backend that hasn't migrated:
+      region: region, zone: zone, location: location, case_field: caseField,
+      unit: unit, type: type, shift: shift, category: category
     });
+
+    console.log('[dispatch] Backend response:', r);
 
     createBtn.disabled = false;
     createBtn.innerHTML = 'Dispatch';
 
-    if (!r || !r.ok) { showCreateErr('Failed to dispatch. ' + (r && r.error || '')); return; }
+    if (!r || !r.ok) {
+      const errMsg = (r && r.error) || 'no response';
+      const errDetail = (r && r.detail) ? ' — ' + r.detail : '';
+      showCreateErr('Failed to dispatch: ' + errMsg + errDetail);
+      return;
+    }
     ['source','location','caseField','unit'].forEach(id => document.getElementById(id).value = '');
     regionEl.value = ''; zoneEl.innerHTML = '<option value="">Zone / Station</option>';
     refresh();
@@ -695,7 +711,7 @@
   function buildCard(inc) {
     const card = document.createElement('div');
     const cat = (inc.Category || 'yellow').toLowerCase();
-    card.className = 'inc-card cat-' + cat + (inc.Status === 'closed' ? ' is-closed' : '');
+    card.className = 'inc-card cat-' + cat + (['closed','complete','cancelled'].includes(inc.Status) ? ' is-closed' : '');
     card.dataset.id = inc.Incident_ID;
 
     const idShort = (inc.Incident_ID || '').replace(/^INC-/, '').slice(0, 18);
@@ -708,7 +724,7 @@
         + 'data-event="' + key + '">' + label + (done ? ' ✓' : '') + '</button>';
     };
 
-    const isClosed = inc.Status === 'closed';
+    const isClosed = ['closed','complete','cancelled'].includes(inc.Status);
     const inTransfer = !!inc.Transfer_Start && !isClosed;
 
     let decisionHtml;
@@ -1086,6 +1102,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.11"></script>
+<script src="assets/version.js?v=0.2.12"></script>
 </body>
 </html>
