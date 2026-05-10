@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PCR · Hajj 2026</title>
+<link rel="stylesheet" href="assets/style.css?v=0.2.34">
+<style>
+body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-serif; }
+.pc-shell { max-width:1100px; margin:0 auto; padding:20px; }
+.pc-toolbar { background:rgba(20,28,50,0.6); border:1px solid rgba(99,179,237,0.18); border-radius:12px; padding:14px 18px; display:flex; gap:12px; flex-wrap:wrap; align-items:end; margin:12px 0 18px; }
+.pc-toolbar input { padding:10px 14px; border-radius:7px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.25); font-size:14px; }
+.pc-btn { padding:10px 16px; background:rgba(56,189,248,0.2); color:#cdf1ff; border:1px solid rgba(56,189,248,0.4); border-radius:7px; cursor:pointer; font-weight:600; font-size:13px; }
+.pc-btn:hover { background:rgba(56,189,248,0.3); }
+.pc-btn.ghost { background:transparent; color:#94a3b8; border-color:rgba(99,179,237,0.2); }
+
+.pc-form { background:rgba(20,28,50,0.4); border:1px solid rgba(99,179,237,0.15); border-radius:12px; padding:20px 24px; }
+.pc-form h2 { font-size:14px; color:#cdf1ff; letter-spacing:0.06em; text-transform:uppercase; margin:18px 0 10px; padding-bottom:6px; border-bottom:1px solid rgba(99,179,237,0.15); }
+.pc-form h2:first-child { margin-top:0; }
+.pc-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; }
+.pc-grid label { display:block; font-size:11px; color:#93a4cd; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:5px; }
+.pc-grid input, .pc-grid select, .pc-grid textarea { width:100%; padding:9px 12px; border-radius:7px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.25); font-size:13px; font-family:inherit; }
+.pc-grid textarea { min-height:80px; resize:vertical; }
+.pc-full { grid-column:1/-1; }
+.pc-status { display:inline-block; padding:3px 9px; border-radius:5px; font-size:11px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; margin-left:8px; }
+.pc-status.draft { background:rgba(245,158,11,0.18); color:#fcd34d; }
+.pc-status.signed { background:rgba(34,197,94,0.18); color:#86efac; }
+.pc-saved { position:fixed; bottom:14px; left:50%; transform:translateX(-50%); background:rgba(34,197,94,0.18); color:#86efac; padding:8px 16px; border-radius:8px; border:1px solid rgba(34,197,94,0.4); font-size:12px; font-weight:600; opacity:0; transition:opacity 0.2s; pointer-events:none; }
+.pc-saved.visible { opacity:1; }
+.pc-mine { display:flex; flex-direction:column; gap:8px; margin-top:14px; }
+.pc-mine-row { background:rgba(20,28,50,0.4); border:1px solid rgba(99,179,237,0.15); border-radius:8px; padding:10px 14px; cursor:pointer; transition:background 0.15s; }
+.pc-mine-row:hover { background:rgba(99,179,237,0.08); }
+.pc-mine-row .top { display:flex; justify-content:space-between; }
+.pc-mine-row .id { font-family:ui-monospace,Menlo,monospace; color:#cdf1ff; font-size:12px; }
+</style>
+</head><body>
+<div id="topbar"></div>
+<div class="pc-shell">
+  <h1 style="font-size:28px; margin:16px 0 4px;">Patient Care Report</h1>
+  <p style="color:#93a4cd; margin:0 0 4px;">Draft and save PCRs. Auto-fills from incident on first open.</p>
+
+  <div class="pc-toolbar">
+    <div style="flex:1; min-width:200px;">
+      <label style="display:block; font-size:11px; color:#93a4cd; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:5px;">Incident ID</label>
+      <input type="text" id="pcIncident" placeholder="DSP-..." style="width:100%;" />
+    </div>
+    <button class="pc-btn" id="pcLoad">Load / Create</button>
+    <button class="pc-btn ghost" onclick="window.print()">🖨️ Print</button>
+  </div>
+
+  <div id="pcMineWrap"><h2 style="font-size:14px; color:#cdf1ff; letter-spacing:0.06em; text-transform:uppercase;">My recent PCRs</h2><div class="pc-mine" id="pcMine"><div style="color:#6b7d9e; padding:10px;">Loading…</div></div></div>
+
+  <div id="pcEditor" style="display:none; margin-top:24px;"></div>
+</div>
+<div class="pc-saved" id="pcSaved">✓ Saved</div>
+
+<script src="assets/auth.js?v=0.2.34"></script>
+<script src="assets/shortcuts.js?v=0.2.34"></script>
+<script src="assets/voice.js?v=0.2.34"></script>
+<script src="assets/topbar.js?v=0.2.34"></script>
+<script src="assets/version.js?v=0.2.34"></script>
+<script>
+(async function() {
+  if (!await HAJJ.requireRole(['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'])) return;
+  CADTopbar.render({ title: "PCR" });
+
+  let currentPCR = null;
+  let saveTimer = null;
+
+  async function loadMine() {
+    const r = await HAJJ.authedCall('pcr_list_mine', {});
+    const wrap = document.getElementById('pcMine');
+    if (!r || !r.ok || !r.drafts.length) { wrap.innerHTML = '<div style="color:#6b7d9e; padding:10px;">No drafts yet. Enter an incident ID above to start.</div>'; return; }
+    wrap.innerHTML = r.drafts.map(d => `
+      <div class="pc-mine-row" onclick="document.getElementById('pcIncident').value='${d.incident_id}'; document.getElementById('pcLoad').click();">
+        <div class="top">
+          <span class="id">${d.incident_id}</span>
+          <span class="pc-status ${d.status}">${d.status||'draft'}</span>
+        </div>
+        <div style="font-size:11px; color:#93a4cd; margin-top:4px;">${(d.chief_complaint||'(no complaint)')} · ${d.patient_age||'?'}/${d.patient_gender||'?'} · updated ${new Date(d.updated_at*1000).toLocaleString()}</div>
+      </div>
+    `).join('');
+  }
+
+  document.getElementById('pcLoad').addEventListener('click', async () => {
+    const incident_id = document.getElementById('pcIncident').value.trim();
+    if (!incident_id) return alert('Enter an incident ID');
+    const r = await HAJJ.authedCall('pcr_draft', { incident_id });
+    if (!r || !r.ok) { alert('Error: ' + ((r && r.error)||'unknown')); return; }
+    currentPCR = r.pcr;
+    renderEditor();
+  });
+
+  function renderEditor() {
+    const p = currentPCR;
+    document.getElementById('pcEditor').style.display = 'block';
+    document.getElementById('pcEditor').innerHTML = `
+    <div class="pc-form">
+      <h2>Identification</h2>
+      <div class="pc-grid">
+        <div><label>Incident ID</label><input type="text" id="pf_incident_id" value="${p.incident_id||''}" disabled /></div>
+        <div><label>PCR ID</label><input type="text" id="pf_id" value="${p.id||''}" disabled /></div>
+        <div><label>Status</label><select id="pf_status">
+          <option value="draft" ${p.status==='draft'?'selected':''}>Draft</option>
+          <option value="reviewed" ${p.status==='reviewed'?'selected':''}>Reviewed</option>
+          <option value="signed" ${p.status==='signed'?'selected':''}>Signed</option>
+        </select></div>
+        <div><label>Author</label><input type="text" value="${p.author_name||p.author_nid||''}" disabled /></div>
+      </div>
+
+      <h2>Patient</h2>
+      <div class="pc-grid">
+        <div><label>Age</label><input type="number" id="pf_patient_age" value="${p.patient_age||''}" /></div>
+        <div><label>Gender</label><select id="pf_patient_gender">
+          <option value="">—</option>
+          <option value="male" ${p.patient_gender==='male'?'selected':''}>Male</option>
+          <option value="female" ${p.patient_gender==='female'?'selected':''}>Female</option>
+        </select></div>
+        <div><label>Nationality</label><input type="text" id="pf_patient_nationality" value="${p.patient_nationality||''}" /></div>
+      </div>
+
+      <h2>Chief Complaint & History</h2>
+      <div class="pc-grid">
+        <div class="pc-full"><label>Chief complaint <button type="button" data-voice-target="pf_chief_complaint" style="margin-left:8px; background:rgba(168,85,247,0.16); color:#d8b4fe; border:1px solid rgba(168,85,247,0.35); padding:2px 8px; border-radius:5px; font-size:10px; cursor:pointer;">🎤</button></label><textarea id="pf_chief_complaint">${p.chief_complaint||''}</textarea></div>
+        <div class="pc-full"><label>History <button type="button" data-voice-target="pf_history" style="margin-left:8px; background:rgba(168,85,247,0.16); color:#d8b4fe; border:1px solid rgba(168,85,247,0.35); padding:2px 8px; border-radius:5px; font-size:10px; cursor:pointer;">🎤</button></label><textarea id="pf_history">${p.history||''}</textarea></div>
+        <div><label>Allergies</label><input type="text" id="pf_allergies" value="${p.allergies||''}" /></div>
+        <div><label>Medications</label><input type="text" id="pf_medications" value="${p.medications||''}" /></div>
+      </div>
+
+      <h2>Vitals & Assessment</h2>
+      <div class="pc-grid">
+        <div class="pc-full"><label>Initial vitals (BP, HR, RR, SpO2, T, BGL)</label><input type="text" id="pf_vitals_initial" value="${p.vitals_initial||''}" placeholder="120/80, 88, 16, 98%, 36.8°C, 5.2" /></div>
+        <div class="pc-full"><label>Final vitals</label><input type="text" id="pf_vitals_final" value="${p.vitals_final||''}" /></div>
+        <div><label>GCS - Eye</label><input type="number" min="1" max="4" id="pf_gcs_e" value="${p.gcs_e||''}" /></div>
+        <div><label>GCS - Verbal</label><input type="number" min="1" max="5" id="pf_gcs_v" value="${p.gcs_v||''}" /></div>
+        <div><label>GCS - Motor</label><input type="number" min="1" max="6" id="pf_gcs_m" value="${p.gcs_m||''}" /></div>
+        <div class="pc-full"><label>Assessment <button type="button" data-voice-target="pf_assessment" style="margin-left:8px; background:rgba(168,85,247,0.16); color:#d8b4fe; border:1px solid rgba(168,85,247,0.35); padding:2px 8px; border-radius:5px; font-size:10px; cursor:pointer;">🎤</button></label><textarea id="pf_assessment">${p.assessment||''}</textarea></div>
+      </div>
+
+      <h2>Interventions & Disposition</h2>
+      <div class="pc-grid">
+        <div class="pc-full"><label>Interventions <button type="button" data-voice-target="pf_interventions" style="margin-left:8px; background:rgba(168,85,247,0.16); color:#d8b4fe; border:1px solid rgba(168,85,247,0.35); padding:2px 8px; border-radius:5px; font-size:10px; cursor:pointer;">🎤</button></label><textarea id="pf_interventions">${p.interventions||''}</textarea></div>
+        <div class="pc-full"><label>Response to treatment</label><textarea id="pf_response_to_treatment">${p.response_to_treatment||''}</textarea></div>
+        <div><label>Disposition</label><select id="pf_disposition">
+          <option value="">—</option>
+          <option value="treated_released" ${p.disposition==='treated_released'?'selected':''}>Treated and released</option>
+          <option value="transported" ${p.disposition==='transported'?'selected':''}>Transported to hospital</option>
+          <option value="refused" ${p.disposition==='refused'?'selected':''}>Refused care</option>
+          <option value="dnr" ${p.disposition==='dnr'?'selected':''}>DNR / deceased on scene</option>
+          <option value="referred" ${p.disposition==='referred'?'selected':''}>Referred to clinic</option>
+        </select></div>
+        <div><label>Transport to</label><input type="text" id="pf_transport_to" value="${p.transport_to||''}" /></div>
+        <div><label>Transport unit</label><input type="text" id="pf_transport_unit" value="${p.transport_unit||''}" /></div>
+        <div><label>Handoff to</label><input type="text" id="pf_handoff_to" value="${p.handoff_to||''}" /></div>
+      </div>
+
+      <div style="margin-top:20px; padding-top:16px; border-top:1px solid rgba(99,179,237,0.15); display:flex; gap:10px;">
+        <button class="pc-btn" id="pcSave">Save</button>
+        <button class="pc-btn" id="pcSign">Mark as signed</button>
+        <button class="pc-btn ghost" onclick="window.print()">🖨️ Print</button>
+      </div>
+    </div>`;
+
+    // Auto-save on blur
+    const fields = ['patient_age','patient_gender','patient_nationality','chief_complaint','history','allergies','medications','vitals_initial','vitals_final','gcs_e','gcs_v','gcs_m','assessment','interventions','response_to_treatment','disposition','transport_to','transport_unit','handoff_to','status'];
+    fields.forEach(f => {
+      const el = document.getElementById('pf_' + f);
+      if (el) el.addEventListener('blur', queueSave);
+    });
+    document.getElementById('pcSave').addEventListener('click', save);
+    document.getElementById('pcSign').addEventListener('click', () => {
+      document.getElementById('pf_status').value = 'signed';
+      save();
+    });
+    if (window.CADVoice) window.CADVoice.scan();
+  }
+
+  function queueSave() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, 800);
+  }
+
+  async function save() {
+    if (!currentPCR) return;
+    const fields = ['patient_age','patient_gender','patient_nationality','chief_complaint','history','allergies','medications','vitals_initial','vitals_final','gcs_e','gcs_v','gcs_m','assessment','interventions','response_to_treatment','disposition','transport_to','transport_unit','handoff_to','status'];
+    const data = { id: currentPCR.id };
+    fields.forEach(f => {
+      const el = document.getElementById('pf_' + f);
+      if (el && el.value !== '') data[f] = el.value;
+    });
+    const r = await HAJJ.authedCall('pcr_save', data);
+    if (r && r.ok) {
+      const note = document.getElementById('pcSaved');
+      note.classList.add('visible');
+      setTimeout(() => note.classList.remove('visible'), 1500);
+      loadMine();
+    } else {
+      alert('Save failed: ' + ((r && r.error)||'unknown'));
+    }
+  }
+
+  loadMine();
+})();
+</script>
+</body></html>

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Dispatch · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.33">
+<link rel="stylesheet" href="assets/style.css?v=0.2.34">
 
 <style>
   body { background: var(--bg); }
@@ -269,6 +269,10 @@
       <button type="button" id="btnSuggestUnit" style="background:rgba(99,179,237,0.14); color:#cdf1ff; border:1px solid rgba(99,179,237,0.3); padding:6px 12px; border-radius:6px; font-size:11px; cursor:pointer; white-space:nowrap;">⚡ Suggest best unit</button>
       <div id="unitSuggestions" style="font-size:11px; color:#94a3b8; flex:1; min-height:14px;"></div>
     </div>
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:-6px;">
+      <button type="button" id="btnTriageSuggest" style="background:rgba(168,85,247,0.16); color:#d8b4fe; border:1px solid rgba(168,85,247,0.35); padding:5px 10px; border-radius:6px; font-size:11px; cursor:pointer; white-space:nowrap;">AI Triage Suggest</button>
+      <div id="triageReason" style="font-size:11px; color:#94a3b8; flex:1;"></div>
+    </div>
     <select class="select full" id="category">
       <option value="red">🔴 Red — Resuscitation</option>
       <option value="yellow" selected>🟡 Yellow — Urgent</option>
@@ -305,14 +309,14 @@
   ⚠ <span id="repoBannerCount">0</span> reposition request<span id="repoBannerS">s</span> pending approval — click to review
 </div>
 
-<script src="assets/config.js?v=0.2.33"></script>
-<script src="assets/tempo.js?v=0.2.33"></script>
-<script src="assets/auth.js?v=0.2.33"></script>
-<script src="assets/shortcuts.js?v=0.2.33"></script>
-<script src="assets/voice.js?v=0.2.33"></script>
-<script src="assets/sublocations.js?v=0.2.33"></script>
-<script src="assets/topbar.js?v=0.2.33"></script>
-<script src="assets/dateBar.js?v=0.2.33"></script>
+<script src="assets/config.js?v=0.2.34"></script>
+<script src="assets/tempo.js?v=0.2.34"></script>
+<script src="assets/auth.js?v=0.2.34"></script>
+<script src="assets/shortcuts.js?v=0.2.34"></script>
+<script src="assets/voice.js?v=0.2.34"></script>
+<script src="assets/sublocations.js?v=0.2.34"></script>
+<script src="assets/topbar.js?v=0.2.34"></script>
+<script src="assets/dateBar.js?v=0.2.34"></script>
 <script>
 (function () {
 
@@ -1249,9 +1253,32 @@
     });
   })();
 
+
+  // === SMART TRIAGE ASSIST ===
+  (function wireTriageSuggest() {
+    const btn = document.getElementById('btnTriageSuggest');
+    const out = document.getElementById('triageReason');
+    const catEl = document.getElementById('category');
+    const caseEl = document.getElementById('caseField');
+    const cardiacEl = document.getElementById('cardiacArrest');
+    if (!btn || !out || !catEl) return;
+    btn.addEventListener('click', async () => {
+      const complaint = caseEl ? caseEl.value : '';
+      const cardiac = cardiacEl ? cardiacEl.checked : false;
+      out.innerHTML = '<span style="color:#94a3b8;">Analyzing...</span>';
+      const r = await HAJJ.authedCall('triage_suggest', { complaint, cardiac_arrest: cardiac ? '1' : '0' });
+      if (!r || !r.ok) { out.innerHTML = '<span style="color:#fca5a5;">No suggestion</span>'; return; }
+      // Auto-fill the triage category
+      catEl.value = r.suggested;
+      catEl.dispatchEvent(new Event('change'));
+      const color = r.suggested === 'red' ? '#fca5a5' : r.suggested === 'yellow' ? '#fcd34d' : r.suggested === 'green' ? '#86efac' : '#cbd5e1';
+      out.innerHTML = '<span style="color:' + color + '; font-weight:600;">' + r.suggested.toUpperCase() + '</span> <span style="color:#94a3b8;">' + (r.confidence||'') + ' confidence: ' + (r.reasons||[]).join(', ') + '</span>';
+    });
+  })();
+
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.33"></script>
+<script src="assets/version.js?v=0.2.34"></script>
 </body>
 </html>

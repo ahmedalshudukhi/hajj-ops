@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0a0e1a"><title>Timeline · Hajj 2026</title>
+<link rel="stylesheet" href="assets/style.css?v=0.2.34">
+<style>
+body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-serif; }
+.tl-shell { max-width:1400px; margin:0 auto; padding:20px; }
+.tl-controls { background:rgba(20,28,50,0.6); border:1px solid rgba(99,179,237,0.18); border-radius:12px; padding:14px 18px; display:flex; gap:14px; flex-wrap:wrap; align-items:end; margin:12px 0 18px; }
+.tl-controls label { display:block; font-size:11px; color:#93a4cd; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:5px; }
+.tl-controls input, .tl-controls select { padding:9px 12px; border-radius:7px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.25); font-size:13px; min-width:120px; }
+.tl-btn { padding:9px 16px; background:rgba(56,189,248,0.18); color:#cdf1ff; border:1px solid rgba(56,189,248,0.4); border-radius:7px; font-weight:600; cursor:pointer; font-size:13px; }
+.tl-btn:hover { background:rgba(56,189,248,0.3); }
+.tl-summary { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:12px; margin-bottom:18px; }
+.tl-summary .tile { background:rgba(20,28,50,0.5); border:1px solid rgba(99,179,237,0.15); border-radius:10px; padding:12px 16px; }
+.tl-summary .tile .l { font-size:10px; color:#93a4cd; letter-spacing:0.13em; text-transform:uppercase; }
+.tl-summary .tile .v { font-size:24px; font-weight:800; color:#e8f1ff; line-height:1; margin-top:4px; }
+.tl-grid { background:rgba(20,28,50,0.5); border:1px solid rgba(99,179,237,0.15); border-radius:12px; padding:18px; overflow-x:auto; }
+.tl-axis { position:relative; height:32px; border-bottom:1px solid rgba(99,179,237,0.2); margin-left:240px; min-width:1000px; }
+.tl-axis .tick { position:absolute; bottom:6px; font-size:10px; color:#93a4cd; font-variant-numeric:tabular-nums; transform:translateX(-50%); }
+.tl-axis .tickline { position:absolute; bottom:0; height:6px; width:1px; background:rgba(99,179,237,0.3); transform:translateX(-50%); }
+.tl-row { display:grid; grid-template-columns:240px 1fr; align-items:center; gap:0; min-height:34px; border-bottom:1px solid rgba(99,179,237,0.05); }
+.tl-label { padding:6px 12px; font-size:12px; }
+.tl-label .id { color:#cdf1ff; font-weight:600; font-family:ui-monospace,Menlo,monospace; font-size:11px; }
+.tl-label .meta { color:#93a4cd; font-size:10px; margin-top:2px; }
+.tl-track { position:relative; height:28px; min-width:1000px; cursor:pointer; }
+.tl-bar { position:absolute; top:6px; height:18px; border-radius:4px; opacity:0.8; transition:opacity 0.15s; display:flex; align-items:center; padding:0 6px; font-size:10px; color:#fff; font-weight:600; overflow:hidden; white-space:nowrap; }
+.tl-bar:hover { opacity:1; }
+.tl-bar.dispatched { background:#64748b; }
+.tl-bar.en_route { background:#0ea5e9; }
+.tl-bar.on_scene { background:#f59e0b; }
+.tl-bar.transporting { background:#a855f7; }
+.tl-bar.red-tinted { box-shadow:0 0 0 1px #ef4444 inset; }
+.tl-bar.yellow-tinted { box-shadow:0 0 0 1px #f59e0b inset; }
+.tl-empty { color:#6b7d9e; padding:30px; text-align:center; }
+.tl-legend { display:flex; gap:18px; flex-wrap:wrap; margin:8px 0 18px; padding:8px 16px; font-size:11px; }
+.tl-legend .swatch { display:inline-block; width:14px; height:14px; border-radius:3px; vertical-align:middle; margin-right:6px; }
+</style>
+</head><body>
+<div id="topbar"></div>
+<div class="tl-shell">
+  <h1 style="font-size:28px; margin:16px 0 4px;">Incident Timeline</h1>
+  <p style="color:#93a4cd; margin:0 0 4px;">Gantt-style visualization of dispatch lifecycle.</p>
+
+  <div class="tl-controls">
+    <div><label>Lookback</label><select id="tlLookback">
+      <option value="2">2 hours</option><option value="6" selected>6 hours</option>
+      <option value="12">12 hours</option><option value="24">24 hours</option><option value="48">48 hours</option>
+    </select></div>
+    <div><label>Station</label><select id="tlStation"><option value="">All</option>
+      <option>ARF1</option><option>ARF2</option><option>ARF3</option>
+      <option>MUZ1</option><option>MUZ2</option><option>MUZ3</option>
+      <option>MIN1</option><option>MIN2</option><option>MIN3</option>
+    </select></div>
+    <div><label>Triage</label><select id="tlTriage"><option value="">All</option>
+      <option value="red">Red</option><option value="yellow">Yellow</option>
+      <option value="green">Green</option><option value="black">Black</option>
+    </select></div>
+    <div><label>Drills</label><select id="tlDrills"><option value="0">Hide</option><option value="1">Include</option></select></div>
+    <button class="tl-btn" id="tlRefresh">↻ Refresh</button>
+    <span style="color:#6b7d9e; font-size:11px; align-self:center;" id="tlMeta">—</span>
+  </div>
+
+  <div class="tl-summary" id="tlSummary"></div>
+
+  <div class="tl-legend">
+    <span><span class="swatch" style="background:#64748b;"></span>Dispatched</span>
+    <span><span class="swatch" style="background:#0ea5e9;"></span>En Route</span>
+    <span><span class="swatch" style="background:#f59e0b;"></span>On Scene</span>
+    <span><span class="swatch" style="background:#a855f7;"></span>Transporting</span>
+    <span><span class="swatch" style="background:transparent; box-shadow:0 0 0 2px #ef4444 inset;"></span>Red triage outline</span>
+  </div>
+
+  <div class="tl-grid"><div id="tlBody"><div class="tl-empty">Loading…</div></div></div>
+</div>
+<script src="assets/auth.js?v=0.2.34"></script>
+<script src="assets/shortcuts.js?v=0.2.34"></script>
+<script src="assets/topbar.js?v=0.2.34"></script>
+<script src="assets/version.js?v=0.2.34"></script>
+<script>
+(async function() {
+  if (!await HAJJ.requireRole(['cluster_supervisor','dispatcher','leadership','admin'])) return;
+  CADTopbar.render({ title: "Timeline" });
+
+  function fmtSec(s) {
+    if (s == null) return '—';
+    if (s < 60) return s + 's';
+    if (s < 3600) return Math.round(s/60) + 'm';
+    return (s/3600).toFixed(1) + 'h';
+  }
+
+  async function refresh() {
+    const lookback = parseInt(document.getElementById('tlLookback').value);
+    const station = document.getElementById('tlStation').value;
+    const triage = document.getElementById('tlTriage').value;
+    const include_drills = document.getElementById('tlDrills').value === '1';
+    const r = await HAJJ.authedCall('timeline', { lookback_hours: lookback, station, triage, include_drills: include_drills ? '1' : '' });
+    if (!r || !r.ok) { document.getElementById('tlBody').innerHTML = '<div class="tl-empty">Error: ' + ((r && r.error) || 'unknown') + '</div>'; return; }
+
+    document.getElementById('tlMeta').textContent = r.count + ' incidents · window ' + r.window.lookback_hours + 'h';
+
+    // Summary
+    const open = r.lanes.filter(l => l.is_open).length;
+    const closed = r.lanes.length - open;
+    const reds = r.lanes.filter(l => l.triage === 'red').length;
+    const cardiac = r.lanes.filter(l => l.cardiac_arrest).length;
+    const longestOpen = r.lanes.filter(l => l.is_open).reduce((m, l) => Math.max(m, l.duration_sec), 0);
+    document.getElementById('tlSummary').innerHTML = `
+      <div class="tile"><div class="l">Total</div><div class="v">${r.count}</div></div>
+      <div class="tile"><div class="l">Open</div><div class="v" style="color:#fcd34d;">${open}</div></div>
+      <div class="tile"><div class="l">Closed</div><div class="v" style="color:#6ee7b7;">${closed}</div></div>
+      <div class="tile"><div class="l">Red triage</div><div class="v" style="color:#fca5a5;">${reds}</div></div>
+      <div class="tile"><div class="l">Cardiac</div><div class="v" style="color:#fca5a5;">${cardiac}</div></div>
+      <div class="tile"><div class="l">Longest open</div><div class="v" style="font-size:18px;">${fmtSec(longestOpen)}</div></div>
+    `;
+
+    if (!r.lanes.length) { document.getElementById('tlBody').innerHTML = '<div class="tl-empty">No incidents in window</div>'; return; }
+
+    // Render axis with hour ticks
+    const start = r.window.start, end = r.window.end;
+    const span = end - start;
+    let html = '<div class="tl-axis">';
+    // Tick every 30min
+    const tickStep = span > 6*3600 ? 3600 : 1800;  // 1h or 30min
+    for (let t = start; t <= end; t += tickStep) {
+      const pct = (t - start) / span * 100;
+      const d = new Date(t * 1000);
+      const ksa = new Date(d.getTime() + 3*3600*1000);
+      const lbl = String(ksa.getUTCHours()).padStart(2,'0') + ':' + String(ksa.getUTCMinutes()).padStart(2,'0');
+      html += `<span class="tickline" style="left:${pct.toFixed(2)}%"></span>`;
+      html += `<span class="tick" style="left:${pct.toFixed(2)}%">${lbl}</span>`;
+    }
+    html += '</div>';
+
+    // Sort: open first (newest first), then closed
+    const sorted = r.lanes.slice().sort((a, b) => {
+      if (a.is_open && !b.is_open) return -1;
+      if (!a.is_open && b.is_open) return 1;
+      return b.ts - a.ts;
+    });
+
+    sorted.forEach(lane => {
+      const triageOutline = lane.triage === 'red' ? 'red-tinted' : lane.triage === 'yellow' ? 'yellow-tinted' : '';
+      const drillFlag = lane.is_drill ? '<span style="color:#d8b4fe; font-weight:600;">[DRILL]</span> ' : '';
+      const cardiacFlag = lane.cardiac_arrest ? '<span style="color:#fca5a5; font-weight:700;">⚠</span> ' : '';
+      html += `<div class="tl-row" data-incident="${lane.incident_id}">
+        <div class="tl-label">
+          <div class="id">${drillFlag}${cardiacFlag}${lane.incident_id}</div>
+          <div class="meta">${lane.station || '?'} · ${lane.triage || '?'} · ${lane.is_open ? 'OPEN' : (lane.status || 'closed')}</div>
+        </div>
+        <div class="tl-track" onclick="window.location.href='/dispatch?incident=' + encodeURIComponent('${lane.incident_id}')">`;
+      lane.phases.forEach(p => {
+        const left = (p.start - start) / span * 100;
+        const width = (p.end - p.start) / span * 100;
+        if (width < 0.1) return;
+        const dur = p.end - p.start;
+        html += `<div class="tl-bar ${p.phase} ${triageOutline}" style="left:${left.toFixed(2)}%; width:${width.toFixed(2)}%;" title="${p.phase} · ${fmtSec(dur)}">${p.phase}</div>`;
+      });
+      html += '</div></div>';
+    });
+
+    document.getElementById('tlBody').innerHTML = html;
+  }
+
+  document.getElementById('tlRefresh').addEventListener('click', refresh);
+  ['tlLookback','tlStation','tlTriage','tlDrills'].forEach(id => {
+    document.getElementById(id).addEventListener('change', refresh);
+  });
+  refresh();
+  setInterval(refresh, 30000);
+})();
+</script>
+</body></html>

@@ -1,13 +1,27 @@
 /**
- * Cloudflare Workers config for the testing deployment (testhajj.shuki.tech).
- * The main branch (hajj.shuki.tech / production) uses Pages auto-detection
- * and does NOT need this file — only testing branch.
+ * Cloudflare Workers config for the testing deployment.
+ *
+ * Direct custom domain: testhajj.shuki.tech routes to this worker via
+ * Cloudflare edge, bypassing home NPM entirely. This guarantees
+ * testhajj.shuki.tech can NEVER accidentally serve the main branch.
+ *
+ * Production (hajj.shuki.tech / main branch) uses Cloudflare Pages
+ * and does NOT use this file.
  */
 {
   "name": "hajj-ops-test",
   "main": "_worker.js",
   "compatibility_date": "2026-05-06",
   "compatibility_flags": ["nodejs_compat"],
+
+  // Direct custom domain — Cloudflare creates a DNS record and routes
+  // requests to this worker. NPM is no longer in the path.
+  "routes": [
+    {
+      "pattern": "testhajj.shuki.tech",
+      "custom_domain": true
+    }
+  ],
 
   // Serve static HTML/CSS/JS from repo root.
   // Worker handles /api/* and non-matching paths fall through to ASSETS.
@@ -18,7 +32,6 @@
   },
 
   // D1 database binding — same database as production.
-  // Both projects read/write the same data; that's intentional.
   "d1_databases": [
     {
       "binding": "DB",
@@ -27,7 +40,8 @@
     }
   ],
 
-  // Logs in dashboard
+  "workers_dev": true,
+
   "observability": {
     "enabled": true
   }
