@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>My Schedule · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.18">
+<link rel="stylesheet" href="assets/style.css?v=0.2.22">
 
 <style>
   .me-header {
@@ -140,6 +140,7 @@
       <div class="schedule-grid" id="scheduleGrid"></div>
     </div>
     <div class="grid-empty" id="scheduleEmpty" hidden>
+      <div id="scheduleDebug" style="font-size:11px; color:#94a3b8; margin-bottom:8px; font-family:ui-monospace,monospace;"></div>
       No schedule rows for your account.<br>
       <span style="font-size:12px; color:#9ca3af; display:block; margin-top:8px;">
         This page reads the <strong>Schedule</strong> tab in the Mob Sheet — wide-format Unit×DH-Slot grid.
@@ -169,9 +170,9 @@
 
 </div>
 
-<script src="assets/config.js?v=0.2.18"></script>
-<script src="assets/auth.js?v=0.2.18"></script>
-<script src="assets/topbar.js?v=0.2.18"></script>
+<script src="assets/config.js?v=0.2.22"></script>
+<script src="assets/auth.js?v=0.2.22"></script>
+<script src="assets/topbar.js?v=0.2.22"></script>
 <script>
 (function () {
   if (!HAJJ.requireAuth()) return;
@@ -188,6 +189,7 @@
   async function load() {
     const r = await HAJJ.authedCallSWR('roster');
     if (!r || !r.ok) { console.error('roster fetch failed', r); return; }
+    window._lastRosterUser = r.user;
     renderIdentity(r.user);
     HAJJ.setSession(HAJJ.getToken(), r.user, sessionStorage.getItem('hajj_expires'));
     renderSchedule(r.schedule || []);
@@ -241,7 +243,11 @@
     const today = HAJJ.todayDH();
     const byDH = {};
     for (let i = 0; i < rows.length; i++) {
-      const dh = String(rows[i].DH_Day || '').trim();
+      // Backend may return DH as number (4), or DH_Day as 'DH 4'. Normalize both to 'DH N'.
+      let dh;
+      if (rows[i].DH_Day) dh = String(rows[i].DH_Day).trim();
+      else if (rows[i].DH != null) dh = 'DH ' + rows[i].DH;
+      else dh = '';
       if (!byDH[dh]) byDH[dh] = rows[i];
     }
     let hasAny = false;
@@ -265,7 +271,12 @@
         '<div class="station">' + (station || '·') + '</div>';
       grid.appendChild(cell);
     });
-    if (!hasAny) document.getElementById('scheduleEmpty').hidden = false;
+    if (!hasAny) {
+      document.getElementById('scheduleEmpty').hidden = false;
+      const dbgEl = document.getElementById('scheduleDebug');
+      const userInfo = window._lastRosterUser || {};
+      if (dbgEl) dbgEl.textContent = 'Looking for unit_code = "' + (userInfo.unit_code || userInfo.unit || '(none)') + '" · received ' + rows.length + ' schedule rows';
+    }
   }
 
   function renderToday(user, rows) {
@@ -275,7 +286,7 @@
     card.hidden = false;
     document.getElementById('todayDH').textContent = dh;
     document.getElementById('todayDate').textContent = formatDate(HAJJ.DH_DATES[dh]);
-    const todayRow = rows.find(function (r) { return String(r.DH_Day || '').trim() === dh; });
+    const todayRow = rows.find(function (r) { return (String(r.DH_Day || '').trim() === dh) || ('DH ' + r.DH === dh); });
     if (todayRow) {
       document.getElementById('todayShift').textContent = todayRow.Shift || '—';
       document.getElementById('todayStation').textContent = todayRow.Station || user.station || '—';
@@ -332,6 +343,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.18"></script>
+<script src="assets/version.js?v=0.2.22"></script>
 </body>
 </html>

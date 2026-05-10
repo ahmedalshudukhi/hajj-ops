@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Dispatch · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.18">
+<link rel="stylesheet" href="assets/style.css?v=0.2.22">
 
 <style>
   body { background: var(--bg); }
@@ -301,12 +301,12 @@
   ⚠ <span id="repoBannerCount">0</span> reposition request<span id="repoBannerS">s</span> pending approval — click to review
 </div>
 
-<script src="assets/config.js?v=0.2.18"></script>
-<script src="assets/tempo.js?v=0.2.18"></script>
-<script src="assets/auth.js?v=0.2.18"></script>
-<script src="assets/sublocations.js?v=0.2.18"></script>
-<script src="assets/topbar.js?v=0.2.18"></script>
-<script src="assets/dateBar.js?v=0.2.18"></script>
+<script src="assets/config.js?v=0.2.22"></script>
+<script src="assets/tempo.js?v=0.2.22"></script>
+<script src="assets/auth.js?v=0.2.22"></script>
+<script src="assets/sublocations.js?v=0.2.22"></script>
+<script src="assets/topbar.js?v=0.2.22"></script>
+<script src="assets/dateBar.js?v=0.2.22"></script>
 <script>
 (function () {
 
@@ -1142,9 +1142,34 @@
   })();
 
 
+  // === REPOSITION: auto-show 'Currently at' when unit is chosen ===
+  (function wireRelocAutoFill() {
+    const u = document.getElementById('relocUnit');
+    if (!u) return;
+    let hint = document.getElementById('relocCurrentLoc');
+    if (!hint) {
+      hint = document.createElement('div');
+      hint.id = 'relocCurrentLoc';
+      hint.style.cssText = 'font-size:12px; color:#94a3b8; margin-top:4px; min-height:16px;';
+      u.parentNode && u.parentNode.insertBefore(hint, u.nextSibling);
+    }
+    function updateHint() {
+      const code = u.value;
+      if (!code) { hint.textContent = ''; return; }
+      const info = (typeof UNITS_BY_CODE !== 'undefined') ? UNITS_BY_CODE[code] : null;
+      if (info && info.home_station) {
+        hint.innerHTML = '<span style="color:#a5b4fc;">Currently at:</span> <strong>' + info.home_station + '</strong>';
+      } else {
+        hint.textContent = '(home station unknown for ' + code + ')';
+      }
+    }
+    u.addEventListener('change', updateHint);
+    setTimeout(updateHint, 200);
+  })();
+
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.18"></script>
+<script src="assets/version.js?v=0.2.22"></script>
 </body>
 </html>
