@@ -309,6 +309,9 @@ async function handleApi(request, env, ctx, pathname) {
   // v2 unified action router (migrated GAS endpoints, GAS-shape responses)
   if (pathname === "/api/v2/exec")      return handleExecV2(request, env);
 
+  // Historical data import (admin only, POST JSON body)
+  if (pathname === "/api/v2/migrate_history") return handleMigrateHistory(request, env);
+
   // Legacy /api/v1/*
   if (pathname.startsWith("/api/v1/") || pathname === "/api/v1") {
     return handleLegacyV1(request, env, pathname);
@@ -1237,6 +1240,166 @@ const ACTIONS = {
 };
 
 // === Router ===
+// ===================================================================
+// /api/v2/migrate_history — Bulk import historical data from GAS sheet
+// Admin-only. POST JSON body. Inserts via INSERT OR IGNORE (idempotent).
+// ===================================================================
+async function handleMigrateHistory(request, env) {
+  if (request.method !== 'POST') {
+    return jsonResponse({ ok: false, error: 'method_not_allowed' }, 405);
+  }
+  // Auth (Bearer token in Authorization header)
+  const authH = request.headers.get('Authorization') || '';
+  const token = authH.startsWith('Bearer ') ? authH.slice(7) : null;
+  if (!token) return jsonResponse({ ok: false, error: 'no_token' }, 401);
+  const user = await getUserBySessionToken(env, token);
+  if (!user) return jsonResponse({ ok: false, error: 'session_expired' }, 401);
+  if (user.role !== 'admin' && user.role !== 'leadership') {
+    return jsonResponse({ ok: false, error: 'forbidden', role: user.role }, 403);
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (e) {
+    return jsonResponse({ ok: false, error: 'invalid_json', message: e.message }, 400);
+  }
+
+  const dispatch = Array.isArray(body.dispatch) ? body.dispatch : [];
+  const reposition = Array.isArray(body.reposition) ? body.reposition : [];
+  const stationStatus = Array.isArray(body.station_status) ? body.station_status : [];
+
+  const results = {
+    dispatch: { pulled: dispatch.length, inserted: 0, errors: [] },
+    reposition: { pulled: reposition.length, inserted: 0, errors: [] },
+    station_status: { pulled: stationStatus.length, inserted: 0, errors: [] }
+  };
+
+  // ===== 1. Dispatch incidents =====
+  for (const inc of dispatch) {
+    try {
+      const incidentId = inc.Incident_ID || inc.incident_id || inc.id;
+      if (!incidentId) { results.dispatch.errors.push('missing_id'); continue; }
+
+      let ts = 0;
+      const tsRaw = inc.Created_At || inc.Timestamp || inc.ts;
+      if (tsRaw) {
+        if (typeof tsRaw === 'number') ts = tsRaw > 1e12 ? Math.floor(tsRaw / 1000) : Math.floor(tsRaw);
+        else ts = Math.floor(new Date(tsRaw).getTime() / 1000) || 0;
+      }
+      if (!ts) ts = Math.floor(Date.now() / 1000);
+
+      const station = String(inc.Zone || inc.station || '').toUpperCase();
+      const subLoc = inc.Sub_Location || inc.sub_location || '';
+      const source = inc.Source || inc.source || 'walk-in';
+      const complaint = inc.Chief_Complaint || inc.Complaint || inc.complaint || '';
+      const triage = String(inc.Category || inc.Triage || inc.triage || 'green').toLowerCase();
+      const cardiac = (inc.Cardiac_Arrest === true || inc.Cardiac_Arrest === 1 ||
+                       inc.Cardiac_Arrest === 'true' || inc.Cardiac_Arrest === 'yes') ? 1 : 0;
+      const unit = inc.Unit || inc.unit_assigned || '';
+      const status = String(inc.Status || inc.status || 'pending').toLowerCase();
+      const patientCount = parseInt(inc.Patient_Count || inc.patient_count || '1', 10) || 1;
+      const notes = inc.Notes || inc.notes || '';
+      const createdBy = inc.Created_By || inc.created_by_nid || user.nid;
+      let closedAt = null;
+      const closedRaw = inc.Closed_At || inc.closed_at;
+      if (closedRaw) {
+        if (typeof closedRaw === 'number') closedAt = closedRaw > 1e12 ? Math.floor(closedRaw / 1000) : Math.floor(closedRaw);
+        else closedAt = Math.floor(new Date(closedRaw).getTime() / 1000) || null;
+      }
+      const closedBy = inc.Closed_By || inc.closed_by_nid || null;
+      const pcrId = inc.PCR_ID || inc.Q_PCR_ID || inc.pcr_id || null;
+
+      await env.DB.prepare(
+        `INSERT OR IGNORE INTO dispatch_log
+         (incident_id, ts, station, sub_location, source, complaint, triage, cardiac_arrest,
+          unit_assigned, status, patient_count, notes, created_by_nid, closed_at, closed_by_nid, pcr_id)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)`
+      ).bind(
+        incidentId, ts, station, subLoc, source, complaint, triage, cardiac,
+        unit, status, patientCount, notes, createdBy, closedAt, closedBy, pcrId
+      ).run();
+      results.dispatch.inserted++;
+    } catch (e) {
+      results.dispatch.errors.push(String(e.message).slice(0, 100));
+    }
+  }
+
+  // ===== 2. Reposition log =====
+  for (const row of reposition) {
+    try {
+      const unit = row.Unit_Code || row.unit_code || '';
+      const fromSt = String(row.From_Station || row.from_station || '').toUpperCase();
+      const toSt = String(row.To_Station || row.to_station || '').toUpperCase();
+      if (!unit || !fromSt || !toSt) { results.reposition.errors.push('missing_fields'); continue; }
+      const reason = row.Reason || row.reason || '';
+      const status = String(row.Status || row.status || 'requested').toLowerCase();
+      const requestedBy = row.Requested_By || row.requested_by_nid || user.nid;
+      let requestedAt = 0;
+      const tsRaw = row.Timestamp || row.requested_at || row.Created_At;
+      if (tsRaw) {
+        if (typeof tsRaw === 'number') requestedAt = tsRaw > 1e12 ? Math.floor(tsRaw / 1000) : Math.floor(tsRaw);
+        else requestedAt = Math.floor(new Date(tsRaw).getTime() / 1000) || 0;
+      }
+      if (!requestedAt) requestedAt = Math.floor(Date.now() / 1000);
+      let completedAt = null;
+      const compRaw = row.Completed_At || row.completed_at;
+      if (compRaw) {
+        if (typeof compRaw === 'number') completedAt = compRaw > 1e12 ? Math.floor(compRaw / 1000) : Math.floor(compRaw);
+        else completedAt = Math.floor(new Date(compRaw).getTime() / 1000) || null;
+      }
+      const notes = row.Notes || row.notes || '';
+      await env.DB.prepare(
+        `INSERT OR IGNORE INTO reposition_log
+         (unit_code, from_station, to_station, reason, status, requested_by_nid, requested_at, completed_at, notes)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)`
+      ).bind(unit, fromSt, toSt, reason, status, requestedBy, requestedAt, completedAt, notes).run();
+      results.reposition.inserted++;
+    } catch (e) {
+      results.reposition.errors.push(String(e.message).slice(0, 100));
+    }
+  }
+
+  // ===== 3. Station status (latest snapshot) =====
+  for (const st of stationStatus) {
+    try {
+      const station = String(st.station || st.Station || '').toUpperCase();
+      const status = String(st.status || st.Status || '').toLowerCase();
+      if (!station || !status) { results.station_status.errors.push('missing_fields'); continue; }
+      const note = st.note || st.Note || '';
+      const operator = st.operator_nid || st.Set_By || st.set_by_nid || user.nid;
+      let ts = 0;
+      const tsRaw = st.Timestamp || st.Updated_At || st.ts;
+      if (tsRaw) {
+        if (typeof tsRaw === 'number') ts = tsRaw > 1e12 ? Math.floor(tsRaw / 1000) : Math.floor(tsRaw);
+        else ts = Math.floor(new Date(tsRaw).getTime() / 1000) || 0;
+      }
+      if (!ts) ts = Math.floor(Date.now() / 1000);
+      await env.DB.prepare(
+        `INSERT INTO station_status_log (ts, station, status, set_by_nid, note)
+         VALUES (?1, ?2, ?3, ?4, ?5)`
+      ).bind(ts, station, status, operator, note).run();
+      results.station_status.inserted++;
+    } catch (e) {
+      results.station_status.errors.push(String(e.message).slice(0, 100));
+    }
+  }
+
+  // Audit log
+  try {
+    await env.DB.prepare(
+      `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
+       VALUES (?1, 'migrate_history', 'bulk', 'historical_import', ?2)`
+    ).bind(user.nid, JSON.stringify({
+      dispatch: results.dispatch.inserted,
+      reposition: results.reposition.inserted,
+      station_status: results.station_status.inserted
+    })).run();
+  } catch (_) {}
+
+  return jsonResponse({ ok: true, results, server_time: new Date().toISOString() });
+}
+
 async function handleExecV2(request, env) {
   const url = new URL(request.url);
   const action = url.searchParams.get('action');
