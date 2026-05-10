@@ -855,30 +855,131 @@ const ACTIONS = {
   },
 
   async active_summary(user, env, params, dj) {
-    // Aggregate dispatch + station status + unit positions
-    let dispatchAgg = { open: 0, closed_today: 0, in_transfer: 0 };
     const todayStart = Math.floor(new Date().setHours(0,0,0,0) / 1000);
-    try {
-      const r = await env.DB.prepare(
-        `SELECT
-          (SELECT COUNT(*) FROM dispatch_log WHERE status NOT IN ('complete','cancelled')) AS open_n,
-          (SELECT COUNT(*) FROM dispatch_log WHERE status = 'complete' AND closed_at >= ?1) AS closed_n,
-          (SELECT COUNT(*) FROM dispatch_log WHERE status = 'transporting') AS transfer_n`
-      ).bind(todayStart).first();
-      dispatchAgg = { open: r.open_n || 0, closed_today: r.closed_n || 0, in_transfer: r.transfer_n || 0 };
-    } catch (_) {}
+    const STATIONS_LIST = STATIONS;
 
-    const stationsResult = await ACTIONS.station_status_list(user, env, params, dj);
-    const unitsResult = await ACTIONS.unit_positions(user, env, params, dj);
-
-    return {
+    // Initialize all fields the frontend reads (so missing data = 0, never undefined)
+    const result = {
       ok: true,
-      dispatch: dispatchAgg,
-      pcr: { total: 0, today: 0 },  // placeholder until we wire PCR aggregation
-      stations: stationsResult.stations,
-      units: unitsResult.positions,
-      server_time: new Date().toISOString()
+      server_time: new Date().toISOString(),
+      dispatch: {
+        open: 0, red_open: 0, cardiac_open: 0, in_transfer: 0, closed_today: 0,
+        by_station: {},
+        response_time: { mean_ms: 0, p50_ms: 0, p95_ms: 0, count: 0 },
+        recent: []
+      },
+      pcr: {
+        today: 0, total: 0,
+        by_acuity: {}, by_disposition: {}, by_complaint: {},
+        recent: []
+      },
+      stations: [],
+      incidents: []   // for heatmap
     };
+
+    // Initialize per-station containers so frontend can iterate even on empty data
+    STATIONS_LIST.forEach(st => {
+      result.dispatch.by_station[st] = { open: 0, red_open: 0, in_transfer: 0, closed_today: 0 };
+    });
+
+    // 1. Pull all dispatches (today + open from prior days) for full aggregate
+    try {
+      const incR = await env.DB.prepare(
+        `SELECT incident_id, ts, station, sub_location, source, complaint, triage,
+                cardiac_arrest, unit_assigned, status, patient_count, notes,
+                closed_at, closed_by_nid
+         FROM dispatch_log
+         WHERE status NOT IN ('complete','cancelled')
+            OR closed_at >= ?1 OR ts >= ?1
+         ORDER BY ts DESC LIMIT 500`
+      ).bind(todayStart).all();
+      const incidents = incR.results || [];
+
+      const respTimes = [];
+      incidents.forEach(inc => {
+        const isOpen = !['complete','cancelled'].includes(inc.status);
+        const isToday = inc.ts >= todayStart;
+        const closedToday = inc.closed_at && inc.closed_at >= todayStart;
+        const station = inc.station || 'UNK';
+        const bs = result.dispatch.by_station[station] || (result.dispatch.by_station[station] = { open: 0, red_open: 0, in_transfer: 0, closed_today: 0 });
+
+        if (isOpen) {
+          result.dispatch.open++;
+          bs.open++;
+          if (inc.triage === 'red') { result.dispatch.red_open++; bs.red_open++; }
+          if (inc.cardiac_arrest) result.dispatch.cardiac_open++;
+          if (inc.status === 'transporting') { result.dispatch.in_transfer++; bs.in_transfer++; }
+        }
+        if (closedToday) {
+          result.dispatch.closed_today++;
+          bs.closed_today++;
+        }
+      });
+
+      // Recent strip: last 20 from today
+      result.dispatch.recent = incidents
+        .filter(i => i.ts >= todayStart)
+        .slice(0, 20)
+        .map(i => ({
+          incident_id: i.incident_id,
+          ts: new Date(i.ts * 1000).toISOString(),
+          station: i.station,
+          triage: i.triage,
+          status: i.status,
+          complaint: i.complaint,
+          unit: i.unit_assigned
+        }));
+
+      result.incidents = incidents.map(i => ({
+        incident_id: i.incident_id,
+        ts: new Date(i.ts * 1000).toISOString(),
+        station: i.station,
+        triage: i.triage,
+        status: i.status
+      }));
+    } catch (e) {
+      result.dispatch._err = String(e.message);
+    }
+
+    // 2. PCRs (qpcr_log)
+    try {
+      const pcrR = await env.DB.prepare(
+        `SELECT pcr_id, ts, station, triage_category, disposition, chief_complaint
+         FROM qpcr_log ORDER BY ts DESC LIMIT 500`
+      ).all();
+      const pcrs = pcrR.results || [];
+      result.pcr.total = pcrs.length;
+      const todayPcrs = pcrs.filter(p => p.ts >= todayStart);
+      result.pcr.today = todayPcrs.length;
+      todayPcrs.forEach(p => {
+        const ac = (p.triage_category || 'unspecified').toLowerCase();
+        result.pcr.by_acuity[ac] = (result.pcr.by_acuity[ac] || 0) + 1;
+        const dp = (p.disposition || 'unspecified').toLowerCase();
+        result.pcr.by_disposition[dp] = (result.pcr.by_disposition[dp] || 0) + 1;
+        const cc = (p.chief_complaint || 'unspecified').toLowerCase();
+        result.pcr.by_complaint[cc] = (result.pcr.by_complaint[cc] || 0) + 1;
+      });
+      result.pcr.recent = todayPcrs.slice(0, 20).map(p => ({
+        pcr_id: p.pcr_id,
+        ts: new Date(p.ts * 1000).toISOString(),
+        station: p.station,
+        triage: p.triage_category,
+        disposition: p.disposition,
+        complaint: p.chief_complaint
+      }));
+    } catch (e) {
+      result.pcr._err = String(e.message);
+    }
+
+    // 3. Station status (use existing handler)
+    try {
+      const stationsResult = await ACTIONS.station_status_list(user, env, params, dj);
+      result.stations = stationsResult.stations || [];
+    } catch (e) {
+      result.stations = STATIONS_LIST.map(s => ({ station: s, status: '', note: '' }));
+    }
+
+    return result;
   },
 
   async dashboard_active(user, env, params, dj) {
@@ -899,6 +1000,7 @@ const ACTIONS = {
   },
 
   async dashboard_dispatch(user, env, params, dj) {
+    // Return full sub-response objects so frontend can check sub.ok
     const [units, incidents, stations] = await Promise.all([
       ACTIONS.unit_availability(user, env, params, dj),
       ACTIONS.dispatch_list(user, env, params, dj),
@@ -907,12 +1009,14 @@ const ACTIONS = {
     return {
       ok: true,
       server_time: new Date().toISOString(),
-      units: units.units, incidents: incidents.incidents,
-      station_status: stations.stations
+      units,            // {ok, units}
+      incidents,        // {ok, incidents, ...}
+      station_status: stations  // {ok, stations}
     };
   },
 
   async dashboard_sv(user, env, params, dj) {
+    // Return full sub-response objects so frontend can check sub.ok
     const [stations, repos, units] = await Promise.all([
       ACTIONS.station_status_list(user, env, params, dj),
       ACTIONS.reposition_list(user, env, params, dj),
@@ -921,9 +1025,9 @@ const ACTIONS = {
     return {
       ok: true,
       server_time: new Date().toISOString(),
-      station_status: stations.stations,
-      repositions: repos,
-      units: units.units
+      station_status: stations,  // {ok, stations}
+      repositions: repos,        // {ok, pending, recent}
+      units                      // {ok, units}
     };
   },
 

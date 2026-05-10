@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lobby · Hajj CAD</title>
-<link rel="stylesheet" href="assets/style.css?v=11">
-<script src="assets/config.js?v=12"></script>
-<script src="assets/tempo.js?v=12"></script>
-<script src="assets/auth.js?v=12"></script>
-<script src="assets/topbar.js?v=12"></script>
+<link rel="stylesheet" href="assets/style.css?v=0.2.1">
+<script src="assets/config.js?v=0.2.1"></script>
+<script src="assets/tempo.js?v=0.2.1"></script>
+<script src="assets/auth.js?v=0.2.1"></script>
+<script src="assets/topbar.js?v=0.2.1"></script>
 <style>
   .lobby-hero {
     max-width: 1400px; margin: 0 auto; padding: 4px 16px 20px;
@@ -70,7 +70,7 @@
     const ms = HAJJ_TEMPO.intervalMs();
     document.getElementById('tileTempo').textContent = (ms / 1000) + 's';
   }
-  // KSA day-aligned counter — DH1 = 27 May (drills start), DH4 = 30 May (full operational window)
+  // KSA day-aligned counter — operations begin DH 4 (30 May 2026, full ops). DH 1 (27 May) is drill window.
   function daysUntil(dateStr) {
     const target = new Date(dateStr + 'T00:00:00+03:00');
     const now = new Date();
@@ -78,22 +78,30 @@
     ksaNow.setHours(0,0,0,0);
     return Math.round((target - ksaNow) / 86400000);
   }
-  const dDH1 = daysUntil('2026-05-27');
-  const dDH4 = daysUntil('2026-05-30');
+  const dDH1 = daysUntil('2026-05-27');   // 1 Dhul Hijjah — drills begin
+  const dDH4 = daysUntil('2026-05-30');   // 4 Dhul Hijjah — full operations
   const tileDH = document.getElementById('tileDH');
   if (tileDH) {
-    if (dDH1 > 0) {
-      tileDH.innerHTML = 'T-' + dDH1 + ' to DH 1<br><span style="font-size:11px; color:#9ca3af; font-weight:400;">T-' + dDH4 + ' to DH 4 (full ops)</span>';
-    } else if (dDH1 === 0) {
-      tileDH.textContent = 'DH 1 — drills start today';
-    } else if (dDH4 >= 0) {
-      tileDH.innerHTML = 'DH ' + (Math.abs(dDH1) + 1) + ' (drills)<br><span style="font-size:11px; color:#9ca3af; font-weight:400;">T-' + dDH4 + ' to DH 4</span>';
+    if (dDH4 > 0) {
+      // Pre-Hajj: emphasize ops countdown
+      tileDH.innerHTML = 'Pre-Hajj · T-' + dDH4 + ' to ops'
+        + '<br><span style="font-size:11px; color:#9ca3af; font-weight:400;">DH 4 · 30 May (drills DH 1 in ' + dDH1 + 'd)</span>';
+    } else if (dDH4 === 0) {
+      tileDH.innerHTML = 'DH 4 — Operations begin today'
+        + '<br><span style="font-size:11px; color:#9ca3af; font-weight:400;">First day of Hajj operations</span>';
+    } else if (dDH1 >= 0) {
+      // Drill window: between DH1 and DH4
+      tileDH.innerHTML = 'DH ' + (1 + Math.abs(dDH1)) + ' · Drills'
+        + '<br><span style="font-size:11px; color:#9ca3af; font-weight:400;">T-' + Math.max(0, dDH4) + ' to full ops (DH 4)</span>';
     } else {
+      // Operational window
       const op = Math.abs(dDH4) + 4;
-      tileDH.textContent = 'DH ' + op + ' (operational)';
+      tileDH.innerHTML = 'DH ' + op + ' · Operational'
+        + '<br><span style="font-size:11px; color:#9ca3af; font-weight:400;">Day ' + (Math.abs(dDH4) + 1) + ' of Hajj operations</span>';
     }
   }
 })();
 </script>
+<script src="assets/version.js?v=0.2.1"></script>
 </body>
 </html>

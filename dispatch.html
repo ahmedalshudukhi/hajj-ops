@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Dispatch · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=11">
+<link rel="stylesheet" href="assets/style.css?v=0.2.1">
 
 <style>
   body { background: var(--bg); }
@@ -296,11 +296,11 @@
 
 <div class="floater"><span class="dot"></span><span id="syncStatus">Live · syncing every 5s</span></div>
 
-<script src="assets/config.js?v=12"></script>
-<script src="assets/tempo.js?v=12"></script>
-<script src="assets/auth.js?v=12"></script>
-<script src="assets/sublocations.js?v=12"></script>
-<script src="assets/topbar.js?v=12"></script>
+<script src="assets/config.js?v=0.2.1"></script>
+<script src="assets/tempo.js?v=0.2.1"></script>
+<script src="assets/auth.js?v=0.2.1"></script>
+<script src="assets/sublocations.js?v=0.2.1"></script>
+<script src="assets/topbar.js?v=0.2.1"></script>
 <script>
 (function () {
 
@@ -439,18 +439,19 @@
   tickClock(); setInterval(tickClock, 1000);
 
   // ============ Region → zone ============
+  // Values are station CODES (matching D1 STATIONS list); labels are human-readable.
   const ZONES = {
-    Mina:       ["Mina 1","Mina 2","Mina 3","Mina Clinic 1","Mina Clinic 2"],
-    Arafat:     ["Arafat 1","Arafat 2","Arafat 3","Arafat Clinic 1","Arafat Clinic 2"],
-    Muzdalifah: ["Muzdalifah 1","Muzdalifah 2","Muzdalifah 3","Muzdalifah Clinic 1","Muzdalifah Clinic 2"],
-    OCC:        ["OCC / Depot"]
+    Mina:       [['MIN1','Mina 1 (MIN1)'], ['MIN2','Mina 2 (MIN2)'], ['MIN3','Mina 3 (MIN3)']],
+    Arafat:     [['ARF1','Arafat 1 (ARF1)'], ['ARF2','Arafat 2 (ARF2)'], ['ARF3','Arafat 3 (ARF3)']],
+    Muzdalifah: [['MUZ1','Muzdalifah 1 (MUZ1)'], ['MUZ2','Muzdalifah 2 (MUZ2)'], ['MUZ3','Muzdalifah 3 (MUZ3)']],
+    OCC:        [['ARF1','OCC / Depot (ARF1 fallback)']]   // OCC routes to ARF1 since OCC isn't a dispatch station
   };
   const regionEl = document.getElementById('region');
   const zoneEl   = document.getElementById('zone');
   regionEl.addEventListener('change', function () {
     const list = ZONES[regionEl.value] || [];
     zoneEl.innerHTML = '<option value="">Zone / Station</option>' +
-      list.map(z => '<option>' + z + '</option>').join('');
+      list.map(z => '<option value="' + z[0] + '">' + z[1] + '</option>').join('');
   });
 
   // ============ Create incident ============
@@ -924,5 +925,6 @@
 })();
 </script>
 
+<script src="assets/version.js?v=0.2.1"></script>
 </body>
 </html>
