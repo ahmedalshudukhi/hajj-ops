@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Dispatch · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.13">
+<link rel="stylesheet" href="assets/style.css?v=0.2.14">
 
 <style>
   body { background: var(--bg); }
@@ -301,12 +301,12 @@
   ⚠ <span id="repoBannerCount">0</span> reposition request<span id="repoBannerS">s</span> pending approval — click to review
 </div>
 
-<script src="assets/config.js?v=0.2.13"></script>
-<script src="assets/tempo.js?v=0.2.13"></script>
-<script src="assets/auth.js?v=0.2.13"></script>
-<script src="assets/sublocations.js?v=0.2.13"></script>
-<script src="assets/topbar.js?v=0.2.13"></script>
-<script src="assets/dateBar.js?v=0.2.13"></script>
+<script src="assets/config.js?v=0.2.14"></script>
+<script src="assets/tempo.js?v=0.2.14"></script>
+<script src="assets/auth.js?v=0.2.14"></script>
+<script src="assets/sublocations.js?v=0.2.14"></script>
+<script src="assets/topbar.js?v=0.2.14"></script>
+<script src="assets/dateBar.js?v=0.2.14"></script>
 <script>
 (function () {
 
@@ -479,7 +479,7 @@
     try {
       createMsg.innerHTML = '';
       const region = regionEl.value, zone = zoneEl.value;
-      const source = val('source'), location = val('location'), caseField = val('caseField');
+      const source = val('source'), caseField = val('caseField');
       const unit = val('unit'), type = unitTypeFor(unit), shift = currentShift();
       const subLocation = val('subLocation');
       const category = val('category');
@@ -499,7 +499,7 @@
         unit_assigned: unit, triage: category,
         cardiac_arrest: document.getElementById('cardiacArrest').checked,
         // Legacy aliases retained:
-        region: region, zone: zone, location: location, case_field: caseField,
+        region: region, zone: zone, case_field: caseField,
         unit: unit, type: type, shift: shift, category: category
       });
 
@@ -513,7 +513,7 @@
         showToast('FAILED: ' + errMsg + errDetail, 'error');
         return;
       }
-      ['source','location','caseField','unit'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      ['source','caseField','unit'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
       regionEl.value = ''; zoneEl.innerHTML = '<option value="">Zone / Station</option>';
       showToast('✓ Dispatched ' + (r.incident_id || ''), 'success');
       refresh();
@@ -564,7 +564,7 @@
     syncCardiacVisibility();
   }
 
-  function val(id) { return document.getElementById(id).value.trim(); }
+  function val(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
   function showCreateErr(text) {
     createMsg.innerHTML = '<div class="notice notice--error">' + text + '</div>';
   }
@@ -1132,6 +1132,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.13"></script>
+<script src="assets/version.js?v=0.2.14"></script>
 </body>
 </html>
