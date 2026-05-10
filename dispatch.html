@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Dispatch · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.12">
+<link rel="stylesheet" href="assets/style.css?v=0.2.13">
 
 <style>
   body { background: var(--bg); }
@@ -301,12 +301,12 @@
   ⚠ <span id="repoBannerCount">0</span> reposition request<span id="repoBannerS">s</span> pending approval — click to review
 </div>
 
-<script src="assets/config.js?v=0.2.12"></script>
-<script src="assets/tempo.js?v=0.2.12"></script>
-<script src="assets/auth.js?v=0.2.12"></script>
-<script src="assets/sublocations.js?v=0.2.12"></script>
-<script src="assets/topbar.js?v=0.2.12"></script>
-<script src="assets/dateBar.js?v=0.2.12"></script>
+<script src="assets/config.js?v=0.2.13"></script>
+<script src="assets/tempo.js?v=0.2.13"></script>
+<script src="assets/auth.js?v=0.2.13"></script>
+<script src="assets/sublocations.js?v=0.2.13"></script>
+<script src="assets/topbar.js?v=0.2.13"></script>
+<script src="assets/dateBar.js?v=0.2.13"></script>
 <script>
 (function () {
 
@@ -474,52 +474,82 @@
   const createMsg = document.getElementById('createMsg');
 
   createBtn.addEventListener('click', async function () {
-    console.log('[dispatch] Dispatch clicked');
-    createMsg.innerHTML = '';
-    const region = regionEl.value, zone = zoneEl.value;
-    const source = val('source'), location = val('location'), caseField = val('caseField');
-    const unit = val('unit'), type = unitTypeFor(unit), shift = currentShift();
-    const subLocation = val('subLocation');
-    const category = val('category');
+    // Visible toast (no DevTools required) — shows what's happening
+    showToast('Dispatch clicked, validating…', 'info');
+    try {
+      createMsg.innerHTML = '';
+      const region = regionEl.value, zone = zoneEl.value;
+      const source = val('source'), location = val('location'), caseField = val('caseField');
+      const unit = val('unit'), type = unitTypeFor(unit), shift = currentShift();
+      const subLocation = val('subLocation');
+      const category = val('category');
 
-    console.log('[dispatch] Form values:', { region, zone, source, caseField, unit, category, subLocation });
+      if (!region || !zone) { showCreateErr('Pick region and zone.'); showToast('Need region+zone', 'warn'); return; }
+      if (!source)          { showCreateErr('Pick a source.'); showToast('Need source', 'warn'); return; }
+      if (!caseField)       { showCreateErr('Pick a chief complaint.'); showToast('Need chief complaint', 'warn'); return; }
+      if (!category)        { showCreateErr('Pick a triage category (red/yellow/green/black).'); showToast('Need triage (red/yellow/green/black)', 'warn'); return; }
 
-    if (!region || !zone) { showCreateErr('Pick region and zone.'); return; }
-    if (!source)          { showCreateErr('Pick a source.'); return; }
-    if (!caseField)       { showCreateErr('Pick a chief complaint.'); return; }
-    if (!category)        { showCreateErr('Pick a triage category (red/yellow/green/black).'); return; }
+      createBtn.disabled = true;
+      createBtn.innerHTML = '<span class="spinner"></span>&nbsp;&nbsp;Dispatching…';
+      showToast('Sending to backend… station=' + zone + ' triage=' + category, 'info');
 
-    createBtn.disabled = true;
-    createBtn.innerHTML = '<span class="spinner"></span>&nbsp;&nbsp;Dispatching…';
+      const r = await HAJJ.authedCall('dispatch_create', {
+        sub_location: subLocation,
+        station: zone, source: source, complaint: caseField,
+        unit_assigned: unit, triage: category,
+        cardiac_arrest: document.getElementById('cardiacArrest').checked,
+        // Legacy aliases retained:
+        region: region, zone: zone, location: location, case_field: caseField,
+        unit: unit, type: type, shift: shift, category: category
+      });
 
-    const r = await HAJJ.authedCall('dispatch_create', {
-      sub_location: subLocation,
-      station: zone,                  // primary key for backend
-      source: source,
-      complaint: caseField,           // canonical name
-      unit_assigned: unit,            // canonical name
-      triage: category,               // canonical name
-      cardiac_arrest: document.getElementById('cardiacArrest').checked,
-      // Legacy aliases — preserved for any backend that hasn't migrated:
-      region: region, zone: zone, location: location, case_field: caseField,
-      unit: unit, type: type, shift: shift, category: category
-    });
+      createBtn.disabled = false;
+      createBtn.innerHTML = 'Dispatch';
 
-    console.log('[dispatch] Backend response:', r);
-
-    createBtn.disabled = false;
-    createBtn.innerHTML = 'Dispatch';
-
-    if (!r || !r.ok) {
-      const errMsg = (r && r.error) || 'no response';
-      const errDetail = (r && r.detail) ? ' — ' + r.detail : '';
-      showCreateErr('Failed to dispatch: ' + errMsg + errDetail);
-      return;
+      if (!r || !r.ok) {
+        const errMsg = (r && r.error) || 'no response';
+        const errDetail = (r && r.detail) ? ' — ' + r.detail : '';
+        showCreateErr('Failed to dispatch: ' + errMsg + errDetail);
+        showToast('FAILED: ' + errMsg + errDetail, 'error');
+        return;
+      }
+      ['source','location','caseField','unit'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      regionEl.value = ''; zoneEl.innerHTML = '<option value="">Zone / Station</option>';
+      showToast('✓ Dispatched ' + (r.incident_id || ''), 'success');
+      refresh();
+    } catch (err) {
+      // Surface ANY exception (a JS error in the click handler would otherwise be invisible)
+      createBtn.disabled = false;
+      createBtn.innerHTML = 'Dispatch';
+      const msg = err && err.message ? err.message : String(err);
+      showCreateErr('JS exception: ' + msg);
+      showToast('JS EXCEPTION: ' + msg, 'error');
+      console.error('[dispatch] click handler exception:', err);
     }
-    ['source','location','caseField','unit'].forEach(id => document.getElementById(id).value = '');
-    regionEl.value = ''; zoneEl.innerHTML = '<option value="">Zone / Station</option>';
-    refresh();
   });
+
+  // Inline toast — fixed top, visible without DevTools
+  function showToast(text, kind) {
+    let host = document.getElementById('cadToastHost');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'cadToastHost';
+      host.style.cssText = 'position:fixed; top:14px; left:50%; transform:translateX(-50%); z-index:9999; max-width:90vw; pointer-events:none;';
+      document.body.appendChild(host);
+    }
+    const colors = {
+      info:    'background:rgba(59,130,246,0.95); border:1px solid #2563eb;',
+      warn:    'background:rgba(245,158,11,0.95); border:1px solid #b45309;',
+      success: 'background:rgba(34,197,94,0.95);  border:1px solid #15803d;',
+      error:   'background:rgba(239,68,68,0.95);  border:1px solid #b91c1c;'
+    };
+    const t = document.createElement('div');
+    t.style.cssText = 'color:#fff; padding:10px 16px; border-radius:8px; margin-bottom:6px; font-size:13px; font-weight:500; box-shadow:0 6px 18px rgba(0,0,0,0.4); pointer-events:auto; cursor:pointer; ' + (colors[kind] || colors.info);
+    t.textContent = text;
+    t.addEventListener('click', () => t.remove());
+    host.appendChild(t);
+    setTimeout(() => { if (t.parentNode) t.remove(); }, kind === 'error' ? 12000 : 4000);
+  }
 
 
   // Show cardiac arrest checkbox only when category = red
@@ -1102,6 +1132,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.12"></script>
+<script src="assets/version.js?v=0.2.13"></script>
 </body>
 </html>
