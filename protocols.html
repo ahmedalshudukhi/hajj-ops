@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a0e1a">
+<title>Field Protocols · Hajj 2026</title>
+<link rel="stylesheet" href="assets/style.css?v=0.2.26">
+<style>
+  body { background: #0a0e1a; color: #e7ecf7; font-family: 'Inter', system-ui, sans-serif; }
+  .ph-shell { max-width: 1200px; margin: 0 auto; padding: 20px; }
+  .ph-tabs { display: flex; gap: 8px; flex-wrap: wrap; border-bottom: 1px solid rgba(99,179,237,0.18); padding-bottom: 12px; margin-bottom: 24px; }
+  .ph-tab {
+    padding: 10px 18px; border-radius: 8px; cursor: pointer;
+    background: rgba(20,28,50,0.5); border: 1px solid rgba(99,179,237,0.15);
+    color: #93a4cd; font-weight: 600; font-size: 13px; letter-spacing: 0.04em;
+    transition: all 0.18s;
+  }
+  .ph-tab:hover { background: rgba(99,179,237,0.1); color: #cdf1ff; }
+  .ph-tab.active { background: rgba(56,189,248,0.18); color: #cdf1ff; border-color: rgba(56,189,248,0.45); }
+  .ph-pane { display: none; }
+  .ph-pane.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+  /* === TRIAGE CARDS === */
+  .triage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .triage-card {
+    background: linear-gradient(135deg, var(--cardBg, rgba(20,28,50,0.7)), rgba(12,18,35,0.85));
+    border: 2px solid var(--cardBorder, rgba(99,179,237,0.3));
+    border-radius: 14px; padding: 22px 20px;
+    transition: transform 0.18s, box-shadow 0.18s;
+  }
+  .triage-card:hover { transform: translateY(-4px); box-shadow: 0 12px 36px var(--cardGlow, rgba(99,179,237,0.2)); }
+  .triage-card.red    { --cardBorder: #ef4444; --cardGlow: rgba(239,68,68,0.35); --cardBg: rgba(80,15,15,0.4); }
+  .triage-card.yellow { --cardBorder: #f59e0b; --cardGlow: rgba(245,158,11,0.3); --cardBg: rgba(70,40,8,0.4); }
+  .triage-card.green  { --cardBorder: #22c55e; --cardGlow: rgba(34,197,94,0.3); --cardBg: rgba(15,55,30,0.4); }
+  .triage-card.black  { --cardBorder: #6b7d9e; --cardGlow: rgba(100,116,139,0.3); --cardBg: rgba(20,25,40,0.6); }
+  .triage-card h3 { margin: 0 0 4px; font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
+  .triage-card.red h3    { color: #ff7777; }
+  .triage-card.yellow h3 { color: #ffd060; }
+  .triage-card.green h3  { color: #6ee7b7; }
+  .triage-card.black h3  { color: #cbd5e1; }
+  .triage-card .label { font-size: 11px; color: #93a4cd; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 14px; }
+  .triage-card .crit { font-size: 13px; line-height: 1.55; color: #cbd5e1; }
+  .triage-card .crit ul { padding-left: 18px; margin: 6px 0; }
+  .triage-card .crit li { margin: 3px 0; }
+  .triage-card .target { font-size: 11px; color: #93a4cd; margin-top: 10px; font-style: italic; }
+
+  /* === DRUG CALC === */
+  .drug-calc {
+    background: rgba(20,28,50,0.5); border: 1px solid rgba(99,179,237,0.18);
+    border-radius: 14px; padding: 20px;
+  }
+  .drug-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; align-items: end; margin-bottom: 14px; }
+  .drug-row label { font-size: 11px; color: #93a4cd; letter-spacing: 0.06em; text-transform: uppercase; }
+  .drug-row select, .drug-row input {
+    width: 100%; padding: 10px 12px; border-radius: 8px;
+    background: rgba(15,23,42,0.7); color: #e7ecf7;
+    border: 1px solid rgba(99,179,237,0.25); font-size: 14px;
+  }
+  .drug-result {
+    background: linear-gradient(135deg, rgba(34,197,94,0.13), rgba(20,28,50,0.5));
+    border: 1px solid rgba(34,197,94,0.35);
+    border-radius: 10px; padding: 16px;
+    font-size: 16px; line-height: 1.6;
+  }
+  .drug-result strong { color: #6ee7b7; font-size: 22px; }
+  .drug-result .warn { color: #fcd34d; font-size: 12px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(245,158,11,0.2); }
+
+  /* === PROTOCOL LIBRARY === */
+  .proto-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+  .proto {
+    background: rgba(20,28,50,0.5); border: 1px solid rgba(99,179,237,0.18);
+    border-radius: 12px; padding: 18px;
+  }
+  .proto h4 { margin: 0 0 10px; font-size: 16px; color: #cdf1ff; }
+  .proto h4 .badge { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 4px; margin-left: 6px; vertical-align: middle; }
+  .proto h4 .badge.red    { background: rgba(239,68,68,0.2); color: #fca5a5; }
+  .proto h4 .badge.yellow { background: rgba(245,158,11,0.2); color: #fcd34d; }
+  .proto h4 .badge.heat   { background: rgba(251,146,60,0.2); color: #fdba74; }
+  .proto ol, .proto ul { padding-left: 20px; margin: 4px 0; }
+  .proto li { color: #cbd5e1; font-size: 13px; line-height: 1.55; margin: 3px 0; }
+  .proto .key { color: #fcd34d; font-weight: 600; }
+  .proto .danger { color: #fca5a5; font-weight: 600; }
+
+  .ph-disclaim {
+    background: rgba(245,158,11,0.13);
+    border: 1px solid rgba(245,158,11,0.35);
+    border-radius: 8px;
+    padding: 12px 16px;
+    color: #fde68a;
+    font-size: 12px;
+    margin: 16px 0 24px;
+  }
+</style>
+</head>
+<body>
+<div id="topbar"></div>
+<div class="ph-shell">
+  <h1 style="font-size: 28px; margin: 16px 0 4px;">Field Protocols & Decision Support</h1>
+  <p style="color:#93a4cd; margin: 0 0 18px;">Quick-access reference for OCC and field paramedics.</p>
+
+  <div class="ph-tabs" id="tabs">
+    <div class="ph-tab active" data-pane="triage">Triage</div>
+    <div class="ph-tab" data-pane="drugs">Drug Dosing</div>
+    <div class="ph-tab" data-pane="protocols">Common Protocols</div>
+    <div class="ph-tab" data-pane="vitals">Vital Sign Reference</div>
+    <div class="ph-tab" data-pane="hajj">Hajj-Specific</div>
+  </div>
+
+  <div class="ph-disclaim">
+    ⚠ Reference only. Always follow the latest medical director orders and your scope of practice. These protocols are guides, not absolute rules.
+  </div>
+
+  <!-- TRIAGE TAB -->
+  <div class="ph-pane active" data-pane="triage">
+    <div class="triage-grid">
+      <div class="triage-card red">
+        <h3>RED · Immediate</h3>
+        <div class="label">Life-Threatening</div>
+        <div class="crit">
+          <strong>Treat within minutes:</strong>
+          <ul>
+            <li>Cardiac arrest / no pulse</li>
+            <li>Severe respiratory distress (RR &lt; 8 or &gt; 30)</li>
+            <li>Major hemorrhage / shock (SBP &lt; 90)</li>
+            <li>GCS ≤ 8 / unresponsive</li>
+            <li>Active seizure</li>
+            <li>Severe burns &gt; 20% BSA</li>
+            <li>Anaphylaxis with airway compromise</li>
+            <li>Heat stroke (T &gt; 40°C + AMS)</li>
+          </ul>
+          <div class="target">Target: ALS unit · transport priority 1</div>
+        </div>
+      </div>
+
+      <div class="triage-card yellow">
+        <h3>YELLOW · Urgent</h3>
+        <div class="label">Serious, Stable</div>
+        <div class="crit">
+          <strong>Treat within 30-60 min:</strong>
+          <ul>
+            <li>Moderate respiratory distress (RR 25-30)</li>
+            <li>Stable chest pain</li>
+            <li>Closed fractures, dislocations</li>
+            <li>Burns 10-20% BSA</li>
+            <li>GCS 9-13</li>
+            <li>Heat exhaustion</li>
+            <li>Moderate dehydration</li>
+            <li>Stable trauma</li>
+          </ul>
+          <div class="target">Target: ALS or BLS · priority 2</div>
+        </div>
+      </div>
+
+      <div class="triage-card green">
+        <h3>GREEN · Walking Wounded</h3>
+        <div class="label">Minor</div>
+        <div class="crit">
+          <strong>Treat when resources allow:</strong>
+          <ul>
+            <li>Minor cuts, abrasions</li>
+            <li>Sprains, contusions</li>
+            <li>Mild dehydration</li>
+            <li>Mild heat stress (cool, oral fluids)</li>
+            <li>Stable, ambulatory patients</li>
+            <li>Anxiety / panic without medical cause</li>
+          </ul>
+          <div class="target">Target: walk-in clinic · priority 3</div>
+        </div>
+      </div>
+
+      <div class="triage-card black">
+        <h3>BLACK · Expectant / Deceased</h3>
+        <div class="label">Not Survivable</div>
+        <div class="crit">
+          <strong>Confirm and document:</strong>
+          <ul>
+            <li>Obvious mortal wounds (decapitation, etc.)</li>
+            <li>Cardiac arrest with no shockable rhythm + ROSC unlikely in mass casualty</li>
+            <li>Resources unavailable for survival</li>
+          </ul>
+          <div class="target">Target: respectful handling · time of death documented · MDL notify</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DRUG DOSING -->
+  <div class="ph-pane" data-pane="drugs">
+    <div class="drug-calc">
+      <h3 style="margin-top: 0;">Weight-Based Drug Calculator</h3>
+      <div class="drug-row">
+        <div>
+          <label>Drug</label>
+          <select id="drugSelect"></select>
+        </div>
+        <div>
+          <label>Weight (kg)</label>
+          <input type="number" id="drugWeight" min="1" max="200" placeholder="70" />
+        </div>
+        <div>
+          <label>Indication</label>
+          <select id="drugInd">
+            <option value="standard">Standard adult</option>
+            <option value="pediatric">Pediatric</option>
+          </select>
+        </div>
+      </div>
+      <div class="drug-result" id="drugResult">Pick a drug and weight</div>
+    </div>
+  </div>
+
+  <!-- PROTOCOLS -->
+  <div class="ph-pane" data-pane="protocols">
+    <div class="proto-grid">
+      <div class="proto">
+        <h4>Cardiac Arrest <span class="badge red">RED</span></h4>
+        <ol>
+          <li>Confirm — check pulse 5-10 sec</li>
+          <li><span class="key">Start CPR</span> — 100-120/min, depth 5-6cm</li>
+          <li>Attach AED / monitor — analyze rhythm</li>
+          <li>Shockable (VF/VT) → defibrillate, resume CPR 2 min</li>
+          <li>IV/IO access · <span class="key">Adrenaline 1mg</span> q3-5min</li>
+          <li>Consider amiodarone 300mg after 3rd shock</li>
+          <li>Treat reversible causes (4H 4T)</li>
+          <li>Transport with mechanical CPR if available</li>
+        </ol>
+      </div>
+      <div class="proto">
+        <h4>Heat Stroke <span class="badge red">RED</span> · <span class="badge heat">Hajj</span></h4>
+        <ol>
+          <li>T &gt; 40°C + altered mental status = heat stroke</li>
+          <li><span class="key">Aggressive cooling immediately</span> — ice packs (groin/axillae/neck), cool mist + fan</li>
+          <li>Target: cool to 39°C in &lt; 30 min</li>
+          <li>IV fluids — NS 500mL bolus, repeat as needed</li>
+          <li>Monitor for seizures, rhabdomyolysis</li>
+          <li>Avoid antipyretics (ineffective)</li>
+          <li><span class="danger">Transport rapidly — high mortality</span></li>
+        </ol>
+      </div>
+      <div class="proto">
+        <h4>Anaphylaxis <span class="badge red">RED</span></h4>
+        <ol>
+          <li><span class="key">IM Adrenaline 0.5mg (0.5mL of 1:1000)</span> mid-thigh</li>
+          <li>Repeat q5-15min if no response</li>
+          <li>Lay flat (or sitting if dyspnea)</li>
+          <li>O2 high-flow</li>
+          <li>IV access — NS bolus if hypotensive</li>
+          <li>Adjuncts: hydrocortisone 200mg IV, chlorphenamine 10mg IV</li>
+          <li>Salbutamol neb if wheezing</li>
+        </ol>
+      </div>
+      <div class="proto">
+        <h4>Stable Chest Pain <span class="badge yellow">YELLOW</span></h4>
+        <ol>
+          <li>12-lead ECG ASAP — STEMI rules out</li>
+          <li>Aspirin 300mg PO chew</li>
+          <li>GTN 0.4mg SL if SBP &gt; 90</li>
+          <li>O2 if SpO2 &lt; 94%</li>
+          <li>IV access</li>
+          <li>Morphine 2-5mg IV titrated for ongoing pain</li>
+          <li>Transport to PCI-capable center</li>
+        </ol>
+      </div>
+      <div class="proto">
+        <h4>Active Seizure <span class="badge red">RED</span></h4>
+        <ol>
+          <li>Protect airway — recovery position when convulsion ends</li>
+          <li>O2 high-flow</li>
+          <li>If &gt; 5 min: <span class="key">Midazolam 10mg IM/buccal</span> (5mg if &lt; 40kg)</li>
+          <li>IV access when safe</li>
+          <li>Consider hypoglycemia → check BGL</li>
+          <li>If pregnant + ≥ 20wks → eclampsia: MgSO4 4g IV/IM</li>
+        </ol>
+      </div>
+      <div class="proto">
+        <h4>Severe Hemorrhage <span class="badge red">RED</span></h4>
+        <ol>
+          <li>Direct pressure with gauze</li>
+          <li>Tourniquet for limb if uncontrolled</li>
+          <li>Hemostatic dressing for junctional</li>
+          <li>2 large-bore IV — NS bolus</li>
+          <li>TXA 1g IV within 3hr if available</li>
+          <li>Permissive hypotension SBP target 90 (not in head trauma)</li>
+          <li>Rapid transport, surgeon notification</li>
+        </ol>
+      </div>
+      <div class="proto">
+        <h4>Hypoglycemia <span class="badge yellow">YELLOW</span></h4>
+        <ol>
+          <li>BGL &lt; 4.0 mmol/L = hypoglycemia</li>
+          <li>Conscious + can swallow → glucose tablets / juice</li>
+          <li>Unconscious / NPO → <span class="key">Dextrose 10% 250mL IV</span> over 5min</li>
+          <li>Or Glucagon 1mg IM if no IV access</li>
+          <li>Recheck BGL in 15 min</li>
+          <li>Feed once awake — long-acting carbs</li>
+          <li>Transport if persistent or insulin-related</li>
+        </ol>
+      </div>
+      <div class="proto">
+        <h4>Stroke (FAST) <span class="badge red">RED</span></h4>
+        <ol>
+          <li><strong>F</strong>ace droop · <strong>A</strong>rm drift · <strong>S</strong>peech · <strong>T</strong>ime</li>
+          <li>Document onset time precisely</li>
+          <li>BGL — rule out hypoglycemia</li>
+          <li>O2 if SpO2 &lt; 94%</li>
+          <li>NPO — keep head 30° elevated</li>
+          <li>Pre-alert stroke center</li>
+          <li><span class="danger">Window: 4.5hr thrombolysis · 6hr thrombectomy</span></li>
+        </ol>
+      </div>
+      <div class="proto">
+        <h4>Dehydration / Heat Exhaustion <span class="badge yellow">YELLOW</span> · <span class="badge heat">Hajj</span></h4>
+        <ol>
+          <li>Move to cool area — remove excess clothing</li>
+          <li>Mild: ORS, cool fluids PO</li>
+          <li>Moderate: IV NS 500mL bolus, monitor</li>
+          <li>Severe: 2L NS bolus, electrolytes</li>
+          <li>Watch for hyponatremia (over-hydration with water)</li>
+          <li>Distinguish from heat stroke (no AMS, T &lt; 40°C)</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <!-- VITAL SIGNS -->
+  <div class="ph-pane" data-pane="vitals">
+    <h3>Normal Vital Signs by Age</h3>
+    <table style="width:100%; border-collapse: collapse; background: rgba(20,28,50,0.5); border-radius: 12px; overflow: hidden; margin-top: 12px;">
+      <thead>
+        <tr style="background: rgba(56,189,248,0.13); color: #cdf1ff;">
+          <th style="padding: 12px 14px; text-align: left;">Age</th>
+          <th style="padding: 12px 14px; text-align: left;">HR (bpm)</th>
+          <th style="padding: 12px 14px; text-align: left;">RR (/min)</th>
+          <th style="padding: 12px 14px; text-align: left;">Systolic BP</th>
+          <th style="padding: 12px 14px; text-align: left;">SpO2</th>
+        </tr>
+      </thead>
+      <tbody style="color: #cbd5e1;">
+        <tr style="border-top:1px solid rgba(99,179,237,0.1);"><td style="padding:10px 14px;">Adult (≥ 12 yr)</td><td style="padding:10px 14px;">60-100</td><td style="padding:10px 14px;">12-20</td><td style="padding:10px 14px;">&gt; 90</td><td style="padding:10px 14px;">≥ 95%</td></tr>
+        <tr style="border-top:1px solid rgba(99,179,237,0.1);"><td style="padding:10px 14px;">Child (5-11)</td><td style="padding:10px 14px;">75-115</td><td style="padding:10px 14px;">15-25</td><td style="padding:10px 14px;">&gt; 80+age×2</td><td style="padding:10px 14px;">≥ 95%</td></tr>
+        <tr style="border-top:1px solid rgba(99,179,237,0.1);"><td style="padding:10px 14px;">Toddler (1-4)</td><td style="padding:10px 14px;">90-140</td><td style="padding:10px 14px;">22-35</td><td style="padding:10px 14px;">&gt; 90</td><td style="padding:10px 14px;">≥ 95%</td></tr>
+        <tr style="border-top:1px solid rgba(99,179,237,0.1);"><td style="padding:10px 14px;">Infant (1-12 mo)</td><td style="padding:10px 14px;">100-160</td><td style="padding:10px 14px;">25-40</td><td style="padding:10px 14px;">&gt; 70</td><td style="padding:10px 14px;">≥ 95%</td></tr>
+        <tr style="border-top:1px solid rgba(99,179,237,0.1);"><td style="padding:10px 14px;">Newborn</td><td style="padding:10px 14px;">120-160</td><td style="padding:10px 14px;">40-60</td><td style="padding:10px 14px;">&gt; 60</td><td style="padding:10px 14px;">≥ 95%</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin-top: 24px;">GCS Quick Reference</h3>
+    <div class="proto-grid">
+      <div class="proto">
+        <h4>Eye Opening (E)</h4>
+        <ul>
+          <li>4 — Spontaneous</li>
+          <li>3 — To verbal command</li>
+          <li>2 — To pain</li>
+          <li>1 — None</li>
+        </ul>
+      </div>
+      <div class="proto">
+        <h4>Verbal Response (V)</h4>
+        <ul>
+          <li>5 — Oriented</li>
+          <li>4 — Confused conversation</li>
+          <li>3 — Inappropriate words</li>
+          <li>2 — Incomprehensible sounds</li>
+          <li>1 — None</li>
+        </ul>
+      </div>
+      <div class="proto">
+        <h4>Motor Response (M)</h4>
+        <ul>
+          <li>6 — Obeys commands</li>
+          <li>5 — Localizes pain</li>
+          <li>4 — Withdraws from pain</li>
+          <li>3 — Abnormal flexion</li>
+          <li>2 — Extension to pain</li>
+          <li>1 — None</li>
+        </ul>
+      </div>
+    </div>
+    <div style="margin-top:16px; color:#cbd5e1; font-size:13px;">
+      <strong>Total: 3-15.</strong> ≤ 8 = severe (intubation candidate). 9-12 = moderate. 13-15 = mild.
+    </div>
+  </div>
+
+  <!-- HAJJ-SPECIFIC -->
+  <div class="ph-pane" data-pane="hajj">
+    <div class="proto-grid">
+      <div class="proto">
+        <h4>Stampede / Crush Injury</h4>
+        <ul>
+          <li>Scene safety FIRST — wait for crowd control</li>
+          <li>Triage RED for: chest crush, multiple fractures, AMS, hypotension</li>
+          <li>Crush syndrome: hyperkalemia, rhabdo</li>
+          <li>IV NS 1L bolus before extraction if entrapped &gt; 30 min</li>
+          <li>Bicarbonate 50mmol IV if confirmed acidosis</li>
+          <li>Monitor cardiac for hyperkalemia (peaked T waves)</li>
+        </ul>
+      </div>
+      <div class="proto">
+        <h4>Heat Illness Spectrum</h4>
+        <ul>
+          <li><strong>Heat cramps:</strong> rest, ORS, electrolytes</li>
+          <li><strong>Heat syncope:</strong> lay flat, cool, fluids</li>
+          <li><strong>Heat exhaustion:</strong> T &lt; 40°C, +/- AMS, IV NS</li>
+          <li><strong>Heat stroke:</strong> T &gt; 40°C + AMS — RED, aggressive cooling</li>
+          <li>Pre-shifts: hydrate, ORS, breaks every 30 min</li>
+        </ul>
+      </div>
+      <div class="proto">
+        <h4>Pilgrim Medical Special Considerations</h4>
+        <ul>
+          <li>Many elderly with chronic illness (cardiac, diabetic, CKD)</li>
+          <li>Language barrier — use translators / picture cards</li>
+          <li>Modesty — gender-appropriate care where possible</li>
+          <li>Document Mahram (chaperone) for unaccompanied women</li>
+          <li>Common: foot blisters, sunburn, dehydration, fall</li>
+          <li>Religious sensitivity — explain procedures clearly</li>
+        </ul>
+      </div>
+      <div class="proto">
+        <h4>Mass Casualty (MCI) Activation</h4>
+        <ul>
+          <li>Trigger: ≥ 5 simultaneous serious casualties at one location</li>
+          <li>Notify OCC immediately — request MCI declaration</li>
+          <li>START triage (Simple Triage and Rapid Treatment)</li>
+          <li>Set up casualty collection point safely upstream</li>
+          <li>Roles: Triage / Treatment / Transport officers</li>
+          <li>Use color tags: red/yellow/green/black</li>
+          <li>Reds first to definitive care</li>
+        </ul>
+      </div>
+      <div class="proto">
+        <h4>Ihram-Specific</h4>
+        <ul>
+          <li>Pilgrims in ihram cannot wear sewn clothing — work around for IV access</li>
+          <li>Hair-cutting prohibited — shaving for surgical access only with permission</li>
+          <li>If pilgrim becomes unable to complete rituals, document for religious authority</li>
+        </ul>
+      </div>
+      <div class="proto">
+        <h4>Common Drug Interactions in Pilgrims</h4>
+        <ul>
+          <li>Anticoagulants — many on warfarin/DOACs</li>
+          <li>Beta-blockers — masks tachycardic response</li>
+          <li>Diabetic medications — fasting risks hypoglycemia</li>
+          <li>Diuretics — heat illness risk</li>
+          <li>Always check medication list before administration</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="assets/auth.js?v=0.2.26"></script>
+<script src="assets/topbar.js?v=0.2.26"></script>
+<script src="assets/version.js?v=0.2.26"></script>
+<script>
+(async function() {
+  if (!await HAJJ.requireRole(['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'])) return;
+  CADTopbar.render({ title: "Field Protocols" });
+
+  // Tab switching
+  document.querySelectorAll('.ph-tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.ph-tab').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.ph-pane').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      document.querySelector(`.ph-pane[data-pane="${t.dataset.pane}"]`).classList.add('active');
+    });
+  });
+
+  // === DRUG CALCULATOR DATA ===
+  const DRUGS = {
+    'adrenaline_arrest':       { name: 'Adrenaline (cardiac arrest)',  adult: '1 mg IV/IO every 3-5 min',                                       ped_per_kg: 0.01, unit: 'mg', max_ped: 1, route: 'IV/IO',                            note: '0.01 mg/kg pediatric (max 1mg). Use 1:10,000 (0.1 mg/mL). Repeat every 3-5 min during CPR.' },
+    'adrenaline_anaphylaxis':  { name: 'Adrenaline (anaphylaxis IM)',  adult: '0.5 mg IM (0.5 mL of 1:1000)',                                  ped_per_kg: 0.01, unit: 'mg', max_ped: 0.5, route: 'IM',                            note: '0.01 mg/kg IM (1:1000). Mid-thigh. Repeat every 5-15 min if needed.' },
+    'amiodarone':              { name: 'Amiodarone (VF/pulseless VT)', adult: '300 mg IV bolus after 3rd shock, then 150 mg if persists',     ped_per_kg: 5,    unit: 'mg', max_ped: 300, route: 'IV bolus',                       note: '5 mg/kg. Dilute in 20 mL D5W.' },
+    'midazolam_seizure':       { name: 'Midazolam (seizure)',          adult: '10 mg IM / buccal / IN',                                          ped_per_kg: 0.2,  unit: 'mg', max_ped: 10,  route: 'IM / buccal / IN',               note: '0.2 mg/kg (max 10mg). Faster than IV access.' },
+    'aspirin':                 { name: 'Aspirin (chest pain / ACS)',   adult: '300 mg PO chewed',                                                ped_per_kg: 0,    unit: 'mg', max_ped: 0,   route: 'PO',                              note: 'Adult only. Avoid in pediatric.' },
+    'glucose_iv':              { name: 'Dextrose 10% (hypoglycemia)',  adult: '250 mL IV over 5 min (25g)',                                      ped_per_kg: 5,    unit: 'mL', max_ped: 250, route: 'IV',                              note: '5 mL/kg of D10. Recheck BGL in 15 min.' },
+    'naloxone':                { name: 'Naloxone (opioid OD)',         adult: '0.4 mg IV/IM (titrate up to 2mg)',                                ped_per_kg: 0.01, unit: 'mg', max_ped: 0.4, route: 'IV / IM / IN',                    note: '0.01 mg/kg. Titrate to respiration > 8/min.' },
+    'gtn':                     { name: 'GTN (chest pain)',             adult: '0.4 mg SL (1 spray)',                                              ped_per_kg: 0,    unit: 'mg', max_ped: 0,   route: 'SL',                              note: 'Adult only. Hold if SBP < 90. Repeat q5min × 3.' },
+    'salbutamol':              { name: 'Salbutamol (bronchospasm)',    adult: '5 mg neb',                                                          ped_per_kg: 0,    unit: 'mg', max_ped: 0,   route: 'Nebulizer',                       note: 'Adult 5mg. Pediatric: 2.5mg if < 25kg, 5mg if ≥ 25kg.' },
+    'paracetamol':             { name: 'Paracetamol',                  adult: '1 g PO/IV (max 4g/day)',                                           ped_per_kg: 15,   unit: 'mg', max_ped: 1000, route: 'PO / IV',                       note: '15 mg/kg (max 1g/dose).' },
+    'ondansetron':             { name: 'Ondansetron (anti-emetic)',    adult: '4-8 mg IV/IM/PO',                                                  ped_per_kg: 0.1,  unit: 'mg', max_ped: 4,   route: 'IV / IM / PO',                    note: '0.1 mg/kg (max 4mg).' },
+    'morphine':                { name: 'Morphine (analgesia)',         adult: '2-5 mg IV titrated',                                                ped_per_kg: 0.1,  unit: 'mg', max_ped: 5,   route: 'IV',                              note: '0.1 mg/kg titrated. Watch for resp depression.' },
+    'fentanyl':                { name: 'Fentanyl (analgesia)',         adult: '50 mcg IV (titrate)',                                              ped_per_kg: 1,    unit: 'mcg', max_ped: 50,  route: 'IV / IN',                         note: '1 mcg/kg (max 50). Faster onset than morphine.' },
+    'normal_saline':           { name: 'Normal Saline bolus',          adult: '500 mL IV bolus, repeat as needed',                                 ped_per_kg: 20,   unit: 'mL', max_ped: 500, route: 'IV',                              note: '20 mL/kg (max 500mL). Reassess after each bolus.' },
+    'mgso4_eclampsia':         { name: 'MgSO4 (eclampsia)',            adult: '4 g IV/IM bolus, then 1 g/hr',                                     ped_per_kg: 0,    unit: 'g',  max_ped: 0,   route: 'IV / IM',                         note: 'Adult only. Watch for resp depression, hyporeflexia.' },
+    'tranexamic':              { name: 'Tranexamic acid (TXA)',        adult: '1 g IV over 10 min',                                                ped_per_kg: 15,   unit: 'mg', max_ped: 1000, route: 'IV',                            note: 'Within 3 hr of trauma. Pediatric: 15 mg/kg (max 1g).' }
+  };
+
+  const drugSelect = document.getElementById('drugSelect');
+  Object.keys(DRUGS).forEach(k => {
+    const opt = document.createElement('option');
+    opt.value = k; opt.textContent = DRUGS[k].name;
+    drugSelect.appendChild(opt);
+  });
+  function calcDrug() {
+    const k = drugSelect.value;
+    const w = parseFloat(document.getElementById('drugWeight').value) || 0;
+    const ind = document.getElementById('drugInd').value;
+    const out = document.getElementById('drugResult');
+    if (!k) { out.textContent = 'Select a drug'; return; }
+    const d = DRUGS[k];
+    if (ind === 'pediatric' && w > 0 && d.ped_per_kg > 0) {
+      const dose = Math.min(w * d.ped_per_kg, d.max_ped || Infinity);
+      out.innerHTML = `<div><strong>${dose.toFixed(2)} ${d.unit}</strong> ${d.route}</div>
+        <div style="color:#94a3b8; font-size:12px; margin-top:6px;">Calc: ${w}kg × ${d.ped_per_kg} = ${(w * d.ped_per_kg).toFixed(2)} ${d.unit} (capped at ${d.max_ped || '—'})</div>
+        <div class="warn">${d.note}</div>`;
+    } else if (ind === 'pediatric' && d.ped_per_kg === 0) {
+      out.innerHTML = `<div style="color:#fca5a5; font-weight:600;">Not for pediatric use</div>
+        <div class="warn">${d.note}</div>`;
+    } else {
+      out.innerHTML = `<div><strong>${d.adult}</strong></div>
+        <div class="warn">${d.note}</div>`;
+    }
+  }
+  drugSelect.addEventListener('change', calcDrug);
+  document.getElementById('drugWeight').addEventListener('input', calcDrug);
+  document.getElementById('drugInd').addEventListener('change', calcDrug);
+  calcDrug();
+})();
+</script>
+</body>
+</html>
