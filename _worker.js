@@ -520,19 +520,36 @@ const ACTIONS = {
     } else {
       binds = [limit];
     }
-    const sql = `SELECT incident_id AS Incident_ID, ts, station AS Zone, sub_location,
-                        source AS Source, complaint AS Chief_Complaint, triage AS Category,
-                        cardiac_arrest, unit_assigned AS Unit, status AS Status,
-                        patient_count, notes AS Notes, created_by_nid AS Created_By,
-                        closed_at, closed_by_nid AS Closed_By, pcr_id AS PCR_ID
-                 FROM dispatch_log ${where} ORDER BY ts DESC LIMIT ?${binds.length}`;
+    const sql = `SELECT d.incident_id AS Incident_ID, d.ts, d.station AS Zone, d.sub_location,
+                        d.source AS Source, d.complaint AS Chief_Complaint, d.triage AS Category,
+                        d.cardiac_arrest, d.unit_assigned AS Unit, d.status AS Status,
+                        d.patient_count, d.notes AS Notes, d.created_by_nid AS Created_By,
+                        d.closed_at, d.closed_by_nid AS Closed_By, d.pcr_id AS PCR_ID,
+                        (SELECT MIN(ts) FROM incident_events WHERE incident_id = d.incident_id AND event_type='en_route')         AS en_route_ts,
+                        (SELECT MIN(ts) FROM incident_events WHERE incident_id = d.incident_id AND event_type='on_scene')        AS on_scene_ts,
+                        (SELECT MIN(ts) FROM incident_events WHERE incident_id = d.incident_id AND event_type='patient_contact') AS patient_contact_ts,
+                        (SELECT MIN(ts) FROM incident_events WHERE incident_id = d.incident_id AND event_type='transfer_start')  AS transfer_start_ts,
+                        (SELECT MIN(ts) FROM incident_events WHERE incident_id = d.incident_id AND event_type='hospital_arrival')AS hospital_arrival_ts,
+                        (SELECT MIN(ts) FROM incident_events WHERE incident_id = d.incident_id AND event_type='handover')        AS handover_ts
+                 FROM dispatch_log d ${where.replace(/\b(ts|station|status|complaint|triage|sub_location|unit_assigned|cardiac_arrest|patient_count|notes|created_by_nid|closed_at|closed_by_nid|pcr_id|incident_id)\b/g, 'd.$1')} ORDER BY d.ts DESC LIMIT ?${binds.length}`;
     const r = await env.DB.prepare(sql).bind(...binds).all();
     const incidents = (r.results || []).map(row => {
       row.Created_At = new Date(row.ts * 1000).toISOString();
       if (row.closed_at) row.Closed_At = new Date(row.closed_at * 1000).toISOString();
+      // Map timeline timestamps to the names the frontend reads
+      const tsToISO = t => t ? new Date(t * 1000).toISOString() : null;
+      row.En_Route_At        = tsToISO(row.en_route_ts);
+      row.On_Scene_At        = tsToISO(row.on_scene_ts);
+      row.Patient_Contact_At = tsToISO(row.patient_contact_ts);
+      row.Transfer_Start     = tsToISO(row.transfer_start_ts);
+      row.Hospital_Arrival   = tsToISO(row.hospital_arrival_ts);
+      row.Handover           = tsToISO(row.handover_ts);
       // Mirror Station/Region for views that expect those keys
       row.Station = row.Zone; row.Region = row.Zone;
+      // Cleanup raw ts fields
       delete row.ts; delete row.closed_at;
+      delete row.en_route_ts; delete row.on_scene_ts; delete row.patient_contact_ts;
+      delete row.transfer_start_ts; delete row.hospital_arrival_ts; delete row.handover_ts;
       return row;
     });
     // Day list for date toggle UI: distinct dates in dispatch_log (last 30)
@@ -1153,35 +1170,67 @@ const ACTIONS = {
 
   async dispatch_event(user, env, params) {
     const incidentId = params.incident_id;
-    const event = (params.event || '').toLowerCase();
+    const eventRaw = (params.event || '').toLowerCase();
     if (!incidentId) return { ok: false, error: 'missing_incident_id' };
-    const validEvents = ['unit_assigned','on_scene','transporting','arrived_hospital'];
-    if (!validEvents.includes(event)) return { ok: false, error: 'invalid_event', event, valid: validEvents };
-    // Map event → status
-    const statusMap = {
-      'unit_assigned': 'on_scene',
-      'on_scene': 'on_scene',
-      'transporting': 'transporting',
-      'arrived_hospital': 'transporting'
+    // Canonical events tracked in incident_events table:
+    const canonical = ['en_route','on_scene','patient_contact','transfer_start','hospital_arrival','handover'];
+    // Aliases — accept legacy + alternate names from any frontend
+    const aliasMap = {
+      'unit_assigned': 'on_scene',     // legacy
+      'arrived_hospital': 'hospital_arrival',
+      'transporting': 'transfer_start',
+      'transfer': 'transfer_start',
+      'arrived': 'hospital_arrival'
     };
-    const newStatus = statusMap[event];
+    const event = aliasMap[eventRaw] || eventRaw;
+    if (!canonical.includes(event)) {
+      return { ok: false, error: 'invalid_event', event: eventRaw, canonical_attempted: event, valid: canonical };
+    }
+    // Map event → dispatch_log.status (only major status transitions)
+    const statusMap = {
+      'on_scene': 'on_scene',
+      'transfer_start': 'transporting',
+      'hospital_arrival': 'transporting',
+      'handover': 'transporting'
+    };
+    const newStatus = statusMap[event];   // undefined for en_route, patient_contact (timeline-only)
+    const now = Math.floor(Date.now() / 1000);
     try {
-      const updates = ['status = ?1'];
-      const binds = [newStatus];
-      if (params.unit_assigned) {
-        updates.push(`unit_assigned = ?${binds.length + 1}`);
-        binds.push(params.unit_assigned);
+      // 1) Always log the timeline event (each click = 1 row)
+      await env.DB.prepare(
+        `INSERT INTO incident_events (incident_id, event_type, ts, actor_nid, notes)
+         VALUES (?1, ?2, ?3, ?4, ?5)`
+      ).bind(incidentId, event, now, user.nid, params.notes || '').run();
+
+      // 2) If event triggers a status change, update dispatch_log
+      if (newStatus) {
+        const updates = ['status = ?1'];
+        const binds = [newStatus];
+        if (params.unit_assigned) {
+          updates.push(`unit_assigned = ?${binds.length + 1}`);
+          binds.push(params.unit_assigned);
+        }
+        binds.push(incidentId);
+        const r = await env.DB.prepare(
+          `UPDATE dispatch_log SET ${updates.join(', ')} WHERE incident_id = ?${binds.length}`
+        ).bind(...binds).run();
+        if (r.meta?.changes === 0) return { ok: false, error: 'incident_not_found', incident_id: incidentId };
+      } else if (params.unit_assigned) {
+        await env.DB.prepare(
+          `UPDATE dispatch_log SET unit_assigned = ?1 WHERE incident_id = ?2`
+        ).bind(params.unit_assigned, incidentId).run();
       }
-      binds.push(incidentId);
-      const r = await env.DB.prepare(
-        `UPDATE dispatch_log SET ${updates.join(', ')} WHERE incident_id = ?${binds.length}`
-      ).bind(...binds).run();
-      if (r.meta?.changes === 0) return { ok: false, error: 'incident_not_found', incident_id: incidentId };
+
+      // 3) Audit
       await env.DB.prepare(
         `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
          VALUES (?1, 'dispatch_event', 'incident', ?2, ?3)`
-      ).bind(user.nid, incidentId, JSON.stringify({ event, new_status: newStatus, notes: params.notes || '' })).run();
-      return { ok: true, incident_id: incidentId, status: newStatus };
+      ).bind(user.nid, incidentId, JSON.stringify({
+        event, alias_from: eventRaw !== event ? eventRaw : null,
+        new_status: newStatus || null, notes: params.notes || ''
+      })).run();
+
+      return { ok: true, incident_id: incidentId, event, status: newStatus || null, ts: now };
     } catch (e) {
       return { ok: false, error: 'update_failed', detail: e.message };
     }
