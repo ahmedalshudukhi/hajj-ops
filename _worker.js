@@ -367,6 +367,8 @@ const ROLE_GATE = {
   surge_forecast: ['cluster_supervisor','dispatcher','leadership','admin'],
   drill_status: ['cluster_supervisor','dispatcher','leadership','admin'],
   drill_set: ['leadership','admin'],
+  handoff_script: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'],
+  system_health: null,
   sar_summary: ['sar','admin'],
   dispatch_list: ['cluster_supervisor','dispatcher','leadership','admin'],
   dashboard_active: ['cluster_supervisor','dispatcher','leadership','admin'],
@@ -1810,6 +1812,141 @@ const ACTIONS = {
       // Table doesn't exist yet
       return { ok: true, count: 0, users: [], by_role: {}, by_page: {}, window_sec: window };
     }
+  },
+
+  // ==============================================================
+  // handoff_script — generate hospital radio handoff (MIST/SBAR)
+  // ==============================================================
+  async handoff_script(user, env, params) {
+    const incidentId = String(params.incident_id || '').trim();
+    const format = String(params.format || 'mist').toLowerCase();  // 'mist' or 'sbar'
+    const destination = String(params.destination || '').slice(0, 200);
+    if (!incidentId) return { ok: false, error: 'missing_incident_id' };
+
+    try {
+      const inc = await env.DB.prepare(
+        `SELECT * FROM dispatch_log WHERE incident_id = ?1 LIMIT 1`
+      ).bind(incidentId).first();
+      if (!inc) return { ok: false, error: 'not_found' };
+
+      const events = await env.DB.prepare(
+        `SELECT event_type, ts, notes FROM incident_events
+         WHERE incident_id = ?1 ORDER BY ts ASC`
+      ).bind(incidentId).all();
+
+      const triageWord = ({red:'CRITICAL', yellow:'URGENT', green:'STABLE', black:'EXPECTANT'})[(inc.triage||'').toLowerCase()] || (inc.triage||'unknown');
+      const onScene = (events.results || []).find(e => e.event_type === 'on_scene');
+      const ageStr = inc.age || 'unknown age';
+      const genderWord = inc.gender ? (String(inc.gender).toLowerCase().startsWith('m') ? 'male' : 'female') : '';
+      const ssVitals = inc.notes ? String(inc.notes).slice(0, 300) : '';
+      const cardiacFlag = inc.cardiac_arrest ? ' — CARDIAC ARREST' : '';
+
+      let script = '';
+      if (format === 'sbar') {
+        script = `=== SBAR HANDOFF ===
+DESTINATION: ${destination || '[hospital]'}
+INCIDENT: ${incidentId}
+PATIENT: ${ageStr} ${genderWord}${cardiacFlag}
+
+S — SITUATION
+${triageWord} triage. ${inc.complaint || 'No chief complaint recorded'}.
+Location: ${inc.station || '?'}${inc.sub_location ? ' / ' + inc.sub_location : ''}.
+
+B — BACKGROUND
+Dispatched: ${new Date(inc.ts*1000).toISOString().replace('T',' ').slice(0,19)} UTC.
+${onScene ? 'On-scene at ' + new Date(onScene.ts*1000).toISOString().replace('T',' ').slice(0,19) + ' UTC.' : 'En route to scene.'}
+${ssVitals ? 'Notes: ' + ssVitals : 'No additional notes.'}
+
+A — ASSESSMENT
+${cardiacFlag ? 'Cardiac arrest, CPR in progress.' : 'See triage and complaint.'}
+Unit: ${inc.unit_assigned || '[no unit assigned]'}.
+
+R — RECOMMENDATION
+Receiving ETA: [crew to advise].
+Prepare ${triageWord === 'CRITICAL' ? 'resuscitation bay' : 'standard triage'}.
+${cardiacFlag ? 'Activate cardiac arrest team.' : ''}
+
+=== End handoff ===`;
+      } else {
+        // MIST
+        script = `=== MIST HANDOFF ===
+DESTINATION: ${destination || '[hospital]'}
+INCIDENT: ${incidentId}
+
+M — MECHANISM
+${inc.complaint || 'See chief complaint'} at ${inc.station || '?'}${inc.sub_location ? ' (' + inc.sub_location + ')' : ''}.
+
+I — INJURIES / ILLNESS
+Triage: ${triageWord}${cardiacFlag}.
+${ssVitals ? 'Findings: ' + ssVitals : 'See on-arrival assessment.'}
+
+S — SIGNS / VITALS
+${ssVitals.includes('BP') || ssVitals.includes('vital') ? 'See notes.' : '[Crew to provide latest vitals on arrival]'}
+
+T — TREATMENT GIVEN
+${onScene ? 'On-scene since ' + new Date(onScene.ts*1000).toISOString().slice(11,19) + ' UTC.' : 'En route.'}
+Unit ${inc.unit_assigned || '[unassigned]'}.
+${inc.cardiac_arrest ? 'CPR + ALS interventions in progress.' : 'See PCR for full intervention list.'}
+
+ETA: [crew to advise]
+Patient age/sex: ${ageStr} ${genderWord || ''}
+
+=== End MIST ===`;
+      }
+
+      return {
+        ok: true,
+        format,
+        incident_id: incidentId,
+        destination,
+        script,
+        radio_call: `${inc.unit_assigned || 'Unit'} to ${destination || 'control'}, inbound with ${triageWord} ${ageStr}-year-old ${genderWord || 'patient'}${cardiacFlag ? ', cardiac arrest, CPR in progress' : ''}, request ${triageWord === 'CRITICAL' ? 'resus bay' : 'triage'}, ETA pending.`,
+        generated_at: Math.floor(Date.now() / 1000)
+      };
+    } catch (e) {
+      return { ok: false, error: 'handoff_failed', detail: e.message };
+    }
+  },
+
+  // ==============================================================
+  // system_health — system status (no auth needed for status, but uses session)
+  // ==============================================================
+  async system_health(user, env) {
+    const now = Math.floor(Date.now() / 1000);
+    const out = {
+      ok: true,
+      timestamp: now,
+      timestamp_iso: new Date(now * 1000).toISOString(),
+      version: '__VERSION__',
+      branch: 'testing',
+      checks: {}
+    };
+    // D1 ping
+    const d1Start = Date.now();
+    try {
+      const r = await env.DB.prepare(`SELECT 1 AS ping`).first();
+      out.checks.d1 = { ok: !!r, ms: Date.now() - d1Start };
+    } catch (e) {
+      out.checks.d1 = { ok: false, error: e.message, ms: Date.now() - d1Start };
+    }
+    // Counts
+    try {
+      const counts = await env.DB.batch([
+        env.DB.prepare(`SELECT COUNT(*) AS n FROM dispatch_log`),
+        env.DB.prepare(`SELECT COUNT(*) AS n FROM dispatch_log WHERE status NOT IN ('complete','closed','cancelled') AND COALESCE(is_drill,0)=0`),
+        env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_log`),
+        env.DB.prepare(`SELECT COUNT(*) AS n FROM presence WHERE last_ts >= ?1`).bind(now - 300)
+      ]);
+      out.counts = {
+        total_incidents: counts[0]?.results?.[0]?.n || 0,
+        live_open: counts[1]?.results?.[0]?.n || 0,
+        audit_events: counts[2]?.results?.[0]?.n || 0,
+        users_online_5m: counts[3]?.results?.[0]?.n || 0
+      };
+    } catch (e) {
+      out.counts_error = e.message;
+    }
+    return out;
   },
 
   // ==============================================================

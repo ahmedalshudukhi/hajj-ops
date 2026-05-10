@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0a0e1a">
 <title>Reports & Analytics · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.30">
+<link rel="stylesheet" href="assets/style.css?v=0.2.31">
 <style>
   body { background: #0a0e1a; color: #e7ecf7; font-family: 'Inter', system-ui, sans-serif; }
   .rp-shell { max-width: 1280px; margin: 0 auto; padding: 20px; }
@@ -154,6 +154,7 @@
     <div class="rp-tab" data-pane="handoff">Shift Handoff</div>
     <div class="rp-tab" data-pane="incident">Incident Detail</div>
     <div class="rp-tab" data-pane="audit">Audit Log</div>
+    <div class="rp-tab" data-pane="handoff_script">Handoff Script</div>
   </div>
 
   <!-- DAILY SUMMARY -->
@@ -227,12 +228,37 @@
     </div>
     <div id="auditOut"></div>
   </div>
+
+  <!-- HANDOFF SCRIPT -->
+  <div class="rp-pane" data-pane="handoff_script">
+    <div class="rp-controls">
+      <div>
+        <label>Incident ID</label>
+        <input type="text" id="hsIncidentId" placeholder="DSP-2026..." />
+      </div>
+      <div>
+        <label>Destination</label>
+        <input type="text" id="hsDest" placeholder="King Fahd ER" />
+      </div>
+      <div>
+        <label>Format</label>
+        <select id="hsFormat">
+          <option value="mist">MIST (trauma)</option>
+          <option value="sbar">SBAR (medical)</option>
+        </select>
+      </div>
+      <button class="rp-btn" id="hsGen">Generate Script</button>
+      <button class="rp-btn print" onclick="window.print()">🖨️ Print</button>
+    </div>
+    <div id="hsOut"></div>
+  </div>
 </div>
 
-<script src="assets/auth.js?v=0.2.30"></script>
-<script src="assets/shortcuts.js?v=0.2.30"></script>
-<script src="assets/topbar.js?v=0.2.30"></script>
-<script src="assets/version.js?v=0.2.30"></script>
+<script src="assets/auth.js?v=0.2.31"></script>
+<script src="assets/shortcuts.js?v=0.2.31"></script>
+<script src="assets/voice.js?v=0.2.31"></script>
+<script src="assets/topbar.js?v=0.2.31"></script>
+<script src="assets/version.js?v=0.2.31"></script>
 <script>
 (async function() {
   if (!await HAJJ.requireRole(['leadership','admin','dispatcher','cluster_supervisor'])) return;
@@ -561,6 +587,47 @@
       `).join('')}
     </div>`;
   }
+
+  // === HANDOFF SCRIPT ===
+  document.getElementById('hsGen').addEventListener('click', async () => {
+    const incident_id = document.getElementById('hsIncidentId').value.trim();
+    const destination = document.getElementById('hsDest').value.trim();
+    const format = document.getElementById('hsFormat').value;
+    const out = document.getElementById('hsOut');
+    if (!incident_id) { out.innerHTML = '<div class="empty">Enter an incident ID</div>'; return; }
+    out.innerHTML = '<div class="empty">Generating…</div>';
+    const r = await HAJJ.authedCall('handoff_script', { incident_id, destination, format });
+    if (!r || !r.ok) { out.innerHTML = '<div class="empty">Error: ' + (r && r.error || 'unknown') + '</div>'; return; }
+    out.innerHTML = `
+    <div class="report-out">
+      ${printHeader('Hospital Handoff Script', incident_id)}
+      <h1>Hospital Handoff · ${incident_id}</h1>
+      <div class="head-meta">
+        <strong>Format:</strong> ${r.format.toUpperCase()} · 
+        <strong>Destination:</strong> ${destination || '—'} · 
+        <strong>Generated:</strong> ${new Date(r.generated_at*1000).toLocaleString()}
+      </div>
+      <h2>Radio Call (concise)</h2>
+      <div style="background:#f1f5f9; border:1px solid #cbd5e1; padding:14px 18px; border-radius:8px; font-family:ui-monospace,Menlo,monospace; font-size:13px; line-height:1.6; color:#0f172a;">
+        ${escHtml(r.radio_call)}
+      </div>
+      <h2>Full Handoff Script</h2>
+      <pre style="background:#f8fafc; border:1px solid #e2e8f0; padding:18px 22px; border-radius:8px; font-size:12px; line-height:1.55; color:#1e293b; white-space:pre-wrap; font-family:ui-monospace,Menlo,monospace;">${escHtml(r.script)}</pre>
+      <div style="margin-top:18px; display:flex; gap:10px;">
+        <button class="rp-btn" id="hsCopyScript">📋 Copy script</button>
+        <button class="rp-btn" id="hsCopyRadio">📋 Copy radio call</button>
+      </div>
+    </div>`;
+    // Bind copy buttons (script and radio call)
+    const cs = document.getElementById('hsCopyScript');
+    const cr = document.getElementById('hsCopyRadio');
+    if (cs) cs.addEventListener('click', () => {
+      navigator.clipboard.writeText(r.script).then(() => { cs.textContent = '✓ Copied'; setTimeout(() => cs.textContent = '📋 Copy script', 1500); });
+    });
+    if (cr) cr.addEventListener('click', () => {
+      navigator.clipboard.writeText(r.radio_call).then(() => { cr.textContent = '✓ Copied'; setTimeout(() => cr.textContent = '📋 Copy radio call', 1500); });
+    });
+  });
 
   // Auto-load today's daily on first view
   document.getElementById('dailyGen').click();
