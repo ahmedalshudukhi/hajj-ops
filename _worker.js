@@ -986,6 +986,39 @@ const ACTIONS = {
         }
       });
 
+      // 1c. RESPONSE TIME — for incidents in scope that have an on_scene event,
+      //     compute mean/median/P95 of (on_scene_ts - dispatch.ts) in milliseconds.
+      try {
+        const rtR = await env.DB.prepare(
+          `SELECT (e.ts - d.ts) AS delta_sec
+           FROM dispatch_log d
+           INNER JOIN (
+             SELECT incident_id, MIN(ts) AS ts
+             FROM incident_events
+             WHERE event_type = 'on_scene'
+             GROUP BY incident_id
+           ) e ON e.incident_id = d.incident_id
+           WHERE (d.ts >= ?1 AND d.ts <= ?2)
+           AND (e.ts - d.ts) BETWEEN 0 AND 86400`
+        ).bind(startTs, endTs).all();
+
+        const deltas = (rtR.results || []).map(r => r.delta_sec).filter(s => s > 0);
+        if (deltas.length > 0) {
+          deltas.sort((a, b) => a - b);
+          const mean = deltas.reduce((a, b) => a + b, 0) / deltas.length;
+          const p50 = deltas[Math.floor(deltas.length * 0.5)];
+          const p95 = deltas[Math.floor(deltas.length * 0.95)] || deltas[deltas.length - 1];
+          result.dispatch.response_time = {
+            mean_ms: Math.round(mean * 1000),
+            p50_ms:  Math.round(p50 * 1000),
+            p95_ms:  Math.round(p95 * 1000),
+            count:   deltas.length
+          };
+        }
+      } catch (e) {
+        result.dispatch._response_time_err = String(e.message);
+      }
+
       // Recent strip: last 20 in scope
       result.dispatch.recent = incidents
         .filter(i => i.ts >= startTs && i.ts <= endTs)
