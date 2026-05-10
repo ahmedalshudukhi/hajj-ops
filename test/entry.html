@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="/">
+<!-- /test/ — assets shared with root /, HTML mutable per release -->
+<meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="pragma" content="no-cache">
+<meta http-equiv="expires" content="0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#0f172a">
+<title>Sign In · Hajj 2026</title>
+<link rel="stylesheet" href="assets/style.css?v=0.2.20">
+
+<style>
+  body { display: flex; flex-direction: column; }
+  .login-app {
+    flex: 1;
+    display: flex; flex-direction: column; justify-content: center;
+    padding-top: calc(48px + env(safe-area-inset-top));
+    padding-bottom: 48px;
+  }
+  .brand { text-align: center; margin-bottom: 32px; }
+  .brand-mark {
+    display: inline-block;
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .brand h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
+  .brand .tag { margin-top: 4px; color: var(--text-muted); font-size: 14px; }
+  .footer {
+    text-align: center;
+    margin-top: 28px;
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .footer .ar { display: block; margin-top: 2px; opacity: 0.85; }
+</style>
+</head>
+<body>
+
+<div class="app app--narrow login-app">
+
+  <div class="brand">
+    <img src="assets/img/hmg_logo.png?v=11" alt="HMG" style="height:48px; width:auto; filter: brightness(0) invert(1); margin-bottom: 10px;">
+    <h1>Hajj CAD</h1>
+    <div class="tag">Operations Portal</div>
+  </div>
+
+  <div class="card">
+    <form id="loginForm" autocomplete="off" novalidate>
+      <div class="field">
+        <label class="label" for="nid">National ID</label>
+        <input class="input tabular" id="nid" type="tel" inputmode="numeric"
+               pattern="\d{10}" maxlength="10"
+               placeholder="10 digits" autocomplete="off" required>
+      </div>
+
+      <div class="field">
+        <label class="label" for="last4">Last 4 of mobile</label>
+        <input class="input tabular" id="last4" type="tel" inputmode="numeric"
+               pattern="\d{4}" maxlength="4"
+               placeholder="••••" autocomplete="off" required>
+      </div>
+
+      <div id="msg"></div>
+
+      <button class="btn" id="signInBtn" type="submit">Sign in</button>
+    </form>
+  </div>
+
+  <div class="footer">
+    For HMG Hajj 2026 staff only
+    <span class="ar bidi-auto">لطاقم حج 2026 فقط</span>
+  </div>
+
+</div>
+
+<script src="assets/config.js?v=0.2.20"></script>
+<script src="assets/auth.js?v=0.2.20"></script>
+<script>
+(function () {
+  const existing = HAJJ.getUser();
+  if (existing && HAJJ.getToken()) {
+    window.location.replace(HAJJ.landingFor(existing.role));
+    return;
+  }
+
+  const form    = document.getElementById('loginForm');
+  const nidEl   = document.getElementById('nid');
+  const last4El = document.getElementById('last4');
+  const btn     = document.getElementById('signInBtn');
+  const msg     = document.getElementById('msg');
+
+  function digitsOnly(el, max) {
+    el.addEventListener('input', function () {
+      const cleaned = this.value.replace(/\D/g, '').slice(0, max);
+      if (cleaned !== this.value) this.value = cleaned;
+    });
+  }
+  digitsOnly(nidEl, 10);
+  digitsOnly(last4El, 4);
+  nidEl.addEventListener('input', function () {
+    if (this.value.length === 10) last4El.focus();
+  });
+
+  function showMsg(kind, text) {
+    msg.innerHTML = '<div class="notice notice--' + kind + '">' + text + '</div>';
+  }
+  function clearMsg() { msg.innerHTML = ''; }
+  function setBusy(busy) {
+    btn.disabled = busy;
+    btn.innerHTML = busy
+      ? '<span class="spinner"></span>&nbsp;&nbsp;Signing in…'
+      : 'Sign in';
+  }
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    clearMsg();
+
+    const nid = nidEl.value.trim();
+    const last4 = last4El.value.trim();
+    if (!/^\d{10}$/.test(nid))   { showMsg('error', 'National ID must be 10 digits.'); nidEl.focus();   return; }
+    if (!/^\d{4}$/.test(last4))  { showMsg('error', 'Enter the last 4 digits of your mobile.'); last4El.focus(); return; }
+
+    setBusy(true);
+    const r = await HAJJ.login(nid, last4);
+    setBusy(false);
+
+    if (!r || r.ok !== true) {
+      const map = {
+        invalid_credentials:    'National ID or mobile last-4 is incorrect.',
+        rate_limited:           'Too many attempts. Wait 5 minutes and try again.',
+        backend_not_configured: 'App not configured. Contact the operations lead.',
+        network:                'Network error. Check your connection.',
+        non_json_response:      'Server returned an unexpected response.',
+        unknown:                'Sign-in failed. Try again.'
+      };
+      showMsg('error', map[(r && r.error) || 'unknown'] || map.unknown);
+      return;
+    }
+
+    showMsg('success', 'Welcome, ' + (r.user.name || '').split(' ')[0] + '. Loading…');
+    setTimeout(function () {
+      window.location.replace(HAJJ.landingFor(r.user.role));
+    }, 350);
+  });
+
+  if (!('ontouchstart' in window)) nidEl.focus();
+})();
+</script>
+
+<script src="assets/version.js?v=0.2.20"></script>
+</body>
+</html>

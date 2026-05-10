@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="/">
+<!-- /test/ — assets shared with root /, HTML mutable per release -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SV · HMG Hajj 2026</title>
+<link rel="stylesheet" href="assets/style.css?v=0.2.20">
+<script src="assets/config.js?v=0.2.20"></script>
+<script src="assets/tempo.js?v=0.2.20"></script>
+<script src="assets/auth.js?v=0.2.20"></script>
+<script src="assets/sublocations.js?v=0.2.20"></script>
+<script src="assets/topbar.js?v=0.2.20"></script>
+<style>
+  .sv-wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  .sv-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px; margin-bottom: 14px; }
+  .sv-section h3 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-muted); font-weight: 600; }
+
+  .station-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+  .station-card {
+    border: 2px solid var(--border); border-radius: var(--radius);
+    padding: 12px; background: var(--surface-2); cursor: pointer;
+    user-select: none; transition: all 0.15s;
+  }
+  .station-card:hover { transform: translateY(-1px); }
+  .station-card.s-red    { border-color: #dc2626; background: rgba(239, 68, 68, 0.10); }
+  .station-card.s-yellow { border-color: #f59e0b; background: rgba(245, 158, 11, 0.10); }
+  .station-card.s-green  { border-color: #16a34a; background: rgba(34, 197, 94, 0.10); }
+  .station-card.s-black  { border-color: #6b7280; background: rgba(107, 114, 128, 0.15); }
+  .station-card .name { font-weight: 600; font-size: 14px; color: var(--text); }
+  .station-card .status { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-muted); margin-top: 2px; }
+  .station-card .note { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100;
+    display: none; align-items: center; justify-content: center; padding: 16px; }
+  .modal-bg.visible { display: flex; }
+  .modal {
+    background: var(--surface); border-radius: var(--radius); padding: 20px;
+    max-width: 420px; width: 100%; border: 1px solid var(--border);
+  }
+  .modal h4 { margin: 0 0 12px; font-size: 16px; }
+  .triage-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+  .triage-tile {
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 12px 6px; text-align: center; cursor: pointer; user-select: none;
+    font-weight: 600; font-size: 13px; background: var(--surface-2);
+  }
+  .triage-tile.t-red    { color: #fca5a5; }
+  .triage-tile.t-yellow { color: #fcd34d; }
+  .triage-tile.t-green  { color: #86efac; }
+  .triage-tile.t-black  { color: #d1d5db; }
+  .triage-tile.selected.t-red    { background: rgba(239, 68, 68, 0.20); border-color: #dc2626; }
+  .triage-tile.selected.t-yellow { background: rgba(245, 158, 11, 0.20); border-color: #f59e0b; }
+  .triage-tile.selected.t-green  { background: rgba(34, 197, 94, 0.20); border-color: #16a34a; }
+  .triage-tile.selected.t-black  { background: rgba(107, 114, 128, 0.25); border-color: #6b7280; }
+
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+
+  .sv-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .sv-table th { text-align: left; padding: 8px; color: var(--text-muted);
+    border-bottom: 1px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .sv-table td { padding: 8px; border-bottom: 1px solid var(--border); }
+
+  .reposition-status { font-size: 11px; padding: 1px 6px; border-radius: 4px; }
+  .reposition-status.pending      { background: rgba(245, 158, 11, 0.15); color: #fcd34d; }
+  .reposition-status.approved     { background: rgba(34, 197, 94, 0.15);  color: #86efac; }
+  .reposition-status.auto_approved { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; }
+  .reposition-status.rejected     { background: rgba(239, 68, 68, 0.15);  color: #fca5a5; }
+  .reposition-status.active       { background: rgba(34, 197, 94, 0.15); color: #86efac; }
+
+  .empty-state { padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div id="topbar"></div>
+
+<div class="sv-wrap">
+
+  <!-- ===== STATION STATUS ===== -->
+  <div class="sv-section">
+    <h3>Station status — tap to set</h3>
+    <div class="station-grid" id="stationGrid">
+      <div class="empty-state">Loading stations…</div>
+    </div>
+  </div>
+
+  <!-- ===== REQUEST REPOSITION ===== -->
+  <div class="sv-section">
+    <h3>Request unit reposition</h3>
+    <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px;">
+      SV requests auto-approve in 2 minutes if dispatcher does not review. Leadership/dispatcher
+      requests apply immediately.
+    </p>
+    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 2fr auto; gap: 8px;">
+      <select id="repUnit" class="select"><option value="">Unit (loading…)</option></select>
+      <select id="repToStation" class="select"><option value="">To station</option></select>
+      <select class="select" id="repSubLocation"><option value="">Sub-location at target (optional)</option></select>
+      <input type="text" id="repReason" class="input" placeholder="Reason (optional)">
+      <button class="btn" id="repSubmit">Request</button>
+    </div>
+    <div id="repMsg" style="margin-top:8px;"></div>
+  </div>
+
+  <!-- ===== PENDING ===== -->
+  <div class="sv-section">
+    <h3>Pending requests</h3>
+    <table class="sv-table">
+      <thead><tr><th>Status</th><th>Time</th><th>Unit</th><th>From → To</th><th>By</th><th>Reason</th><th>Action</th></tr></thead>
+      <tbody id="pendingBody"><tr><td colspan="7" class="empty-state">Loading…</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- ===== RECENT ===== -->
+  <div class="sv-section">
+    <h3>Recent repositions (last 30)</h3>
+    <table class="sv-table">
+      <thead><tr><th>Status</th><th>Time</th><th>Unit</th><th>From → To</th><th>By</th></tr></thead>
+      <tbody id="recentBody"><tr><td colspan="5" class="empty-state">Loading…</td></tr></tbody>
+    </table>
+  </div>
+
+
+  <!-- ===== UNITS OVERVIEW + STATUS ===== -->
+  <div class="sv-section">
+    <h3>Units overview <span style="color:#9ca3af; font-weight:400;" id="unitsSummary">—</span></h3>
+    <div style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
+      <button class="btn btn--small btn--ghost" data-filter="all">All</button>
+      <button class="btn btn--small btn--ghost" data-filter="available" style="color:#86efac;">🟢 Available</button>
+      <button class="btn btn--small btn--ghost" data-filter="busy" style="color:#fcd34d;">🟡 Busy</button>
+      <button class="btn btn--small btn--ghost" data-filter="off_duty" style="color:#9ca3af;">⚫ Off-duty</button>
+      <button class="btn btn--small btn--ghost" data-filter="oos" style="color:#fca5a5;">🔴 OOS</button>
+      <button class="btn btn--small btn--ghost" data-filter="maintenance" style="color:#c4b5fd;">🛠 Maintenance</button>
+    </div>
+    <div id="unitsOverview" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px,1fr)); gap:6px; max-height:400px; overflow-y:auto;">
+      <div class="empty-state">Loading units…</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== STATION STATUS MODAL ===== -->
+<div class="modal-bg" id="statusModal">
+  <div class="modal">
+    <h4 id="statusModalTitle">Set status for —</h4>
+    <div class="triage-row">
+      <label class="triage-tile t-red"><input type="radio" name="newStatus" value="red" hidden>🔴 Red</label>
+      <label class="triage-tile t-yellow"><input type="radio" name="newStatus" value="yellow" hidden>🟡 Yellow</label>
+      <label class="triage-tile t-green"><input type="radio" name="newStatus" value="green" hidden>🟢 Green</label>
+      <label class="triage-tile t-black"><input type="radio" name="newStatus" value="black" hidden>⚫ Black</label>
+    </div>
+    <input type="text" id="statusNote" class="input" placeholder="Note (optional)" style="margin-bottom: 10px;">
+    <div class="modal-actions">
+      <button class="btn btn--small btn--ghost" id="statusCancel">Cancel</button>
+      <button class="btn btn--small" id="statusSave">Set status</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  if (!HAJJ.requireRole(['cluster_supervisor', 'leadership', 'admin'])) return;
+  CADTopbar.render({ title: "Cluster Supervisor", subtitle: "station + repositioning" });
+
+
+  const user = HAJJ.getUser() || {};
+  const role = String(user.role || '').toLowerCase();
+  const cluster = String(user.cluster || '').toLowerCase();
+
+  // Topbar setup — legacy elements; topbar.js now renders the topbar.
+  // Defensive null-safe writes in case any old HTML survives:
+  const _topClusterEl = document.getElementById('topClusterLabel');
+  if (_topClusterEl) {
+    _topClusterEl.textContent =
+      role === 'cluster_supervisor' ? ('Cluster: ' + (cluster || '—'))
+      : role === 'leadership' ? 'Leadership · all clusters'
+      : 'Admin · all clusters';
+  }
+
+  if (role === 'leadership' || role === 'admin') {
+    ['lobbyLink', 'activeLink', 'dispatchLink'].forEach(function(id) {
+      const el = document.getElementById(id);
+      if (el) el.style.display = '';
+    });
+  }
+
+  // logoutLink handled by topbar.js (cadSignOut)
+
+  // Cluster → stations map (frontend mirror of backend CLUSTER_STATIONS)
+  const CLUSTER_STATIONS = {
+    arafat:     ['ARF1','ARF2','ARF3'],
+    muzdalifah: ['MUZ1','MUZ2','MUZ3'],
+    mina:       ['MIN1','MIN2','MIN3']
+  };
+
+  // What stations can this user touch?
+  const allowedStations = role === 'cluster_supervisor'
+    ? new Set(CLUSTER_STATIONS[cluster] || [])
+    : null; // leadership/admin = all
+
+  function isAllowed(station) {
+    if (!allowedStations) return true;
+    return allowedStations.has(String(station).toUpperCase());
+  }
+
+  // ============ STATION STATUS ============
+
+  let LATEST_STATUS = {};
+
+  async function loadStationStatus() {
+    const r = await HAJJ.authedCallSWR('station_status_list');
+    if (!r || !r.ok) return;
+    LATEST_STATUS = {};
+    (r.stations || []).forEach(function(s) { LATEST_STATUS[s.station] = s; });
+    renderStationGrid();
+  }
+
+  function renderStationGrid() {
+    const grid = document.getElementById('stationGrid');
+    const stations = role === 'cluster_supervisor'
+      ? (CLUSTER_STATIONS[cluster] || [])
+      : ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+
+    if (!stations.length) {
+      grid.innerHTML = '<div class="empty-state">No stations in your cluster.</div>';
+      return;
+    }
+    // Use richer card style with case count + units + last-updated time
+    grid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(200px, 1fr))';
+
+    grid.innerHTML = stations.map(function(st) {
+      const cur = LATEST_STATUS[st] || {};
+      const cls = cur.status ? ('s-' + cur.status) : '';
+      const ts = cur.updated_at ? formatRelative(cur.updated_at) : 'never set';
+      const cases = cur.cases || { total:0, open:0, red:0 };
+      const units = cur.units || 0;
+      const readiness = cur.readiness || 'not_set';
+      const noteLine = cur.note ? ('<div style="font-size:11px; color:var(--text-dim, #6b7280); margin-top:6px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.05);">' + esc(cur.note) + '</div>') : '';
+
+      return '<div class="station-card ' + cls + '" data-station="' + st + '" style="text-align:left; min-height:120px;">'
+        + '<div style="display:flex; justify-content:space-between; align-items:flex-start;">'
+        +   '<div>'
+        +     '<div class="name" style="font-size:18px;">' + st + '</div>'
+        +     '<div class="status" style="margin-top:2px;">' + (cur.status || 'not set').toUpperCase() + ' · ' + readiness + '</div>'
+        +   '</div>'
+        +   '<div style="text-align:right; font-size:10px; color:var(--text-muted, #9ca3af);">'
+        +     '<div>' + ts + '</div>'
+        +   '</div>'
+        + '</div>'
+        + '<div style="display:flex; gap:10px; margin-top:8px; font-size:11px;">'
+        +   '<div title="Cases today (open + closed)"><span style="color:#9ca3af;">Cases:</span> <strong style="color:#e5e7eb;">' + cases.total + '</strong>'
+        +     (cases.open ? ' <span style="color:#fcd34d;">(' + cases.open + ' open)</span>' : '') + '</div>'
+        +   '<div title="Units assigned to station"><span style="color:#9ca3af;">Units:</span> <strong style="color:#e5e7eb;">' + units + '</strong></div>'
+        +   (cases.red ? '<div style="color:#fca5a5;">🔴 ' + cases.red + '</div>' : '')
+        + '</div>'
+        + noteLine
+        + '</div>';
+    }).join('');
+    grid.querySelectorAll('.station-card').forEach(function(c) {
+      c.addEventListener('click', function() { openStatusModal(c.dataset.station); });
+    });
+  }
+
+  function formatRelative(iso) {
+    if (!iso) return 'never';
+    const then = new Date(iso);
+    if (isNaN(then.getTime())) return 'never';
+    const seconds = Math.floor((Date.now() - then.getTime()) / 1000);
+    if (seconds < 60) return seconds + 's ago';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return minutes + 'm ago';
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return hours + 'h ago';
+    const days = Math.floor(hours / 24);
+    return days + 'd ago';
+  }
+
+  // Modal
+  let _modalStation = null;
+  function openStatusModal(station) {
+    _modalStation = station;
+    document.getElementById('statusModalTitle').textContent = 'Set status for ' + station;
+    // Reset selection
+    document.querySelectorAll('input[name="newStatus"]').forEach(function(r) { r.checked = false; });
+    document.querySelectorAll('.triage-tile').forEach(function(t) { t.classList.remove('selected'); });
+    document.getElementById('statusNote').value = (LATEST_STATUS[station] || {}).note || '';
+    document.getElementById('statusModal').classList.add('visible');
+  }
+
+  document.querySelectorAll('.triage-tile').forEach(function(tile) {
+    tile.addEventListener('click', function() {
+      document.querySelectorAll('.triage-tile').forEach(function(t) { t.classList.remove('selected'); });
+      tile.classList.add('selected');
+      tile.querySelector('input[type="radio"]').checked = true;
+    });
+  });
+
+  document.getElementById('statusCancel').addEventListener('click', function() {
+    document.getElementById('statusModal').classList.remove('visible');
+  });
+
+  document.getElementById('statusSave').addEventListener('click', async function() {
+    const sel = document.querySelector('input[name="newStatus"]:checked');
+    if (!sel) { alert('Pick a color'); return; }
+    const r = await HAJJ.authedCall('station_status_set', {
+      station: _modalStation,
+      status:  sel.value,
+      note:    document.getElementById('statusNote').value
+    });
+    if (!r || !r.ok) { alert('Failed: ' + ((r && r.error) || 'unknown')); return; }
+    document.getElementById('statusModal').classList.remove('visible');
+    loadStationStatus();
+  });
+
+  // ============ REPOSITION ============
+
+  async function loadUnitsForReposition() {
+    const r = await HAJJ.authedCall('units_list');
+    const sel = document.getElementById('repUnit');
+    if (!r || !r.ok || !r.units) {
+      sel.innerHTML = '<option value="">(units unavailable)</option>';
+      return;
+    }
+    // Filter to allowed cluster's units (by Home Station) for SV
+    const filtered = (r.units || []).filter(function(u) {
+      return !allowedStations || (u.home_station && isAllowed(u.home_station));
+    });
+    sel.innerHTML = '<option value="">Select unit</option>' + filtered.map(function(u) {
+      return '<option value="' + u.code + '" data-home="' + esc(u.home_station || '') + '">'
+        + u.code + (u.home_station ? ' · ' + u.home_station : '') + '</option>';
+    }).join('');
+
+    // Populate To-Station dropdown
+    const toSel = document.getElementById('repToStation');
+    const allStations = role === 'cluster_supervisor'
+      ? (CLUSTER_STATIONS[cluster] || [])
+      : ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+    toSel.innerHTML = '<option value="">To station</option>' + allStations.map(function(s) {
+      return '<option value="' + s + '">' + s + '</option>';
+    }).join('');
+  }
+
+  document.getElementById('repSubmit').addEventListener('click', async function() {
+    const sel = document.getElementById('repUnit');
+    const opt = sel.options[sel.selectedIndex];
+    const unit = sel.value;
+    const homeFrom = opt ? opt.getAttribute('data-home') : '';
+    const toStation = document.getElementById('repToStation').value;
+    const reason = document.getElementById('repReason').value;
+    const msg = document.getElementById('repMsg');
+
+    if (!unit || !toStation) {
+      msg.innerHTML = '<div class="notice notice--error">Pick a unit and target station.</div>';
+      return;
+    }
+    if (allowedStations && !isAllowed(toStation)) {
+      msg.innerHTML = '<div class="notice notice--error">Out of cluster.</div>';
+      return;
+    }
+    msg.innerHTML = '<div class="notice">Submitting…</div>';
+    const r = await HAJJ.authedCall('reposition_request', {
+      sub_location: document.getElementById('repSubLocation').value,
+      unit_code: unit,
+      from_station: homeFrom,
+      to_station: toStation,
+      reason: reason
+    });
+    if (!r || !r.ok) {
+      msg.innerHTML = '<div class="notice notice--error">Failed: ' + ((r && r.error) || 'unknown') + '</div>';
+      return;
+    }
+    if (r.applied) {
+      msg.innerHTML = '<div class="notice notice--ok">Applied immediately (' + new Date(r.at).toLocaleTimeString() + ').</div>';
+    } else {
+      msg.innerHTML = '<div class="notice notice--ok">Pending — auto-approves in 2 min if dispatcher does not review. Request: ' + (r.request_id || '') + '</div>';
+    }
+    document.getElementById('repUnit').value = '';
+    document.getElementById('repToStation').value = '';
+    document.getElementById('repReason').value = '';
+    loadReposition();
+  });
+
+  async function loadReposition() {
+    const r = await HAJJ.authedCallSWR('reposition_list');
+    const pBody = document.getElementById('pendingBody');
+    const rBody = document.getElementById('recentBody');
+    if (!r || !r.ok) return;
+
+    const pending = (r.pending || []).filter(function(p) {
+      return !allowedStations || isAllowed(p.From_Station) || isAllowed(p.To_Station);
+    });
+    const recent = (r.recent || []).filter(function(p) {
+      return !allowedStations || isAllowed(p.From_Station) || isAllowed(p.To_Station);
+    });
+
+    pBody.innerHTML = pending.length ? pending.map(function(p) {
+      const repId = p.id || p.ID || p.Id || '';
+      return '<tr>'
+        + '<td><span class="reposition-status pending">pending</span></td>'
+        + '<td>' + fmtTime(p.Created_At || p.Timestamp || p.requested_at) + '</td>'
+        + '<td>' + esc(p.Unit_Code || p.unit_code || '') + '</td>'
+        + '<td>' + esc(p.From_Station || p.from_station || '?') + ' → ' + esc(p.To_Station || p.to_station || '?') + '</td>'
+        + '<td>' + esc(p.Requested_By_NID || p.requested_by_nid || '') + '</td>'
+        + '<td>' + esc(p.Reason || p.reason || '—') + '</td>'
+        + '<td>'
+        +   '<button class="btn-approve" data-rep-id="' + repId + '" style="background:rgba(34,197,94,0.15); color:#86efac; border:1px solid rgba(34,197,94,0.3); padding:3px 9px; margin-right:4px; border-radius:4px; cursor:pointer; font-size:11px;">✓ Approve</button>'
+        +   '<button class="btn-reject" data-rep-id="' + repId + '" style="background:rgba(239,68,68,0.15); color:#fca5a5; border:1px solid rgba(239,68,68,0.3); padding:3px 9px; border-radius:4px; cursor:pointer; font-size:11px;">✗ Reject</button>'
+        + '</td>'
+        + '</tr>';
+    }).join('') : '<tr><td colspan="7" class="empty-state">No pending requests.</td></tr>';
+
+    // Wire approve/reject buttons after render
+    pBody.querySelectorAll('.btn-approve').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        const id = btn.dataset.repId;
+        if (!id) return;
+        btn.disabled = true; btn.textContent = '⏳';
+        cadShowToast('Approving #' + id + '…', 'info');
+        try {
+          const r = await HAJJ.authedCall('reposition_approve', { id: id });
+          if (!r || !r.ok) {
+            btn.disabled = false; btn.textContent = '✓ Approve';
+            const msg = (r && r.error) || 'unknown';
+            const det = r && r.detail ? ' — ' + r.detail : '';
+            cadShowToast('Approve failed: ' + msg + det, 'error');
+            return;
+          }
+          cadShowToast('✓ Approved #' + id, 'success');
+          loadReposition();
+        } catch (e) {
+          btn.disabled = false; btn.textContent = '✓ Approve';
+          cadShowToast('JS exception: ' + (e.message || e), 'error');
+          console.error('[sv] approve exception:', e);
+        }
+      });
+    });
+    pBody.querySelectorAll('.btn-reject').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        const id = btn.dataset.repId;
+        if (!id) return;
+        const reason = prompt('Reason for rejection (optional)') || '';
+        btn.disabled = true; btn.textContent = '⏳';
+        cadShowToast('Rejecting #' + id + '…', 'info');
+        try {
+          const r = await HAJJ.authedCall('reposition_reject', { id: id, reason: reason });
+          if (!r || !r.ok) {
+            btn.disabled = false; btn.textContent = '✗ Reject';
+            const msg = (r && r.error) || 'unknown';
+            const det = r && r.detail ? ' — ' + r.detail : '';
+            cadShowToast('Reject failed: ' + msg + det, 'error');
+            return;
+          }
+          cadShowToast('Rejected #' + id, 'success');
+          loadReposition();
+        } catch (e) {
+          btn.disabled = false; btn.textContent = '✗ Reject';
+          cadShowToast('JS exception: ' + (e.message || e), 'error');
+          console.error('[sv] reject exception:', e);
+        }
+      });
+    });
+
+    rBody.innerHTML = recent.length ? recent.slice(-30).reverse().map(function(p) {
+      return '<tr>'
+        + '<td><span class="reposition-status ' + esc(p.Status) + '">' + esc(p.Status || '') + '</span></td>'
+        + '<td>' + fmtTime(p.Timestamp) + '</td>'
+        + '<td>' + esc(p.Unit_Code || '') + '</td>'
+        + '<td>' + esc(p.From_Station || '?') + ' → ' + esc(p.To_Station || '?') + '</td>'
+        + '<td>' + esc(p.Operator_NID || '—') + '</td>'
+        + '</tr>';
+    }).join('') : '<tr><td colspan="5" class="empty-state">No recent.</td></tr>';
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"\']/g, function(c) {
+      return ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;" })[c];
+    });
+  }
+  function fmtTime(t) {
+    if (!t) return '—';
+    const d = new Date(t);
+    if (isNaN(d.getTime())) return String(t);
+    return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+
+  // Initial load — ONE mega call hydrates all 3 views
+  (async function loadAll() {
+    const dash = await HAJJ.authedCallSWR('dashboard_sv');
+    if (dash && dash.station_status && dash.station_status.ok) {
+      LATEST_STATUS = {};
+      (dash.station_status.stations || []).forEach(function(s) { LATEST_STATUS[s.station] = s; });
+      renderStationGrid();
+    } else {
+      loadStationStatus();
+    }
+    // ALWAYS call loadReposition — it has the Approve/Reject buttons (the inline mega render did not).
+    loadReposition();
+    if (dash && dash.units && dash.units.ok && dash.units.units) {
+      // Populate unit dropdown for reposition
+      const sel = document.getElementById('repUnit');
+      const filtered = (dash.units.units || []).filter(function(u) { return !allowedStations || (u.home_station && isAllowed(u.home_station)); });
+      sel.innerHTML = '<option value="">Select unit (' + filtered.length + ')</option>' + filtered.map(function(u) {
+        return '<option value="' + u.code + '" data-home="' + esc(u.home_station || '') + '">' + u.code + (u.home_station ? ' · ' + u.home_station : '') + '</option>';
+      }).join('');
+      const toSel = document.getElementById('repToStation');
+      const allStations = role === 'cluster_supervisor' ? (CLUSTER_STATIONS[cluster] || []) : ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+      toSel.innerHTML = '<option value="">To station</option>' + allStations.map(function(s) { return '<option value="' + s + '">' + s + '</option>'; }).join('');
+    } else {
+      loadUnitsForReposition();
+    }
+  })();
+
+  // Tempo refresh
+  function scheduleNext() {
+    const ms = (window.HAJJ_TEMPO && window.HAJJ_TEMPO.intervalMs()) || 30000;
+    setTimeout(function() {
+      loadStationStatus();
+      loadReposition();
+      scheduleNext();
+    }, Math.max(ms, 15000));
+  }
+  scheduleNext();
+
+
+  // Sub-location dropdown wired to repToStation
+  (function() {
+    const toSel  = document.getElementById('repToStation');
+    const subSel = document.getElementById('repSubLocation');
+    if (!toSel || !subSel) return;
+    function refresh() {
+      const station = toSel.value;
+      if (!station) {
+        subSel.innerHTML = '<option value="">Sub-location at target (optional)</option>';
+        return;
+      }
+      window.CADSubLocations && CADSubLocations.populateSelect(subSel, station, true);
+    }
+    toSel.addEventListener('change', refresh);
+  })();
+
+
+
+  // ===== Units Overview =====
+  let _allUnits = [];
+  let _unitFilter = 'all';
+  let _modalUnit = null;
+
+  function renderUnitsOverview() {
+    const body = document.getElementById('unitsOverview');
+    const summary = document.getElementById('unitsSummary');
+    if (!body) return;
+    if (!_allUnits.length) {
+      body.innerHTML = '<div class="empty-state">No units loaded.</div>';
+      return;
+    }
+    const filtered = _unitFilter === 'all'
+      ? _allUnits
+      : _allUnits.filter(function(u) { return u.state === _unitFilter; });
+
+    const counts = { available:0, busy:0, off_duty:0, oos:0, maintenance:0, unknown:0 };
+    _allUnits.forEach(function(u) { counts[u.state] = (counts[u.state]||0) + 1; });
+    if (summary) summary.textContent = '· ' + counts.available + ' available · ' + counts.busy + ' busy · ' + counts.off_duty + ' off · ' + counts.oos + ' oos';
+
+    if (!filtered.length) {
+      body.innerHTML = '<div class="empty-state" style="grid-column:1/-1;">No units in this state.</div>';
+      return;
+    }
+
+    const stateColor = { available:'#16a34a', busy:'#f59e0b', off_duty:'rgba(255,255,255,0.10)', oos:'#dc2626', maintenance:'#a855f7', unknown:'rgba(255,255,255,0.10)' };
+    const stateBg = { available:'rgba(34,197,94,0.10)', busy:'rgba(245,158,11,0.10)', off_duty:'rgba(80,80,80,0.10)', oos:'rgba(239,68,68,0.10)', maintenance:'rgba(168,85,247,0.10)', unknown:'rgba(255,255,255,0.04)' };
+
+    body.innerHTML = filtered.map(function(u) {
+      const station = u.current_station || u.home_station || '—';
+      const canEdit = role === 'dispatcher' || role === 'leadership' || role === 'admin';
+      const editable = canEdit ? ' style="cursor:pointer;"' : '';
+      return '<div class="unit-card" data-unit="' + u.code + '"' + editable + ' style="padding:8px; background:' + stateBg[u.state] + '; border:1px solid ' + stateColor[u.state] + '; border-radius:6px; font-size:12px;">'
+        + '<div style="display:flex; justify-content:space-between; align-items:flex-start;">'
+        +   '<strong style="color:#e5e7eb;">' + u.code + '</strong>'
+        +   '<span style="font-size:10px; color:#9ca3af;">' + (u.state === 'available' ? '🟢' : u.state === 'busy' ? '🟡' : u.state === 'off_duty' ? '⚫' : u.state === 'oos' ? '🔴' : u.state === 'maintenance' ? '🛠' : '·') + '</span>'
+        + '</div>'
+        + '<div style="font-size:10px; color:#9ca3af; margin-top:2px;">@ ' + station + (u.type ? ' · ' + u.type : '') + '</div>'
+        + (u.open_incidents > 0 ? '<div style="font-size:10px; color:#fcd34d; margin-top:2px;">↳ ' + u.open_incidents + ' open</div>' : '')
+        + (u.schedule_label ? '<div style="font-size:10px; color:#9ca3af; margin-top:2px;">slot: ' + u.schedule_label + '</div>' : '')
+        + (u.manual_note ? '<div style="font-size:10px; color:#c4b5fd; margin-top:2px; font-style:italic;">' + esc(u.manual_note) + '</div>' : '')
+        + '</div>';
+    }).join('');
+
+    // Wire unit card clicks for status change (dispatcher/leadership/admin only)
+    if (role === 'dispatcher' || role === 'leadership' || role === 'admin') {
+      body.querySelectorAll('.unit-card').forEach(function(c) {
+        c.addEventListener('click', function() { openUnitStatusModal(c.dataset.unit); });
+      });
+    }
+  }
+
+  function openUnitStatusModal(unitCode) {
+    _modalUnit = unitCode;
+    document.getElementById('unitStatusModalTitle').textContent = 'Set status for ' + unitCode;
+    document.querySelectorAll('input[name="newUnitStatus"]').forEach(function(r) { r.checked = false; });
+    document.querySelectorAll('#unitStatusModal .triage-tile').forEach(function(t) { t.classList.remove('selected'); });
+    document.getElementById('unitStatusNote').value = '';
+    document.getElementById('unitStatusModal').classList.add('visible');
+  }
+
+  document.querySelectorAll('#unitStatusModal .triage-tile').forEach(function(tile) {
+    tile.addEventListener('click', function() {
+      document.querySelectorAll('#unitStatusModal .triage-tile').forEach(function(t) { t.classList.remove('selected'); });
+      tile.classList.add('selected');
+      tile.querySelector('input[type="radio"]').checked = true;
+    });
+  });
+
+  document.getElementById('unitStatusCancel').addEventListener('click', function() {
+    document.getElementById('unitStatusModal').classList.remove('visible');
+  });
+
+  document.getElementById('unitStatusSave').addEventListener('click', async function() {
+    const sel = document.querySelector('input[name="newUnitStatus"]:checked');
+    if (!sel) { alert('Pick a state'); return; }
+    const r = await HAJJ.authedCall('unit_status_set', {
+      unit_code: _modalUnit,
+      status: sel.value,
+      note: document.getElementById('unitStatusNote').value
+    });
+    if (!r || !r.ok) { alert('Failed: ' + ((r && r.error) || 'unknown')); return; }
+    document.getElementById('unitStatusModal').classList.remove('visible');
+    // Refresh
+    location.reload();
+  });
+
+  // Filter buttons
+  document.querySelectorAll('[data-filter]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      _unitFilter = btn.dataset.filter;
+      renderUnitsOverview();
+    });
+  });
+
+  // Hook the dashboard load to populate _allUnits
+  const _origLoadAll = window.loadAll || function() {};
+  // Hijack the dash load — append units rendering
+  setTimeout(async function() {
+    const dash = await HAJJ.authedCallSWR('dashboard_sv');
+    if (dash && dash.units && dash.units.ok && dash.units.units) {
+      _allUnits = dash.units.units;
+      // Filter by cluster for SVs
+      if (allowedStations) {
+        _allUnits = _allUnits.filter(function(u) { return isAllowed(u.home_station) || isAllowed(u.current_station); });
+      }
+      renderUnitsOverview();
+    }
+  }, 500);
+
+  // Inline toast — visible without DevTools
+  function cadShowToast(text, kind) {
+    let host = document.getElementById('cadToastHost');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'cadToastHost';
+      host.style.cssText = 'position:fixed; top:14px; left:50%; transform:translateX(-50%); z-index:9999; max-width:90vw; pointer-events:none;';
+      document.body.appendChild(host);
+    }
+    const colors = {
+      info:    'background:rgba(59,130,246,0.95); border:1px solid #2563eb;',
+      warn:    'background:rgba(245,158,11,0.95); border:1px solid #b45309;',
+      success: 'background:rgba(34,197,94,0.95);  border:1px solid #15803d;',
+      error:   'background:rgba(239,68,68,0.95);  border:1px solid #b91c1c;'
+    };
+    const t = document.createElement('div');
+    t.style.cssText = 'color:#fff; padding:10px 16px; border-radius:8px; margin-bottom:6px; font-size:13px; font-weight:500; box-shadow:0 6px 18px rgba(0,0,0,0.4); pointer-events:auto; cursor:pointer; ' + (colors[kind] || colors.info);
+    t.textContent = text;
+    t.addEventListener('click', () => t.remove());
+    host.appendChild(t);
+    setTimeout(() => { if (t.parentNode) t.remove(); }, kind === 'error' ? 12000 : 4000);
+  }
+
+})();
+</script>
+
+
+<!-- ===== UNIT STATUS MODAL ===== -->
+<div class="modal-bg" id="unitStatusModal">
+  <div class="modal">
+    <h4 id="unitStatusModalTitle">Set status for —</h4>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-bottom:12px;">
+      <label class="triage-tile" data-state="available" style="color:#86efac;"><input type="radio" name="newUnitStatus" value="available" hidden>🟢 Available</label>
+      <label class="triage-tile" data-state="oos" style="color:#fca5a5;"><input type="radio" name="newUnitStatus" value="oos" hidden>🔴 OOS</label>
+      <label class="triage-tile" data-state="maintenance" style="color:#c4b5fd;"><input type="radio" name="newUnitStatus" value="maintenance" hidden>🛠 Maintenance</label>
+      <label class="triage-tile" data-state="off_duty" style="color:#d1d5db;"><input type="radio" name="newUnitStatus" value="off_duty" hidden>⚫ Off-duty</label>
+    </div>
+    <input type="text" id="unitStatusNote" class="input" placeholder="Note (optional)" style="margin-bottom: 10px;">
+    <div class="modal-actions">
+      <button class="btn btn--small btn--ghost" id="unitStatusCancel">Cancel</button>
+      <button class="btn btn--small" id="unitStatusSave">Set status</button>
+    </div>
+  </div>
+</div>
+
+<script src="assets/version.js?v=0.2.20"></script>
+<script>
+(function wireSvRelocAutoFill() {
+  ['repUnit', 'relocUnit'].forEach(function(id) {
+    const u = document.getElementById(id);
+    if (!u) return;
+    let hint = document.getElementById(id + '_currentLoc');
+    if (!hint) {
+      hint = document.createElement('div');
+      hint.id = id + '_currentLoc';
+      hint.style.cssText = 'font-size:12px; color:#94a3b8; margin-top:4px; min-height:16px;';
+      u.parentNode && u.parentNode.insertBefore(hint, u.nextSibling);
+    }
+    function updateHint() {
+      const code = u.value;
+      if (!code) { hint.textContent = ''; return; }
+      const info = (typeof UNITS_BY_CODE !== 'undefined') ? UNITS_BY_CODE[code] : null;
+      if (info && info.home_station) {
+        hint.innerHTML = '<span style="color:#a5b4fc;">Currently at:</span> <strong>' + info.home_station + '</strong>';
+      } else {
+        hint.textContent = '(home station unknown for ' + code + ')';
+      }
+    }
+    u.addEventListener('change', updateHint);
+    setTimeout(updateHint, 200);
+  });
+})();
+</script>
+</body>
+</html>

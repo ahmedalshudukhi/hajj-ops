@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="/">
+<!-- /test/ — assets shared with root /, HTML mutable per release -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#0f172a">
+<title>Active Insights · Hajj 2026</title>
+<link rel="stylesheet" href="assets/style.css?v=0.2.20">
+
+<style>
+  body { background: var(--bg); }
+  .topbar {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 10px 14px;
+    padding-top: calc(10px + env(safe-area-inset-top));
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .topbar h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+  .topbar-left { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; min-width: 0; }
+  @media (max-width: 600px) { .topbar h1 { font-size: 14px; } }
+  .topbar .live-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--success); margin-right: 6px;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  .topbar .live { font-size: 11px; color: var(--text-muted); }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .nav-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 999px;
+    background: var(--bg); border: 1px solid var(--border-soft);
+    color: var(--text-dim); text-decoration: none;
+    font-size: 12px; font-weight: 500;
+    transition: background 0.15s, color 0.15s;
+  }
+  .nav-pill:hover { background: var(--surface-3); color: var(--text); }
+  .nav-strip { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .content { padding: 12px 14px 80px; max-width: 1280px; margin: 0 auto; }
+
+  /* ===== Hero stats ===== */
+  .hero {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .hero-stat {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    padding: 14px;
+    border-top: 3px solid var(--border);
+  }
+  .hero-stat--red    { border-top-color: var(--danger); }
+  .hero-stat--amber  { border-top-color: var(--warning); }
+  .hero-stat--green  { border-top-color: var(--success); }
+  .hero-stat--blue   { border-top-color: var(--info); }
+  .hero-num {
+    font-size: 30px; font-weight: 700; line-height: 1;
+    font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+  }
+  .hero-label {
+    margin-top: 4px;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--text-muted);
+  }
+  .hero-sub { margin-top: 8px; font-size: 12px; color: var(--text-dim); }
+
+  /* ===== Sections ===== */
+  .section-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 12px;
+  }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    padding: 16px;
+    overflow: hidden;
+  }
+  .panel-title {
+    font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-muted); margin: 0 0 12px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .panel-title .meta { font-weight: 500; color: var(--text-muted); text-transform: none; letter-spacing: 0; font-size: 11px; }
+
+  /* ===== Bar rows ===== */
+  .bar-row {
+    display: grid; grid-template-columns: 1fr auto;
+    align-items: center; gap: 10px;
+    margin-bottom: 8px;
+  }
+  .bar-row:last-child { margin-bottom: 0; }
+  .bar-name {
+    display: flex; flex-direction: column;
+    overflow: hidden; min-width: 0;
+  }
+  .bar-name strong { font-size: 13px; font-weight: 500; }
+  .bar-row .bar-track {
+    grid-column: 1 / -1;
+    height: 4px; background: var(--surface-2);
+    border-radius: 2px; overflow: hidden;
+    margin-top: 4px;
+  }
+  .bar-fill {
+    height: 100%; background: var(--info);
+    transition: width 0.3s ease;
+  }
+  .bar-fill--red    { background: var(--danger); }
+  .bar-fill--amber  { background: var(--warning); }
+  .bar-fill--green  { background: var(--success); }
+  .bar-count {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600; font-size: 14px;
+  }
+  .bar-count .sub { color: var(--text-muted); font-weight: 400; font-size: 11px; }
+
+  /* ===== Table-ish rows ===== */
+  .row-list { display: flex; flex-direction: column; gap: 8px; }
+  .row-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 0;
+    border-top: 1px solid var(--border-soft);
+    font-size: 13px;
+  }
+  .row-item:first-child { border-top: 0; padding-top: 0; }
+  .row-item .ts {
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+    font-size: 11px;
+    min-width: 38px;
+  }
+  .row-item .label { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row-item .label .meta { color: var(--text-muted); font-size: 11px; display: block; }
+  .row-item .pill {
+    font-size: 10px; font-weight: 600;
+    padding: 2px 8px; border-radius: 999px;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .pill-red      { background: rgba(239, 68, 68, 0.15);  color: #fca5a5; }
+  .pill-yellow   { background: rgba(245, 158, 11, 0.15); color: #fcd34d; }
+  .pill-green    { background: rgba(34, 197, 94, 0.15);  color: #86efac; }
+  .pill-black    { background: rgba(50, 50, 50, 0.4);   color: #9ca3af; }
+  .pill-closed   { background: var(--surface-3); color: var(--text-dim); }
+  .pill-transfer { background: rgba(59, 130, 246, 0.15); color: #93c5fd; }
+
+  /* ===== Big number panels ===== */
+  .rt-panel {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    text-align: center;
+  }
+  .rt-cell { background: var(--surface-2); border-radius: var(--radius-sm); padding: 12px 8px; }
+  .rt-num { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+  .rt-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-top: 4px; }
+
+  .empty-panel {
+    text-align: center; color: var(--text-muted);
+    padding: 18px 0; font-size: 13px;
+  }
+
+  .skeleton-pulse { animation: skel 1.4s ease-in-out infinite; }
+  @keyframes skel { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.7; } }
+
+  .err-banner {
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    color: #fca5a5;
+    padding: 10px 14px; border-radius: var(--radius-sm);
+    font-size: 13px; margin-bottom: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div id="topbar"></div>
+<div id="scopeBanner" style="
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:10px 20px; background:rgba(99,102,241,0.08);
+  border-bottom:1px solid rgba(99,102,241,0.25);
+  font-size:13px; flex-wrap:wrap;">
+  <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+    <span style="display:inline-block; width:8px; height:8px; border-radius:50%;
+      background:#22c55e; box-shadow:0 0 0 0 rgba(34,197,94,0.6);
+      animation: pulse-dot 2s ease-in-out infinite;"></span>
+    <span><strong>Showing:</strong> <span id="scopeLabel" style="color:#a5b4fc;">Loading…</span></span>
+    <span style="color:#888;">·</span>
+    <span style="color:#888;">Open incidents are LIVE (always real-time)</span>
+  </div>
+  <div style="display:flex; align-items:center; gap:10px; color:#94a3b8;">
+    <span id="lastRefreshLabel">Last update: —</span>
+    <button id="manualRefresh" type="button" style="
+      background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.4);
+      color:#a5b4fc; padding:4px 10px; border-radius:6px; font-size:12px;
+      cursor:pointer;">↻ Refresh</button>
+  </div>
+</div>
+<style>
+  @keyframes pulse-dot {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.6); }
+    50%      { box-shadow: 0 0 0 8px rgba(34,197,94,0); }
+  }
+</style>
+
+<div class="content">
+
+  <div id="errBanner" class="err-banner" hidden></div>
+
+  <!-- ====== HERO STATS ====== -->
+  <div class="hero">
+    <div class="hero-stat hero-stat--red" style="border-top-color: #dc2626;">
+      <div class="hero-num" id="hCardiac">—</div>
+      <div class="hero-label">⚡ Cardiac arrests</div>
+      <div class="hero-sub">today</div>
+    </div>
+    <div class="hero-stat" style="border-top-color: #2563eb;">
+      <div class="hero-num"><span id="hRosterPct">—</span><span style="font-size:18px; color:var(--text-muted);">%</span></div>
+      <div class="hero-label">Roster fill</div>
+      <div class="hero-sub"><span id="hRosterFilled">—</span> / <span id="hRosterTotal">—</span></div>
+    </div>
+    <div class="hero-stat hero-stat--red">
+      <div class="hero-num" id="hOpen">—</div>
+      <div class="hero-label">Open incidents</div>
+      <div class="hero-sub"><span id="hRed">—</span> red incidents</div>
+    </div>
+    <div class="hero-stat hero-stat--blue">
+      <div class="hero-num" id="hTransfer">—</div>
+      <div class="hero-label">In transfer</div>
+      <div class="hero-sub"><span id="hClosed">—</span> closed today</div>
+    </div>
+    <div class="hero-stat hero-stat--green">
+      <div class="hero-num" id="hPcrToday">—</div>
+      <div class="hero-label">Q-PCRs today</div>
+      <div class="hero-sub"><span id="hPcrTotal">—</span> total filed</div>
+    </div>
+    <div class="hero-stat hero-stat--amber">
+      <div class="hero-num" id="hMeanRt">—</div>
+      <div class="hero-label">Mean response</div>
+      <div class="hero-sub">P95: <span id="hP95Rt">—</span> · n=<span id="hRtCount">—</span></div>
+    </div>
+  </div>
+
+  <div class="section-grid">
+
+    <!-- ====== STATIONS ====== -->
+    <div class="panel">
+      <div class="panel-title">
+        <span>By station</span>
+        <span class="meta" id="stationsMeta"></span>
+      </div>
+      <div id="stationsBody"><div class="empty-panel skeleton-pulse">Loading…</div></div>
+    </div>
+
+    <!-- ====== RESPONSE TIME ====== -->
+    <div class="panel">
+      <div class="panel-title"><span>Response time</span><span class="meta" id="rtMeta"></span></div>
+      <div id="rtBody">
+        <div class="rt-panel">
+          <div class="rt-cell"><div class="rt-num" id="rtMean">—</div><div class="rt-label">Mean</div></div>
+          <div class="rt-cell"><div class="rt-num" id="rtP50">—</div><div class="rt-label">P50</div></div>
+          <div class="rt-cell"><div class="rt-num" id="rtP95">—</div><div class="rt-label">P95</div></div>
+        </div>
+        <div style="margin-top: 10px; font-size:11px; color: var(--text-muted); text-align:center;">
+          Dispatch → Patient contact, today
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== Filter strip ====== -->
+    <div class="panel" style="grid-column: 1 / -1; padding: 12px 14px;">
+      <div class="panel-title" style="margin-bottom:8px;">
+        <span>View filters</span>
+        <span class="meta" id="filterMeta">today · all movements</span>
+      </div>
+      <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+        <div id="dateBarHost" style="flex:1 1 100%;"></div>
+        <!-- Legacy filterDate kept for any referencing code -->
+        <input type="date" id="filterDate" min="2026-05-01" max="2026-06-12" value="" style="display:none;">
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-muted, #9ca3af);">Movement</label>
+          <select id="filterMovement" style="padding:6px 10px; background:rgba(255,255,255,0.05); border:1px solid var(--border, #1f2937); border-radius:6px; color:#e5e7eb; font-size:13px;">
+            <option value="">All movements</option>
+          </select>
+        </div>
+        <button class="btn btn--ghost btn--small" id="filterReset" style="margin-top:14px;">Reset</button>
+        <div style="margin-left:auto; font-size:11px; color:var(--text-muted, #9ca3af); margin-top:14px;" id="filterDH">—</div>
+      </div>
+    </div>
+
+    <!-- ====== Augmentations / Unit Movements ====== -->
+    <div class="panel" style="grid-column: span 2;">
+      <div class="panel-title">
+        <span>Augmentations & unit movements</span>
+        <span class="meta" id="augMeta">—</span>
+      </div>
+      <div id="augBody">
+        <div class="empty-panel">Loading augmentation plan…</div>
+      </div>
+    </div>
+
+    <!-- ====== Incident heatmap (station × hour) ====== -->
+    <div class="panel" style="grid-column: span 2;">
+      <div class="panel-title">
+        <span>Incident heatmap — station × hour (today)</span>
+        <span class="meta" id="heatmapMeta">—</span>
+      </div>
+      <div id="heatmapBody" style="overflow-x:auto;">
+        <div class="empty-panel">No incidents today.</div>
+      </div>
+    </div>
+
+    <!-- ====== Unit Positions ====== -->
+    <div class="panel" style="grid-column: span 2;">
+      <div class="panel-title">
+        <span>Unit positions</span>
+        <span class="meta" id="unitsMeta">—</span>
+      </div>
+      <div id="unitsBody" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 4px; max-height:340px; overflow-y:auto;">
+        <div class="empty-panel" style="grid-column: 1/-1;">Loading units…</div>
+      </div>
+    </div>
+
+    <!-- ====== Station Status Grid ====== -->
+    <div class="panel" style="grid-column: span 2;">
+      <div class="panel-title"><span>Station status</span><span class="meta" id="stationStatusMeta"></span></div>
+      <div id="stationStatusGrid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px;">
+        <div class="empty-panel">No station status set yet.</div>
+      </div>
+    </div>
+
+    <!-- ====== Q-PCR by acuity ====== -->
+    <div class="panel">
+      <div class="panel-title"><span>Q-PCR by acuity</span><span class="meta" id="acuityMeta"></span></div>
+      <div id="acuityBody"><div class="empty-panel">No PCRs filed yet.</div></div>
+    </div>
+
+    <!-- ====== Q-PCR by disposition ====== -->
+    <div class="panel">
+      <div class="panel-title"><span>Q-PCR by disposition</span><span class="meta"></span></div>
+      <div id="dispoBody"><div class="empty-panel">No PCRs filed yet.</div></div>
+    </div>
+
+    <!-- ====== Top complaints ====== -->
+    <div class="panel">
+      <div class="panel-title"><span>Top chief complaints</span></div>
+      <div id="complaintsBody"><div class="empty-panel">Will populate when paramedics file PCRs from the Q-PCR form.</div></div>
+    </div>
+
+    <!-- ====== Hourly trend (today) ====== -->
+    <div class="panel" style="grid-column: span 2;">
+      <div class="panel-title"><span>Today's tempo</span><span class="meta" id="hourlyMeta"></span></div>
+      <div id="hourlyBars" style="display:flex; gap:2px; align-items:flex-end; height:80px; padding-top:8px;">
+        <div class="empty-panel" style="width:100%;">No incidents yet today.</div>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--text-muted); margin-top:4px;">
+        <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
+      </div>
+    </div>
+
+    <!-- ====== Recent dispatch strip ====== -->
+    <div class="panel">
+      <div class="panel-title"><span>Today's dispatches</span><span class="meta" id="dispatchMeta"></span></div>
+      <div id="dispatchBody" class="row-list"><div class="empty-panel">Quiet so far.</div></div>
+    </div>
+
+    <!-- ====== Recent Q-PCR strip ====== -->
+    <div class="panel">
+      <div class="panel-title"><span>Today's Q-PCRs</span><span class="meta" id="pcrMeta"></span></div>
+      <div id="pcrBody" class="row-list"><div class="empty-panel">No PCRs yet.</div></div>
+    </div>
+
+  </div>
+
+</div>
+
+<script src="assets/config.js?v=0.2.20"></script>
+<script src="assets/tempo.js?v=0.2.20"></script>
+<script src="assets/auth.js?v=0.2.20"></script>
+<script src="assets/topbar.js?v=0.2.20"></script>
+<script src="assets/dateBar.js?v=0.2.20"></script>
+<script>
+(function () {
+
+  if (!HAJJ.requireRole(['leadership', 'admin', 'cluster_supervisor'])) return;
+  CADTopbar.render({ title: "Active", subtitle: "live operations" });
+
+
+  // logoutBtn handled by topbar.js (cadSignOut)
+
+  let lastOk = null;
+  refresh();
+  // Dynamic tempo — refresh interval changes with Hajj phase
+  let _tempoTimer = null;
+  function scheduleNextRefresh() {
+    if (_tempoTimer) clearTimeout(_tempoTimer);
+    const ms = (window.HAJJ_TEMPO && window.HAJJ_TEMPO.intervalMs()) || 10000;
+    _tempoTimer = setTimeout(async function tick() {
+      await refresh();
+      // Pre-render from cache for instant first paint
+  try {
+    const cached = localStorage.getItem('hajj_active_cache');
+    if (cached) {
+      const r = JSON.parse(cached);
+      if (r && r.ok) {
+        try { localStorage.setItem('hajj_active_cache', JSON.stringify(r)); } catch (_) {}
+        render(r);
+        setLive(true, 'cached');
+      }
+    }
+  } catch (_) {}
+
+  scheduleNextRefresh();
+    }, ms);
+  }
+  // Pre-render from cache for instant first paint
+  try {
+    const cached = localStorage.getItem('hajj_active_cache');
+    if (cached) {
+      const r = JSON.parse(cached);
+      if (r && r.ok) {
+        render(r);
+        setLive(true, 'cached');
+      }
+    }
+  } catch (_) {}
+
+  scheduleNextRefresh();
+
+  async function refresh() {
+    // Build scope params from dateBar (default: today only)
+    const scopeParams = _isRange
+      ? { start_date: _selectedDate, end_date: _endDate }
+      : (_selectedDate ? { date: _selectedDate } : {});
+    // Fire all data calls in PARALLEL so first paint happens at fastest endpoint
+    const [summary, augs, roster, units, avail] = await Promise.all([
+      HAJJ.authedCallSWR('active_summary', scopeParams),
+      HAJJ.authedCallSWR('augmentations'),
+      HAJJ.authedCallSWR('roster_fill'),
+      HAJJ.authedCallSWR('unit_positions'),
+      HAJJ.authedCallSWR('unit_availability')
+    ]);
+
+    if (summary && summary.ok) {
+      // Render heatmap from incidents in summary
+      if (Array.isArray(summary.incidents)) renderHeatmap(summary.incidents);
+      try { localStorage.setItem('hajj_active_cache', JSON.stringify(summary)); } catch (_) {}
+      render(summary);
+      setLive(true);
+    } else {
+      setLive(false, (summary && summary.error) || 'unknown');
+    }
+
+    if (augs && augs.ok)   renderAugmentations(augs);
+    if (roster && roster.ok) renderRosterFill(roster);
+    if (units && units.ok) renderUnitPositions(units, summary && summary.stations);
+    if (avail && avail.ok) renderUnitAvailability(avail);
+  }
+
+  function setLive(ok, err) {
+    const el = document.getElementById('liveText');
+    if (ok) {
+      if (el) el.textContent = 'Live · last sync ' + nowHM();
+      const eb = document.getElementById('errBanner');
+      if (eb) eb.hidden = true;
+    } else {
+      if (el) el.textContent = 'Sync failed';
+      const banner = document.getElementById('errBanner');
+      if (banner) {
+        banner.hidden = false;
+        banner.textContent = 'Could not refresh data: ' + err;
+      }
+    }
+  }
+
+  function nowHM() {
+    const d = new Date();
+    return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+
+  function render(r) {
+    renderScopeBanner(r);
+    renderHero(r);
+    renderStations(r.dispatch);
+    renderResponseTime(r.dispatch.response_time);
+    renderAcuity(r.pcr);
+    renderDispo(r.pcr);
+    renderComplaints(r.pcr);
+    renderRecentDispatch(r.dispatch.recent || []);
+    renderRecentPcr(r.pcr.recent || []);
+    renderStationStatus(r.stations || []);
+    renderHourlyTempo(r.dispatch.recent || []);
+  }
+
+  function dhDayFromISO(iso) {
+    if (!iso) return null;
+    const dh1 = new Date('2026-05-27T00:00:00');
+    const target = new Date(iso + 'T00:00:00');
+    const diff = Math.round((target - dh1) / 86400000) + 1;
+    if (diff >= 1 && diff <= 14) return 'DH ' + diff;
+    if (diff === 0) return 'D-1';
+    return null;
+  }
+
+  function fmtDateLabel(iso) {
+    if (!iso) return '—';
+    const dh = dhDayFromISO(iso);
+    return dh ? (dh + ' (' + iso.slice(5) + ')') : iso;
+  }
+
+  function renderScopeBanner(r) {
+    const labEl = document.getElementById('scopeLabel');
+    const refEl = document.getElementById('lastRefreshLabel');
+    const scope = (r && r.scope) || {};
+    if (labEl) {
+      let label;
+      if (scope.start_date && scope.end_date && scope.start_date === scope.end_date) {
+        label = fmtDateLabel(scope.start_date);
+      } else if (scope.start_date && scope.end_date) {
+        label = fmtDateLabel(scope.start_date) + ' → ' + fmtDateLabel(scope.end_date)
+              + (scope.days ? ' · ' + scope.days + ' days' : '');
+      } else {
+        label = 'Today';
+      }
+      labEl.textContent = label;
+    }
+    if (refEl) {
+      const now = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      refEl.textContent = 'Last update: ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+    }
+  }
+
+  function renderHero(r) {
+    const d = r.dispatch || {};
+    const p = r.pcr || {};
+    document.getElementById('hOpen').textContent     = d.open || 0;
+    document.getElementById('hRed').textContent      = d.red_open || 0;
+    document.getElementById('hCardiac').textContent  = d.cardiac_open || 0;
+    document.getElementById('hTransfer').textContent = d.in_transfer || 0;
+    document.getElementById('hClosed').textContent   = d.closed_today || 0;
+    document.getElementById('hPcrToday').textContent = p.today || 0;
+    document.getElementById('hPcrTotal').textContent = p.total || 0;
+    const rt = d.response_time || {};
+    document.getElementById('hMeanRt').textContent = msToMin(rt.mean_ms);
+    document.getElementById('hP95Rt').textContent  = msToMin(rt.p95_ms);
+    document.getElementById('hRtCount').textContent = rt.count || 0;
+  }
+
+  function msToMin(ms) {
+    if (!ms) return '—';
+    const min = ms / 60000;
+    if (min < 1) return Math.round(ms / 1000) + 's';
+    return min.toFixed(1) + 'm';
+  }
+
+  function renderStations(d) {
+    const body = document.getElementById('stationsBody');
+    const stations = d.by_station || {};
+    const keys = Object.keys(stations).sort();
+    if (!keys.length) { body.innerHTML = '<div class="empty-panel">No stations active.</div>'; return; }
+
+    const max = Math.max(1, ...keys.map(k => (stations[k].open || 0) + (stations[k].closed_today || 0)));
+    document.getElementById('stationsMeta').textContent = keys.length + ' stations';
+
+    body.innerHTML = keys.map(k => {
+      const s = stations[k];
+      const total = (s.open || 0) + (s.closed_today || 0);
+      const pct = Math.round(100 * total / max);
+      const fillClass = (s.red_open > 0) ? 'bar-fill--red' : (s.in_transfer > 0 ? 'bar-fill' : 'bar-fill--green');
+      return ''
+        + '<div class="bar-row">'
+        +   '<div class="bar-name"><strong>' + k + '</strong></div>'
+        +   '<div class="bar-count">' + (s.open || 0) + ' <span class="sub">open · ' + (s.closed_today || 0) + ' closed</span></div>'
+        +   '<div class="bar-track"><div class="bar-fill ' + fillClass + '" style="width:' + pct + '%"></div></div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function renderResponseTime(rt) {
+    rt = rt || {};
+    const meanEl = document.getElementById('hMeanRt');
+    const p95El = document.getElementById('hP95Rt');
+    const cntEl = document.getElementById('hRtCount');
+    if (!rt.count || rt.count === 0) {
+      if (meanEl) meanEl.textContent = '—';
+      if (p95El) p95El.textContent = '—';
+      if (cntEl) cntEl.textContent = '0 samples';
+      return;
+    }
+    if (meanEl) meanEl.textContent = msToMin(rt.mean_ms);
+    if (p95El) p95El.textContent = msToMin(rt.p95_ms);
+    if (cntEl) cntEl.textContent = rt.count + ' samples';
+  }
+
+  function renderAcuity(p) {
+    const body = document.getElementById('acuityBody');
+    const ac = p.by_acuity || {};
+    const keys = Object.keys(ac);
+    if (!keys.length) { body.innerHTML = '<div class="empty-panel">No PCRs filed yet.</div>'; return; }
+    document.getElementById('acuityMeta').textContent = (p.today || 0) + ' today';
+    const order = ['red','yellow','green','black','unspecified'];
+    const sorted = keys.slice().sort((a,b) => (order.indexOf(a) === -1 ? 99 : order.indexOf(a)) - (order.indexOf(b) === -1 ? 99 : order.indexOf(b)));
+    const max = Math.max(1, ...keys.map(k => ac[k]));
+    const colorFor = (k) => k === 'red'    ? 'bar-fill--red'
+                          : k === 'yellow' ? 'bar-fill--amber'
+                          : k === 'green'  ? 'bar-fill--green'
+                          : k === 'black'  ? 'bar-fill'
+                          : 'bar-fill';
+    body.innerHTML = sorted.map(k => {
+      const v = ac[k]; const pct = Math.round(100 * v / max);
+      return ''
+        + '<div class="bar-row">'
+        +   '<div class="bar-name"><strong>' + cap(k) + '</strong></div>'
+        +   '<div class="bar-count">' + v + '</div>'
+        +   '<div class="bar-track"><div class="bar-fill ' + colorFor(k) + '" style="width:' + pct + '%"></div></div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function renderDispo(p) {
+    const body = document.getElementById('dispoBody');
+    const dp = p.by_disposition || {};
+    const keys = Object.keys(dp);
+    if (!keys.length) { body.innerHTML = '<div class="empty-panel">No PCRs filed yet.</div>'; return; }
+    const max = Math.max(1, ...keys.map(k => dp[k]));
+    body.innerHTML = keys.sort((a,b) => dp[b] - dp[a]).map(k => {
+      const v = dp[k]; const pct = Math.round(100 * v / max);
+      return ''
+        + '<div class="bar-row">'
+        +   '<div class="bar-name"><strong>' + cap(k) + '</strong></div>'
+        +   '<div class="bar-count">' + v + '</div>'
+        +   '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function renderComplaints(p) {
+    const body = document.getElementById('complaintsBody');
+    const list = p.top_complaints || [];
+    if (!list.length) { body.innerHTML = '<div class="empty-panel">Will populate when paramedics file PCRs from the Q-PCR form.</div>'; return; }
+    const max = Math.max(1, list[0].count);
+    body.innerHTML = list.map(it => {
+      const pct = Math.round(100 * it.count / max);
+      return ''
+        + '<div class="bar-row">'
+        +   '<div class="bar-name"><strong>' + cap(it.complaint) + '</strong></div>'
+        +   '<div class="bar-count">' + it.count + '</div>'
+        +   '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function renderRecentDispatch(list) {
+    const body = document.getElementById('dispatchBody');
+    if (!list.length) { body.innerHTML = '<div class="empty-panel">Quiet so far.</div>'; return; }
+    document.getElementById('dispatchMeta').textContent = list.length + ' today';
+    body.innerHTML = list.slice(0, 12).map(inc => {
+      const cat = (inc.category || '').toLowerCase();
+      const pillCls = inc.status === 'closed' ? 'pill-closed'
+                    : inc.in_transfer ? 'pill-transfer'
+                    : 'pill-' + cat;
+      const pillText = inc.status === 'closed' ? (inc.decision || 'closed')
+                     : inc.in_transfer ? 'transfer'
+                     : (cat || '—') + (inc.cardiac ? ' ⚡' : '');
+      const ts = formatHM(inc.created);
+      return ''
+        + '<div class="row-item">'
+        +   '<div class="ts">' + ts + '</div>'
+        +   '<div class="label">' + escapeHtml(inc.station || '—') + '<span class="meta">' + escapeHtml(inc.case || '') + '</span></div>'
+        +   '<span class="pill ' + pillCls + '">' + pillText + '</span>'
+        + '</div>';
+    }).join('');
+  }
+
+  function renderRecentPcr(list) {
+    const body = document.getElementById('pcrBody');
+    if (!list.length) { body.innerHTML = '<div class="empty-panel">No PCRs yet today.</div>'; return; }
+    document.getElementById('pcrMeta').textContent = list.length + ' today';
+    body.innerHTML = list.slice(0, 12).map(p => {
+      const ac = (p.acuity || '').toLowerCase();
+      const pillCls = ac === 'red'    ? 'pill-red'
+                    : ac === 'yellow' ? 'pill-yellow'
+                    : ac === 'green'  ? 'pill-green'
+                    : ac === 'black'  ? 'pill-black'
+                    : 'pill-closed';
+      const ts = formatHM(p.ts);
+      const ageGen = [p.age, p.gender].filter(Boolean).join(' · ');
+      return ''
+        + '<div class="row-item">'
+        +   '<div class="ts">' + ts + '</div>'
+        +   '<div class="label">' + escapeHtml(p.complaint || '—') + '<span class="meta">' + escapeHtml(p.station || '') + (ageGen ? ' · ' + escapeHtml(ageGen) : '') + '</span></div>'
+        +   '<span class="pill ' + pillCls + '">' + (ac || p.dispo || '') + '</span>'
+        + '</div>';
+    }).join('');
+  }
+
+  function formatHM(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+  function cap(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({
+      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+    }[c]));
+  }
+
+
+  function renderStationStatus(stations) {
+    const body = document.getElementById('stationStatusGrid');
+    if (!stations || !stations.length) {
+      body.innerHTML = '<div class="empty-panel">No status set yet — cluster supervisors set this from <a href="sv.html" style="color:var(--accent);">/sv</a> by tapping a station card.</div>';
+      return;
+    }
+    document.getElementById('stationStatusMeta').textContent = stations.length + ' set';
+    const colorMap = {
+      red:    { bg: 'rgba(239, 68, 68, 0.12)',  border: 'rgba(239, 68, 68, 0.4)',  text: '#fca5a5' },
+      yellow: { bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.4)', text: '#fcd34d' },
+      green:  { bg: 'rgba(34, 197, 94, 0.12)',  border: 'rgba(34, 197, 94, 0.4)',  text: '#86efac' },
+      black:  { bg: 'rgba(80, 80, 80, 0.3)',    border: 'rgba(120, 120, 120, 0.4)', text: '#9ca3af' }
+    };
+    body.innerHTML = stations.map(s => {
+      const c = colorMap[s.status] || colorMap.green;
+      return '<div style="background:' + c.bg + '; border:1px solid ' + c.border + '; border-radius:6px; padding:10px;">'
+        + '<div style="font-weight:600; font-size:14px; color:' + c.text + ';">' + escapeHtml(s.station) + '</div>'
+        + '<div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin-top:2px;">' + escapeHtml(s.status || '—') + '</div>'
+        + (s.note ? '<div style="font-size:11px; color:var(--text-dim); margin-top:4px;">' + escapeHtml(s.note) + '</div>' : '')
+        + '</div>';
+    }).join('');
+  }
+
+  function renderHourlyTempo(recent) {
+    const body = document.getElementById('hourlyBars');
+    if (!recent || !recent.length) {
+      body.innerHTML = '<div class="empty-panel" style="width:100%;">No incidents yet today.</div>';
+      return;
+    }
+    // Bucket recent incidents by hour (0-23)
+    const hourly = new Array(24).fill(0).map(() => ({ red: 0, yellow: 0, green: 0, black: 0, total: 0 }));
+    recent.forEach(inc => {
+      const d = new Date(inc.created);
+      const h = d.getHours();
+      const cat = (inc.category || 'yellow').toLowerCase();
+      if (hourly[h][cat] !== undefined) hourly[h][cat]++;
+      hourly[h].total++;
+    });
+    const max = Math.max(1, ...hourly.map(b => b.total));
+    document.getElementById('hourlyMeta').textContent = recent.length + ' total · peak ' + max + '/hr';
+    body.innerHTML = hourly.map((b, h) => {
+      const pct = (b.total / max) * 100;
+      const tooltip = h.toString().padStart(2,'0') + ':00 — ' + b.total + ' incidents (R:' + b.red + ' Y:' + b.yellow + ' G:' + b.green + (b.black ? ' B:' + b.black : '') + ')';
+      // Stacked bar (red on top, then yellow, then green, then black)
+      const segs = [];
+      if (b.red > 0)    segs.push('<div style="background:var(--danger); height:' + (b.red/b.total*pct) + '%;"></div>');
+      if (b.yellow > 0) segs.push('<div style="background:var(--warning); height:' + (b.yellow/b.total*pct) + '%;"></div>');
+      if (b.green > 0)  segs.push('<div style="background:var(--success); height:' + (b.green/b.total*pct) + '%;"></div>');
+      if (b.black > 0)  segs.push('<div style="background:var(--text-muted); height:' + (b.black/b.total*pct) + '%;"></div>');
+      const segHtml = segs.length ? segs.join('') : '<div style="height:1px;"></div>';
+      return '<div title="' + tooltip + '" style="flex:1; min-width:6px; display:flex; flex-direction:column; justify-content:flex-end; height:100%;">'
+        + '<div style="display:flex; flex-direction:column-reverse; height:100%;">' + segHtml + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+
+
+  function renderRosterFill(r) {
+    document.getElementById('hRosterPct').textContent     = r.fill_pct || 0;
+    document.getElementById('hRosterFilled').textContent  = r.filled || 0;
+    document.getElementById('hRosterTotal').textContent   = r.total || 0;
+  }
+
+  function renderAugmentations(r) {
+    const body = document.getElementById('augBody');
+    const meta = document.getElementById('augMeta');
+    if (!body || !meta) return;
+
+    try {
+      const rows = (r && r.rows) || [];
+      if (!rows.length) {
+        body.innerHTML = '<div class="empty-panel">No augmentations defined in Mob Sheet → Augmentations tab.</div>';
+        meta.textContent = '0';
+        return;
+      }
+
+      // Group by Movement
+      const byMov = {};
+      rows.forEach(function(row) {
+        const m = String((row && row.Movement) || 'unspecified');
+        if (!byMov[m]) byMov[m] = [];
+        byMov[m].push(row);
+      });
+      const movNames = Object.keys(byMov).sort();
+      meta.textContent = rows.length + ' total · ' + movNames.length + ' movements';
+
+      // Build body using DOM API instead of template strings (more robust)
+      body.innerHTML = '';
+      movNames.forEach(function(m) {
+        const movRows = byMov[m];
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'margin-bottom:12px; padding:10px; background:rgba(255,255,255,0.03); border-radius:6px; border:1px solid rgba(255,255,255,0.06);';
+
+        const head = document.createElement('div');
+        head.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;';
+        const titleEl = document.createElement('strong');
+        titleEl.style.cssText = 'font-size:13px; color: #e5e7eb;';
+        titleEl.textContent = 'Movement ' + m;
+        const countEl = document.createElement('span');
+        countEl.style.cssText = 'font-size:11px; color: #9ca3af;';
+        countEl.textContent = movRows.length + ' units';
+        head.appendChild(titleEl); head.appendChild(countEl);
+        wrap.appendChild(head);
+
+        const chipWrap = document.createElement('div');
+        chipWrap.style.cssText = 'display:flex; flex-wrap:wrap; gap:4px;';
+        movRows.slice(0, 10).forEach(function(row) {
+          const fromUnit = row['From Unit'] || row.From_Unit || row.from_unit || '?';
+          const toStation = row['To Station'] || row.To_Station || row.to_station || '?';
+          const dh = row['DH Day'] || row.DH || '';
+          const chip = document.createElement('span');
+          chip.style.cssText = 'font-size:11px; padding:3px 8px; background:rgba(255,255,255,0.05); border-radius:4px; color:#cbd5e1;';
+          chip.textContent = String(fromUnit) + ' → ' + String(toStation) + (dh ? ' · DH ' + String(dh).replace(/[^0-9]/g, '') : '');
+          chipWrap.appendChild(chip);
+        });
+        if (movRows.length > 10) {
+          const more = document.createElement('span');
+          more.style.cssText = 'font-size:11px; padding:3px 8px; color:#6b7280;';
+          more.textContent = '+' + (movRows.length - 10) + ' more';
+          chipWrap.appendChild(more);
+        }
+        wrap.appendChild(chipWrap);
+        body.appendChild(wrap);
+      });
+    } catch (err) {
+      console.error('renderAugmentations error:', err, r);
+      body.innerHTML = '<div class="empty-panel">Error rendering augmentations: ' + (err && err.message || err) + '</div>';
+    }
+  }
+
+  function renderUnitPositions(r, stationStatuses) {
+    const body = document.getElementById('unitsBody');
+    const meta = document.getElementById('unitsMeta');
+    if (!body || !meta) return;
+
+    try {
+      const positions = (r && r.positions) || [];
+      if (!positions.length) {
+        body.innerHTML = '<div class="empty-panel" style="grid-column: 1/-1;">No units returned by /unit_positions endpoint. Check that backend is redeployed.</div>';
+        meta.textContent = '0';
+        return;
+      }
+
+      // Group by station for display
+      const byStation = {};
+      positions.forEach(function(u) {
+        const st = (u && u.station) || 'UNK';
+        if (!byStation[st]) byStation[st] = [];
+        byStation[st].push(u);
+      });
+      meta.textContent = positions.length + ' units · ' + Object.keys(byStation).length + ' stations';
+
+      // Map station status colors
+      const statusMap = {};
+      (stationStatuses || []).forEach(function(s) { if (s && s.station) statusMap[s.station] = s.status; });
+      const colorMap = {
+        red:    'rgba(239, 68, 68, 0.15)',
+        yellow: 'rgba(245, 158, 11, 0.15)',
+        green:  'rgba(34, 197, 94, 0.15)',
+        black:  'rgba(80, 80, 80, 0.20)'
+      };
+
+      body.innerHTML = '';
+      positions.forEach(function(u) {
+        const code = (u && u.unit) || '?';
+        const station = (u && u.station) || '—';
+        const repositioned = u && u.source === 'reposition';
+        const stationStatus = statusMap[station];
+        const card = document.createElement('div');
+        card.title = code + ' @ ' + station + (repositioned ? ' (repositioned)' : '');
+        card.style.cssText = 'padding:6px 4px; background:' + (colorMap[stationStatus] || 'rgba(255,255,255,0.04)') + '; border:' + (repositioned ? '2px solid #f59e0b' : '1px solid rgba(255,255,255,0.10)') + '; border-radius:4px; text-align:center; font-size:10px;';
+        const codeEl = document.createElement('div');
+        codeEl.style.cssText = 'font-weight:600; color:#e5e7eb;';
+        codeEl.textContent = String(code);
+        const stEl = document.createElement('div');
+        stEl.style.cssText = 'color:#9ca3af; font-size:9px;';
+        stEl.textContent = String(station);
+        card.appendChild(codeEl); card.appendChild(stEl);
+        body.appendChild(card);
+      });
+    } catch (err) {
+      console.error('renderUnitPositions error:', err, r);
+      body.innerHTML = '<div class="empty-panel" style="grid-column: 1/-1;">Error: ' + (err && err.message || err) + '</div>';
+    }
+  }
+
+
+
+
+  // ===== Filter strip =====
+  let _allAugRows = [];
+  let _selectedDate = '';
+  let _endDate = '';
+  let _isRange = false;
+  let _selectedMovement = '';
+
+  function dhDayFromDate(yyyy_mm_dd) {
+    if (!yyyy_mm_dd) return null;
+    const d = new Date(yyyy_mm_dd + 'T00:00:00+03:00');
+    const dh1 = new Date('2026-05-27T00:00:00+03:00');
+    const days = Math.round((d - dh1) / 86400000);
+    return days >= 0 && days <= 13 ? (days + 1) : null;
+  }
+
+  function setFilterMeta() {
+    const meta = document.getElementById('filterMeta');
+    const dhBadge = document.getElementById('filterDH');
+    if (!meta) return;
+    const parts = [];
+    if (_selectedDate) {
+      const dh = dhDayFromDate(_selectedDate);
+      parts.push(_selectedDate + (dh ? ' (DH ' + dh + ')' : ''));
+    } else {
+      parts.push('all dates');
+    }
+    parts.push(_selectedMovement ? ('movement ' + _selectedMovement) : 'all movements');
+    meta.textContent = parts.join(' · ');
+    if (dhBadge) {
+      const today = new Date().toISOString().slice(0,10);
+      const dh = dhDayFromDate(_selectedDate || today);
+      dhBadge.textContent = dh ? ('Operational day: DH ' + dh) : 'Pre-Hajj';
+    }
+  }
+
+  function filteredAugRows() {
+    let rows = _allAugRows.slice();
+    if (_selectedMovement) {
+      rows = rows.filter(r => String(r.Movement || '').toLowerCase() === _selectedMovement.toLowerCase());
+    }
+    if (_selectedDate) {
+      const targetDH = dhDayFromDate(_selectedDate);
+      if (targetDH) {
+        rows = rows.filter(r => {
+          const rdh = parseInt(String(r['DH Day'] || r.DH || '').replace(/[^0-9]/g, ''), 10);
+          return rdh === targetDH;
+        });
+      }
+    }
+    return rows;
+  }
+
+  function applyFilters() {
+    setFilterMeta();
+    const filtered = filteredAugRows();
+    const movs = {};
+    filtered.forEach(r => { const m = String(r.Movement || 'unspecified'); movs[m] = (movs[m] || 0) + 1; });
+    renderAugmentations({ rows: filtered, by_movement: movs });
+  }
+
+  // Hook initial augmentations response: we override renderAugmentations
+  // entry to cache rows for filtering, then re-render with current filter.
+  const _origRenderAug = renderAugmentations;
+  renderAugmentations = function(r) {
+    if (r && Array.isArray(r.rows) && r.rows.length && !_allAugRows.length) {
+      _allAugRows = r.rows.slice();
+      // Populate movement dropdown with unique movements
+      const movs = Array.from(new Set(_allAugRows.map(x => String(x.Movement || 'unspecified')))).sort();
+      const sel = document.getElementById('filterMovement');
+      if (sel && sel.options.length <= 1) {
+        movs.forEach(m => { const opt = document.createElement('option'); opt.value = m; opt.textContent = m; sel.appendChild(opt); });
+      }
+    }
+    _origRenderAug(r);
+  };
+
+  // Wire filter inputs — use shared dateBar component
+  setTimeout(function() {
+    const host = document.getElementById('dateBarHost');
+    if (host && window.HAJJ_DATE_BAR) {
+      window.HAJJ_DATE_BAR.build(host, {
+        onChange: function (scope) {
+          _selectedDate = scope.start_date;
+          _endDate      = scope.end_date;
+          _isRange      = scope.range;
+          // Re-fetch active_summary with new scope (SWR cache key changes per params)
+          refresh();
+          applyFilters();
+        }
+      });
+    }
+    const movSel  = document.getElementById('filterMovement');
+    const reset   = document.getElementById('filterReset');
+    if (movSel) movSel.addEventListener('change', function() { _selectedMovement = this.value; applyFilters(); });
+    if (reset) reset.addEventListener('click', function() {
+      _selectedDate = ''; _endDate = ''; _isRange = false; _selectedMovement = '';
+      if (movSel) movSel.value = '';
+      applyFilters();
+    });
+    setFilterMeta();
+  }, 200);
+
+
+
+  function renderHeatmap(incidents) {
+    const body = document.getElementById('heatmapBody');
+    const meta = document.getElementById('heatmapMeta');
+    if (!body || !meta) return;
+    if (!incidents || !incidents.length) {
+      body.innerHTML = '<div class="empty-panel">No incidents today.</div>';
+      meta.textContent = '0';
+      return;
+    }
+    const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3','OCC','DEPOT'];
+    const today = new Date(); today.setHours(0,0,0,0);
+    const grid = {}; // station -> hour -> count
+    let max = 0;
+    incidents.forEach(function(inc) {
+      const t = new Date(inc.Created_At || inc.created_at);
+      if (isNaN(t.getTime())) return;
+      if (t.getTime() < today.getTime()) return;
+      const station = String(inc.Zone || inc.Station || 'UNK').toUpperCase();
+      const h = t.getHours();
+      if (!grid[station]) grid[station] = {};
+      grid[station][h] = (grid[station][h] || 0) + 1;
+      if (grid[station][h] > max) max = grid[station][h];
+    });
+    const total = incidents.filter(i => {
+      const t = new Date(i.Created_At || i.created_at);
+      return !isNaN(t.getTime()) && t.getTime() >= today.getTime();
+    }).length;
+    meta.textContent = total + ' incidents · max ' + max + ' / cell';
+
+    // Build grid: rows = stations, cols = 24 hours
+    let html = '<div style="display:grid; grid-template-columns: 60px repeat(24, minmax(20px, 1fr)); gap:1px; font-size:9px;">';
+    html += '<div></div>';
+    for (let h = 0; h < 24; h++) html += '<div style="text-align:center; color:#9ca3af;">' + h + '</div>';
+    STATIONS.forEach(function(st) {
+      const row = grid[st] || {};
+      const rowMax = Math.max.apply(null, Object.values(row).concat([0]));
+      if (rowMax === 0 && st !== 'OCC') {} // skip empty? keep all for clarity
+      html += '<div style="font-weight:600; color:#e5e7eb; padding:2px 4px;">' + st + '</div>';
+      for (let h = 0; h < 24; h++) {
+        const count = row[h] || 0;
+        const intensity = max > 0 ? Math.min(1, count / max) : 0;
+        const bg = count > 0
+          ? 'rgba(239, 68, 68, ' + (0.15 + intensity * 0.6) + ')'
+          : 'rgba(255,255,255,0.02)';
+        const tooltip = st + ' @ ' + h + ':00 — ' + count + ' incident' + (count === 1 ? '' : 's');
+        html += '<div title="' + tooltip + '" style="background:' + bg + '; min-height:18px; border-radius:2px; text-align:center; color:#fff; line-height:18px;">' + (count || '') + '</div>';
+      }
+    });
+    html += '</div>';
+    body.innerHTML = html;
+  }
+
+
+
+
+  function renderUnitAvailability(r) {
+    const sum = r.summary || {};
+    // Update or replace the unit positions panel meta with availability stats
+    const meta = document.getElementById('unitsMeta');
+    if (meta) {
+      meta.textContent = (sum.available || 0) + ' available · ' +
+                          (sum.busy || 0) + ' busy · ' +
+                          (sum.off_duty || 0) + ' off-duty · ' +
+                          (sum.oos || 0) + ' OOS';
+    }
+    // Re-render unit cards using the availability data (state-aware coloring)
+    const body = document.getElementById('unitsBody');
+    if (!body || !r.units || !r.units.length) return;
+    const stateColor = {
+      available:    'rgba(34, 197, 94, 0.15)',   // green
+      busy:         'rgba(245, 158, 11, 0.15)',  // amber
+      off_duty:     'rgba(80, 80, 80, 0.15)',    // gray
+      oos:          'rgba(239, 68, 68, 0.15)',   // red
+      maintenance:  'rgba(168, 85, 247, 0.15)',  // purple
+      unknown:      'rgba(255, 255, 255, 0.04)'
+    };
+    const stateBorder = {
+      available: '#16a34a', busy: '#f59e0b', off_duty: 'rgba(255,255,255,0.10)',
+      oos: '#dc2626', maintenance: '#a855f7', unknown: 'rgba(255,255,255,0.10)'
+    };
+    body.innerHTML = '';
+    r.units.forEach(function(u) {
+      const station = u.current_station || u.home_station || '—';
+      const card = document.createElement('div');
+      const tooltipParts = [u.code, '@', station, '· state:', u.state];
+      if (u.open_incidents > 0) tooltipParts.push('· busy on ' + u.open_incidents + ' incident' + (u.open_incidents>1?'s':''));
+      if (u.schedule_label) tooltipParts.push('· slot: ' + u.schedule_label);
+      if (u.manual_note) tooltipParts.push('· ' + u.manual_note);
+      card.title = tooltipParts.join(' ');
+      card.style.cssText = 'padding:5px 4px; background:' + (stateColor[u.state] || stateColor.unknown) +
+        '; border:1px solid ' + (stateBorder[u.state] || stateBorder.unknown) + '; border-radius:4px; text-align:center; font-size:10px;';
+      card.innerHTML = '<div style="font-weight:600; color:#e5e7eb;">' + u.code + '</div>' +
+        '<div style="color:#9ca3af; font-size:9px;">' + station + '</div>' +
+        (u.open_incidents > 0 ? '<div style="color:#fcd34d; font-size:9px;">↳ ' + u.open_incidents + '</div>' : '');
+      body.appendChild(card);
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('manualRefresh');
+    if (btn) btn.addEventListener('click', () => { if (typeof refresh === 'function') refresh(); });
+  });
+
+})();
+</script>
+
+<script src="assets/version.js?v=0.2.20"></script>
+</body>
+</html>

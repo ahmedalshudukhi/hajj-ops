@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="/">
+<!-- /test/ — assets shared with root /, HTML mutable per release -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#0f172a">
+<title>My Schedule · Hajj 2026</title>
+<link rel="stylesheet" href="assets/style.css?v=0.2.20">
+
+<style>
+  .me-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 12px; margin-bottom: 16px;
+  }
+  .identity h1 {
+    margin: 0; font-size: 22px; font-weight: 700;
+    letter-spacing: -0.01em; line-height: 1.2;
+  }
+  .identity .name-ar {
+    margin-top: 2px; font-size: 16px; color: var(--text-dim);
+    direction: rtl; text-align: left;
+  }
+  .identity .role-line {
+    margin-top: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    color: var(--text-muted); font-size: 13px;
+  }
+  .today-card {
+    background: linear-gradient(180deg, #1f2937 0%, #161e2c 100%);
+    border-color: var(--border);
+  }
+  .today-row {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  }
+  .today-row .now-dh {
+    font-size: 28px; font-weight: 700; letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .today-row .now-meta { text-align: right; color: var(--text-dim); }
+  .today-row .now-meta strong { color: var(--text); display: block; }
+
+  .grid-wrap {
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    margin: 0 -18px; padding: 0 18px 4px;
+  }
+  .schedule-grid {
+    display: grid; grid-auto-flow: column; grid-auto-columns: 64px; gap: 6px;
+    min-width: 100%;
+  }
+  .day-cell {
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 8px 6px;
+    text-align: center; font-size: 12px; line-height: 1.35;
+  }
+  .day-cell .dh { font-weight: 700; font-size: 13px; letter-spacing: -0.01em; color: var(--text); font-variant-numeric: tabular-nums; }
+  .day-cell .shift { margin-top: 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .day-cell .station { margin-top: 2px; color: var(--text-muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+  .day-cell.is-today { border-color: var(--info); box-shadow: 0 0 0 1px var(--info) inset; }
+  .day-cell.is-day   .shift { color: #fcd34d; }
+  .day-cell.is-night .shift { color: #93c5fd; }
+  .day-cell.is-off   .shift { color: var(--text-muted); }
+  .day-cell.is-empty .shift { color: var(--text-muted); }
+
+  .grid-empty { text-align: center; color: var(--text-muted); padding: 12px 0 4px; font-size: 13px; }
+  .footer { margin-top: 24px; text-align: center; color: var(--text-muted); font-size: 12px; }
+  .quick-link {
+    display: block; padding: 10px 14px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text);
+    text-decoration: none; font-size: 14px; margin-bottom: 8px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .quick-link:hover { background: var(--surface-3); }
+  .quick-link .arrow { color: var(--text-muted); }
+</style>
+</head>
+<body>
+<div id="topbar"></div>
+
+<div class="app">
+
+  <div class="app-header">
+    <div>
+      <h1>My Schedule</h1>
+      <div class="sub">Hajj 2026 · MMMP-SL</div>
+      <div class="nav-strip" id="navStrip" style="margin-top:8px;">
+        <a href="lobby.html" class="nav-pill" id="navLobby" hidden>← Lobby</a>
+        <a href="dispatch.html" class="nav-pill" id="navDispatch" hidden>Dispatch</a>
+        <a href="active.html" class="nav-pill" id="navActive" hidden>Active insights</a>
+      </div>
+    </div>
+    <button class="btn btn--ghost btn--auto-width btn--small" id="logoutBtn">Sign out</button>
+  </div>
+
+  <div class="card" id="identityCard">
+    <div class="me-header">
+      <div class="identity">
+        <h1 id="name">—</h1>
+        <div class="name-ar bidi-auto" id="nameAr"></div>
+        <div class="role-line">
+          <span id="roleBadge" class="badge">—</span>
+          <span id="callsign" class="num"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card today-card" id="todayCard" hidden>
+    <div class="card-title">Today</div>
+    <div class="today-row">
+      <div>
+        <div class="now-dh" id="todayDH">—</div>
+        <div style="color:var(--text-muted); font-size:12px;" id="todayDate">—</div>
+      </div>
+      <div class="now-meta">
+        <strong id="todayShift">—</strong>
+        <span id="todayStation">—</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Assignment</div>
+    <dl class="dl">
+      <div class="dl-row"><dt>Station</dt><dd id="assignStation">—</dd></div>
+      <div class="dl-row"><dt>Zone</dt><dd id="assignZone">—</dd></div>
+      <div class="dl-row"><dt>Unit</dt><dd id="assignUnit">—</dd></div>
+      <div class="dl-row"><dt>Callsign</dt><dd id="assignCallsign">—</dd></div>
+      <div class="dl-row"><dt>Team lead</dt><dd id="assignLead">—</dd></div>
+    </dl>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Accommodation</div>
+    <div id="accomBody">—</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Schedule · 4 DH → 14 DH</div>
+    <div class="grid-wrap">
+      <div class="schedule-grid" id="scheduleGrid"></div>
+    </div>
+    <div class="grid-empty" id="scheduleEmpty" hidden>
+      <div id="scheduleDebug" style="font-size:11px; color:#94a3b8; margin-bottom:8px; font-family:ui-monospace,monospace;"></div>
+      No schedule rows for your account.<br>
+      <span style="font-size:12px; color:#9ca3af; display:block; margin-top:8px;">
+        This page reads the <strong>Schedule</strong> tab in the Mob Sheet — wide-format Unit×DH-Slot grid.
+        It looks up your <strong>Unit</strong> from Allowlist, then finds that unit's row in Schedule.
+        If your Allowlist row has an empty Unit field (typical for leadership/admin), there's nothing to show.
+        Paramedics and GPs with assigned units will see their full 11-day shift grid (DH 4 → DH 14).
+      </span>
+    </div>
+  </div>
+
+  <div class="card" id="quickLinks" hidden>
+    <div class="card-title">Tools</div>
+    <a href="#" class="quick-link" id="lnkQpcr" target="_blank" rel="noopener" hidden>
+      <span>File a Q-PCR</span><span class="arrow">↗</span>
+    </a>
+    <a href="dispatch.html" class="quick-link" id="lnkDispatch" hidden>
+      <span>Open dispatch console</span><span class="arrow">→</span>
+    </a>
+    <a href="lobby.html" class="quick-link" id="lnkLobby" hidden>
+      <span>Leadership lobby</span><span class="arrow">→</span>
+    </a>
+  </div>
+
+  <div class="footer">
+    Hajj 2026 · v1.0 · session expires in <span id="sessionTimer" class="num">—</span>
+  </div>
+
+</div>
+
+<script src="assets/config.js?v=0.2.20"></script>
+<script src="assets/auth.js?v=0.2.20"></script>
+<script src="assets/topbar.js?v=0.2.20"></script>
+<script>
+(function () {
+  if (!HAJJ.requireAuth()) return;
+  CADTopbar.render({ title: "My schedule" });
+
+  // logoutBtn handled by topbar.js (cadSignOut)
+
+  const cached = HAJJ.getUser();
+  if (cached) renderIdentity(cached);
+  renderSchedule([]);
+
+  load();
+
+  async function load() {
+    const r = await HAJJ.authedCallSWR('roster');
+    if (!r || !r.ok) { console.error('roster fetch failed', r); return; }
+    window._lastRosterUser = r.user;
+    renderIdentity(r.user);
+    HAJJ.setSession(HAJJ.getToken(), r.user, sessionStorage.getItem('hajj_expires'));
+    renderSchedule(r.schedule || []);
+    renderToday(r.user, r.schedule || []);
+    renderQuickLinks(r.user);
+  }
+
+  function renderIdentity(user) {
+    document.getElementById('name').textContent = user.name || '—';
+    const arEl = document.getElementById('nameAr');
+    if (user.name_ar) { arEl.textContent = user.name_ar; arEl.style.display = ''; }
+    else { arEl.style.display = 'none'; }
+    const role = String(user.role || '').replace(/_/g, ' ');
+    const roleBadge = document.getElementById('roleBadge');
+    roleBadge.textContent = role || '—';
+    roleBadge.className = 'badge ' + roleClass(user.role);
+    document.getElementById('callsign').textContent = user.callsign ? '· ' + user.callsign : '';
+
+    set('assignStation', user.station);
+    set('assignZone', user.zone);
+    set('assignUnit', user.unit);
+    set('assignCallsign', user.callsign);
+    if (user.team_lead) {
+      const mob = user.team_lead_mobile;
+      document.getElementById('assignLead').innerHTML = mob
+        ? user.team_lead + ' <a href="tel:' + mob + '">' + mob + '</a>'
+        : user.team_lead;
+    } else {
+      document.getElementById('assignLead').textContent = '—';
+    }
+    document.getElementById('accomBody').textContent = user.accommodation || 'Not assigned yet';
+  }
+
+  function set(id, v) {
+    document.getElementById(id).textContent = (v === undefined || v === '' || v === null) ? '—' : v;
+  }
+
+  function roleClass(role) {
+    role = String(role || '').toLowerCase();
+    if (role === 'admin' || role === 'leadership')   return 'badge--blue';
+    if (role === 'dispatcher')                       return 'badge--amber';
+    if (role === 'cluster_supervisor')               return 'badge--amber';
+    if (role === 'gp')                               return 'badge--green';
+    return '';
+  }
+
+  function renderSchedule(rows) {
+    const grid = document.getElementById('scheduleGrid');
+    grid.innerHTML = '';
+    document.getElementById('scheduleEmpty').hidden = true;
+    const today = HAJJ.todayDH();
+    const byDH = {};
+    for (let i = 0; i < rows.length; i++) {
+      // Backend may return DH as number (4), or DH_Day as 'DH 4'. Normalize both to 'DH N'.
+      let dh;
+      if (rows[i].DH_Day) dh = String(rows[i].DH_Day).trim();
+      else if (rows[i].DH != null) dh = 'DH ' + rows[i].DH;
+      else dh = '';
+      if (!byDH[dh]) byDH[dh] = rows[i];
+    }
+    let hasAny = false;
+    Object.keys(HAJJ.DH_DATES).forEach(function (dh) {
+      const row = byDH[dh];
+      if (row) hasAny = true;
+      const shift = row && row.Shift ? String(row.Shift) : '';
+      const station = row && row.Station ? String(row.Station) : '';
+      const isToday = dh === today;
+      const cell = document.createElement('div');
+      const klass = ['day-cell'];
+      if (isToday) klass.push('is-today');
+      if (shift.toLowerCase() === 'day')         klass.push('is-day');
+      else if (shift.toLowerCase() === 'night')  klass.push('is-night');
+      else if (shift.toLowerCase() === 'off')    klass.push('is-off');
+      else                                       klass.push('is-empty');
+      cell.className = klass.join(' ');
+      cell.innerHTML =
+        '<div class="dh">' + dh + '</div>' +
+        '<div class="shift">' + (shift || '—') + '</div>' +
+        '<div class="station">' + (station || '·') + '</div>';
+      grid.appendChild(cell);
+    });
+    if (!hasAny) {
+      document.getElementById('scheduleEmpty').hidden = false;
+      const dbgEl = document.getElementById('scheduleDebug');
+      const userInfo = window._lastRosterUser || {};
+      if (dbgEl) dbgEl.textContent = 'Looking for unit_code = "' + (userInfo.unit_code || userInfo.unit || '(none)') + '" · received ' + rows.length + ' schedule rows';
+    }
+  }
+
+  function renderToday(user, rows) {
+    const dh = HAJJ.todayDH();
+    const card = document.getElementById('todayCard');
+    if (!dh) { card.hidden = true; return; }
+    card.hidden = false;
+    document.getElementById('todayDH').textContent = dh;
+    document.getElementById('todayDate').textContent = formatDate(HAJJ.DH_DATES[dh]);
+    const todayRow = rows.find(function (r) { return String(r.DH_Day || r.DH || '').trim() === dh; });
+    if (todayRow) {
+      document.getElementById('todayShift').textContent = todayRow.Shift || '—';
+      document.getElementById('todayStation').textContent = todayRow.Station || user.station || '—';
+    } else {
+      document.getElementById('todayShift').textContent = 'No shift assigned';
+      document.getElementById('todayStation').textContent = user.station || '—';
+    }
+  }
+
+  function renderQuickLinks(user) {
+    const role = String(user.role || '').toLowerCase();
+    const wrap = document.getElementById('quickLinks');
+    let any = false;
+
+    // Q-PCR: anyone clinical (not pure dispatchers). Opens DCH's form in a new tab.
+    if (role !== 'dispatcher') {
+      const lnk = document.getElementById('lnkQpcr');
+      if (window.PCR_URL && window.PCR_URL.indexOf('PASTE_') === -1) {
+        lnk.href = window.PCR_URL;
+        lnk.hidden = false;
+        any = true;
+      }
+    }
+    // Dispatch console: dispatchers + leadership + admin
+    if (role === 'dispatcher' || role === 'leadership' || role === 'admin') {
+      document.getElementById('lnkDispatch').hidden = false; any = true;
+    }
+    // Leadership lobby: leadership + admin
+    if (role === 'leadership' || role === 'admin') {
+      document.getElementById('lnkLobby').hidden = false; any = true;
+    }
+
+    wrap.hidden = !any;
+  }
+
+  function formatDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso + 'T00:00:00');
+    return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  }
+
+  function tickSessionTimer() {
+    const exp = sessionStorage.getItem('hajj_expires');
+    const el = document.getElementById('sessionTimer');
+    if (!exp) { el.textContent = '—'; return; }
+    const ms = new Date(exp) - new Date();
+    if (ms <= 0) { el.textContent = 'expired'; return; }
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    el.textContent = h + 'h ' + m + 'm';
+  }
+  tickSessionTimer();
+  setInterval(tickSessionTimer, 30000);
+})();
+</script>
+
+<script src="assets/version.js?v=0.2.20"></script>
+</body>
+</html>

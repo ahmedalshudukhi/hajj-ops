@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="/">
+<!-- /test/ — assets shared with root /, HTML mutable per release -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin · HMG Hajj 2026</title>
+<link rel="stylesheet" href="assets/style.css?v=0.2.20">
+<script src="assets/config.js?v=0.2.20"></script>
+<script src="assets/tempo.js?v=0.2.20"></script>
+<script src="assets/auth.js?v=0.2.20"></script>
+<script src="assets/topbar.js?v=0.2.20"></script>
+<style>
+  .admin-wrap { max-width: 1200px; margin: 0 auto; padding: 16px; }
+  .admin-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; overflow-x: auto; }
+  .admin-tab {
+    padding: 10px 16px; cursor: pointer; border: none; background: transparent;
+    color: var(--text-muted); font-size: 14px; font-weight: 500;
+    border-bottom: 2px solid transparent; white-space: nowrap;
+  }
+  .admin-tab:hover { color: var(--text); }
+  .admin-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+  .admin-tab .badge { background: var(--surface-2); color: var(--text-muted); padding: 1px 6px; border-radius: 10px; font-size: 11px; margin-left: 4px; }
+  .admin-tab.active .badge { background: var(--primary); color: white; }
+
+  .admin-panel { display: none; }
+  .admin-panel.active { display: block; }
+
+  .admin-table {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    background: var(--surface); border-radius: var(--radius); overflow: hidden;
+  }
+  .admin-table th {
+    background: var(--surface-2); color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.05em; font-size: 11px;
+    padding: 10px 12px; text-align: left; font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0;
+  }
+  .admin-table td {
+    padding: 8px 12px; border-bottom: 1px solid var(--border);
+    color: var(--text); vertical-align: top;
+  }
+  .admin-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .role-pill { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+  .role-pill.admin    { background: rgba(220, 38, 38, 0.15); color: #fca5a5; }
+  .role-pill.leadership   { background: rgba(168, 85, 247, 0.15); color: #d8b4fe; }
+  .role-pill.dispatcher   { background: rgba(59, 130, 246, 0.15); color: #93c5fd; }
+  .role-pill.cluster_supervisor { background: rgba(245, 158, 11, 0.15); color: #fcd34d; }
+  .role-pill.gp           { background: rgba(34, 197, 94, 0.15); color: #86efac; }
+  .role-pill.paramedic    { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; }
+  .role-pill.sar          { background: rgba(20, 184, 166, 0.15); color: #5eead4; }
+
+  .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .status-dot.active { background: var(--success); box-shadow: 0 0 6px rgba(34,197,94,0.5); }
+  .status-dot.expired { background: var(--text-muted); }
+
+  .empty-state { padding: 40px; text-align: center; color: var(--text-muted); }
+  .filter-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+  .filter-bar input { background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    padding: 6px 10px; border-radius: var(--radius-sm); font-size: 13px; min-width: 200px; }
+  .filter-bar .meta { color: var(--text-muted); font-size: 12px; margin-left: auto; }
+
+  .audit-payload { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 11px;
+    color: var(--text-muted); max-width: 400px; overflow: hidden; text-overflow: ellipsis; }
+
+  .reposition-status { font-size: 11px; padding: 1px 6px; border-radius: 4px; }
+  .reposition-status.pending      { background: rgba(245, 158, 11, 0.15); color: #fcd34d; }
+  .reposition-status.approved     { background: rgba(34, 197, 94, 0.15);  color: #86efac; }
+  .reposition-status.auto_approved { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; }
+  .reposition-status.rejected     { background: rgba(239, 68, 68, 0.15);  color: #fca5a5; }
+  .reposition-status.active       { background: rgba(34, 197, 94, 0.15); color: #86efac; }
+</style>
+</head>
+<body>
+
+<div id="topbar"></div>
+
+<div class="admin-wrap">
+
+  <div style="max-width:1400px; margin: 0 auto 12px; padding: 0 16px; display:flex; gap:8px; flex-wrap:wrap;">
+  <button class="btn btn--small" id="btnApplyValidation" style="background:#f59e0b; color:#000; font-weight:600;">⚙️ Apply Allowlist data validation</button>
+  <span id="validationMsg" style="font-size:12px; color:#9ca3af; align-self:center;"></span>
+</div>
+<div class="admin-tabs">
+    <button class="admin-tab active" data-tab="allowlist">Allowlist <span class="badge" id="allowlistCount">—</span></button>
+    <button class="admin-tab" data-tab="sessions">Active Sessions <span class="badge" id="sessionsCount">—</span></button>
+    <button class="admin-tab" data-tab="reposition">Reposition Queue <span class="badge" id="repositionCount">—</span></button>
+    <button class="admin-tab" data-tab="audit">Audit Log <span class="badge" id="auditCount">—</span></button>
+  </div>
+
+  <!-- ALLOWLIST -->
+  <div class="admin-panel active" data-panel="allowlist">
+    <div class="filter-bar">
+      <input type="text" id="allowlistFilter" placeholder="Filter by name, NID, role, station…">
+      <span class="meta" id="allowlistMeta">—</span>
+    </div>
+    <div style="overflow-x: auto;">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>NID</th>
+            <th>Role</th>
+            <th>Cluster</th>
+            <th>Station</th>
+            <th>Unit</th>
+            <th>Mobile</th>
+            <th>Active</th>
+          </tr>
+        </thead>
+        <tbody id="allowlistBody">
+          <tr><td colspan="8" class="empty-state">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SESSIONS -->
+  <div class="admin-panel" data-panel="sessions">
+    <div class="filter-bar">
+      <input type="text" id="sessionsFilter" placeholder="Filter by NID…">
+      <span class="meta" id="sessionsMeta">—</span>
+    </div>
+    <div style="overflow-x: auto;">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>NID</th>
+            <th>Token</th>
+            <th>Created</th>
+            <th>Last activity</th>
+            <th>Expires</th>
+          </tr>
+        </thead>
+        <tbody id="sessionsBody">
+          <tr><td colspan="6" class="empty-state">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- REPOSITION -->
+  <div class="admin-panel" data-panel="reposition">
+    <div class="filter-bar"><span class="meta" id="repositionMeta">—</span></div>
+    <h3 style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 16px 0 8px;">Pending</h3>
+    <div style="overflow-x: auto;">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Request</th>
+            <th>Created</th>
+            <th>Requested by</th>
+            <th>Unit</th>
+            <th>From → To</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody id="repositionPendingBody">
+          <tr><td colspan="7" class="empty-state">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 24px 0 8px;">Recent (last 30)</h3>
+    <div style="overflow-x: auto;">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Time</th>
+            <th>Unit</th>
+            <th>From → To</th>
+            <th>Operator</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody id="repositionRecentBody">
+          <tr><td colspan="6" class="empty-state">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- AUDIT -->
+  <div class="admin-panel" data-panel="audit">
+    <div class="filter-bar">
+      <input type="text" id="auditFilter" placeholder="Filter by action, operator, target…">
+      <span class="meta" id="auditMeta">—</span>
+    </div>
+    <div style="overflow-x: auto;">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Action</th>
+            <th>Operator</th>
+            <th>Target</th>
+            <th>Payload</th>
+          </tr>
+        </thead>
+        <tbody id="auditBody">
+          <tr><td colspan="5" class="empty-state">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function() {
+  // Auth gate — admin only
+  if (!HAJJ.requireRole(['admin'])) return;
+  CADTopbar.render({ title: "Admin", subtitle: "pre-hajj" });
+
+
+  // Topbar phase indicator (legacy element — topbar.js handles this now)
+  if (window.HAJJ_TEMPO) {
+    const tp = document.getElementById('topPhase');
+    if (tp) tp.textContent = window.HAJJ_TEMPO.phase();
+  }
+
+  // Logout
+  // logoutLink handled by topbar.js (cadSignOut)
+
+  // Tab switching
+  document.querySelectorAll('.admin-tab').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      const tab = btn.getAttribute('data-tab');
+      document.querySelectorAll('.admin-tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.admin-panel').forEach(function(p) { p.classList.remove('active'); });
+      btn.classList.add('active');
+      document.querySelector('.admin-panel[data-panel="' + tab + '"]').classList.add('active');
+    });
+  });
+
+  // ============ DATA LOADERS ============
+
+  async function loadAllowlist() {
+    const r = await HAJJ.authedCallSWR('admin_allowlist_view');
+    const body = document.getElementById('allowlistBody');
+    if (!r || !r.ok) {
+      body.innerHTML = '<tr><td colspan="8" class="empty-state">Failed to load: ' + ((r && r.error) || 'unknown') + '</td></tr>';
+      return;
+    }
+    document.getElementById('allowlistCount').textContent = r.count || 0;
+    document.getElementById('allowlistMeta').textContent = (r.count || 0) + ' rows';
+    window._ALLOWLIST = r.rows || [];
+    renderAllowlist(window._ALLOWLIST);
+  }
+
+  function renderAllowlist(rows) {
+    const body = document.getElementById('allowlistBody');
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="8" class="empty-state">No staff in Allowlist yet.</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map(function(row) {
+      const role = String(row.Role || '').toLowerCase();
+      const active = String(row.Active).toLowerCase() === 'true' || row.Active === true || row.Active === 1;
+      return '<tr>'
+        + '<td>' + esc(row.Name || '') + (row.Name_AR ? '<div style="color:var(--text-muted); font-size:11px;">' + esc(row.Name_AR) + '</div>' : '') + '</td>'
+        + '<td style="font-family:ui-monospace,monospace;">' + esc(row.NID || '') + '</td>'
+        + '<td><span class="role-pill ' + role + '">' + esc(row.Role || '') + '</span></td>'
+        + '<td>' + esc(row.Cluster || '—') + '</td>'
+        + '<td>' + esc(row.Station || '—') + '</td>'
+        + '<td>' + esc(row.Unit || '—') + '</td>'
+        + '<td style="font-family:ui-monospace,monospace; font-size:12px;">' + esc(row.Mobile || '—') + '</td>'
+        + '<td>' + (active ? '✓' : '✗') + '</td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  document.getElementById('allowlistFilter').addEventListener('input', function(e) {
+    const q = e.target.value.toLowerCase();
+    if (!window._ALLOWLIST) return;
+    const filtered = q ? window._ALLOWLIST.filter(function(r) {
+      return Object.values(r).join(' ').toLowerCase().indexOf(q) >= 0;
+    }) : window._ALLOWLIST;
+    renderAllowlist(filtered);
+    document.getElementById('allowlistMeta').textContent = filtered.length + ' / ' + window._ALLOWLIST.length;
+  });
+
+  async function loadSessions() {
+    const r = await HAJJ.authedCallSWR('admin_sessions_view');
+    const body = document.getElementById('sessionsBody');
+    if (!r || !r.ok) {
+      body.innerHTML = '<tr><td colspan="6" class="empty-state">Failed to load.</td></tr>';
+      return;
+    }
+    const active = (r.rows || []).filter(function(x) { return x.is_active; });
+    document.getElementById('sessionsCount').textContent = active.length;
+    document.getElementById('sessionsMeta').textContent = active.length + ' active · ' + (r.total || 0) + ' total';
+    window._SESSIONS = r.rows || [];
+    renderSessions(window._SESSIONS);
+  }
+
+  function renderSessions(rows) {
+    const body = document.getElementById('sessionsBody');
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="6" class="empty-state">No sessions.</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map(function(s) {
+      return '<tr>'
+        + '<td><span class="status-dot ' + (s.is_active ? 'active' : 'expired') + '"></span>' + (s.is_active ? 'Active' : 'Expired') + '</td>'
+        + '<td style="font-family:ui-monospace,monospace;">' + esc(s.NID || '') + '</td>'
+        + '<td style="font-family:ui-monospace,monospace; font-size:11px; color:var(--text-muted);">' + esc(s.Token || '') + '</td>'
+        + '<td>' + fmtTime(s.Created_At) + '</td>'
+        + '<td>' + fmtTime(s.Last_Activity) + '</td>'
+        + '<td>' + fmtTime(s.Expires) + '</td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  document.getElementById('sessionsFilter').addEventListener('input', function(e) {
+    const q = e.target.value.toLowerCase();
+    if (!window._SESSIONS) return;
+    const filtered = q ? window._SESSIONS.filter(function(r) {
+      return String(r.NID || '').toLowerCase().indexOf(q) >= 0;
+    }) : window._SESSIONS;
+    renderSessions(filtered);
+  });
+
+  async function loadReposition() {
+    const r = await HAJJ.authedCall('reposition_list');
+    const pendingBody = document.getElementById('repositionPendingBody');
+    const recentBody = document.getElementById('repositionRecentBody');
+    if (!r || !r.ok) {
+      pendingBody.innerHTML = '<tr><td colspan="7" class="empty-state">Failed to load.</td></tr>';
+      return;
+    }
+    const pending = r.pending || [];
+    const recent = r.recent || [];
+    document.getElementById('repositionCount').textContent = pending.length;
+    document.getElementById('repositionMeta').textContent = pending.length + ' pending · ' + recent.length + ' recent';
+
+    pendingBody.innerHTML = pending.length ? pending.map(function(p) {
+      return '<tr>'
+        + '<td><span class="reposition-status ' + esc(p.Status) + '">' + esc(p.Status || '') + '</span></td>'
+        + '<td style="font-family:ui-monospace,monospace; font-size:11px;">' + esc(p.Request_ID || '') + '</td>'
+        + '<td>' + fmtTime(p.Created_At) + '</td>'
+        + '<td>' + esc(p.Requested_By_NID || '') + '</td>'
+        + '<td>' + esc(p.Unit_Code || '') + '</td>'
+        + '<td>' + esc(p.From_Station || '?') + ' → ' + esc(p.To_Station || '?') + (p.To_Sub_Location ? ' (' + esc(p.To_Sub_Location) + ')' : '') + '</td>'
+        + '<td>' + esc(p.Reason || '—') + '</td>'
+        + '</tr>';
+    }).join('') : '<tr><td colspan="7" class="empty-state">No pending requests.</td></tr>';
+
+    recentBody.innerHTML = recent.length ? recent.map(function(p) {
+      return '<tr>'
+        + '<td><span class="reposition-status ' + esc(p.Status) + '">' + esc(p.Status || '') + '</span></td>'
+        + '<td>' + fmtTime(p.Timestamp) + '</td>'
+        + '<td>' + esc(p.Unit_Code || '') + '</td>'
+        + '<td>' + esc(p.From_Station || '?') + ' → ' + esc(p.To_Station || '?') + '</td>'
+        + '<td>' + esc(p.Operator_NID || '—') + '</td>'
+        + '<td>' + esc(p.Reason || '—') + '</td>'
+        + '</tr>';
+    }).join('') : '<tr><td colspan="6" class="empty-state">No recent repositioning.</td></tr>';
+  }
+
+  async function loadAudit() {
+    const r = await HAJJ.authedCallSWR('admin_audit_list');
+    const body = document.getElementById('auditBody');
+    if (!r || !r.ok) {
+      body.innerHTML = '<tr><td colspan="5" class="empty-state">Failed to load.</td></tr>';
+      return;
+    }
+    const entries = r.entries || [];
+    document.getElementById('auditCount').textContent = entries.length;
+    document.getElementById('auditMeta').textContent = entries.length + ' entries';
+    window._AUDIT = entries;
+    renderAudit(window._AUDIT);
+  }
+
+  function renderAudit(rows) {
+    const body = document.getElementById('auditBody');
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="5" class="empty-state">No audit entries.</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.slice().reverse().map(function(a) {
+      return '<tr>'
+        + '<td>' + fmtTime(a.Timestamp) + '</td>'
+        + '<td><strong>' + esc(a.Action || '') + '</strong></td>'
+        + '<td>' + esc(a.Operator_NID || '') + '</td>'
+        + '<td>' + esc(a.Target || '—') + '</td>'
+        + '<td class="audit-payload" title="' + esc(a.Payload_JSON || '') + '">' + esc(String(a.Payload_JSON || '').slice(0, 100)) + (String(a.Payload_JSON || '').length > 100 ? '…' : '') + '</td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  document.getElementById('auditFilter').addEventListener('input', function(e) {
+    const q = e.target.value.toLowerCase();
+    if (!window._AUDIT) return;
+    const filtered = q ? window._AUDIT.filter(function(a) {
+      return Object.values(a).join(' ').toLowerCase().indexOf(q) >= 0;
+    }) : window._AUDIT;
+    renderAudit(filtered);
+  });
+
+  // Helpers
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+      return ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c];
+    });
+  }
+  function fmtTime(t) {
+    if (!t) return '—';
+    const d = new Date(t);
+    if (isNaN(d.getTime())) return String(t);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const same = d >= today;
+    return same
+      ? String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0')
+      : (d.toISOString().slice(5,16).replace('T',' '));
+  }
+
+  // Initial load
+  loadAllowlist();
+  loadSessions();
+  loadReposition();
+  loadAudit();
+
+  // Refresh on tempo
+  function scheduleRefresh() {
+    const ms = (window.HAJJ_TEMPO && window.HAJJ_TEMPO.intervalMs()) || 60000;
+    setTimeout(function() {
+      loadSessions();
+      loadReposition();
+      loadAudit();
+      scheduleRefresh();
+    }, Math.max(ms, 30000)); // never below 30s for admin (low priority)
+  }
+  scheduleRefresh();
+
+
+  document.getElementById('btnApplyValidation').addEventListener('click', async function() {
+    if (!confirm('Apply dropdown data validation to Allowlist columns Role, Cluster, Station, Accommodation, Active?\n\nThis writes to Mob Sheet → Allowlist tab. Existing values are preserved; future entries enforced.')) return;
+    const msg = document.getElementById('validationMsg');
+    this.disabled = true;
+    msg.textContent = 'Applying…';
+    msg.style.color = '#fcd34d';
+    const r = await HAJJ.authedCall('admin_apply_validation');
+    this.disabled = false;
+    if (!r || !r.ok) {
+      msg.textContent = 'Failed: ' + ((r && r.error) || 'unknown') + ' — backend may need redeploy';
+      msg.style.color = '#fca5a5';
+      return;
+    }
+    msg.textContent = '✓ Applied: ' + Object.keys(r.applied || {}).map(function(k) { return k + '=' + r.applied[k]; }).join(', ');
+    msg.style.color = '#86efac';
+  });
+})();
+</script>
+
+<script src="assets/version.js?v=0.2.20"></script>
+</body>
+</html>
