@@ -496,9 +496,18 @@ const ACTIONS = {
 
   async dispatch_list(user, env, params) {
     const limit = Math.min(parseInt(params.limit || '500', 10), 2000);
-    // Date filter: ?date=YYYY-MM-DD returns only that day (UTC)
+    // Date filter accepts:
+    //   ?date=YYYY-MM-DD                      → single day
+    //   ?start_date=YYYY-MM-DD&end_date=Y-M-D → inclusive range
+    //   ?from=ISO&to=ISO                      → legacy timestamp range
     let where = '', binds = [];
-    if (params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date)) {
+    const isDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s);
+    if (params.start_date && params.end_date && isDate(params.start_date) && isDate(params.end_date)) {
+      const startTs = Math.floor(new Date(params.start_date + 'T00:00:00Z').getTime() / 1000);
+      const endTs   = Math.floor(new Date(params.end_date   + 'T23:59:59Z').getTime() / 1000);
+      where = 'WHERE ts >= ?1 AND ts <= ?2';
+      binds = [startTs, endTs, limit];
+    } else if (params.date && isDate(params.date)) {
       const dayStart = Math.floor(new Date(params.date + 'T00:00:00Z').getTime() / 1000);
       const dayEnd = dayStart + 86400;
       where = 'WHERE ts >= ?1 AND ts < ?2';
@@ -521,6 +530,8 @@ const ACTIONS = {
     const incidents = (r.results || []).map(row => {
       row.Created_At = new Date(row.ts * 1000).toISOString();
       if (row.closed_at) row.Closed_At = new Date(row.closed_at * 1000).toISOString();
+      // Mirror Station/Region for views that expect those keys
+      row.Station = row.Zone; row.Region = row.Zone;
       delete row.ts; delete row.closed_at;
       return row;
     });
@@ -536,7 +547,9 @@ const ACTIONS = {
     return {
       ok: true,
       incidents,
-      filter: params.date || (params.from ? `${params.from}..${params.to}` : 'all'),
+      filter: (params.start_date && params.end_date)
+        ? `${params.start_date}..${params.end_date}`
+        : (params.date || (params.from ? `${params.from}..${params.to}` : 'all')),
       available_days: availableDays,
       server_time: new Date().toISOString()
     };
@@ -866,13 +879,30 @@ const ACTIONS = {
   },
 
   async active_summary(user, env, params, dj) {
-    const todayStart = Math.floor(new Date().setHours(0,0,0,0) / 1000);
+    // Date scope. Defaults to today UTC. Accepts:
+    //   ?date=YYYY-MM-DD           → single day
+    //   ?start_date=...&end_date=. → inclusive range
+    //   ?days=N                    → last N days (1=today, 4=today+3 prior)
+    const todayUTC = new Date().toISOString().slice(0, 10);
+    let startDate = params.start_date || params.date || todayUTC;
+    let endDate   = params.end_date   || params.date || todayUTC;
+    if (params.days) {
+      const n = Math.max(1, Math.min(60, parseInt(params.days, 10) || 1));
+      const end = new Date(); end.setUTCHours(23, 59, 59, 999);
+      const start = new Date(end); start.setUTCDate(start.getUTCDate() - n + 1); start.setUTCHours(0,0,0,0);
+      startDate = start.toISOString().slice(0,10);
+      endDate   = end.toISOString().slice(0,10);
+    }
+    const startTs = Math.floor(new Date(startDate + 'T00:00:00Z').getTime() / 1000);
+    const endTs   = Math.floor(new Date(endDate   + 'T23:59:59Z').getTime() / 1000);
+    const todayStart = startTs;  // legacy variable name used below
     const STATIONS_LIST = STATIONS;
 
     // Initialize all fields the frontend reads (so missing data = 0, never undefined)
     const result = {
       ok: true,
       server_time: new Date().toISOString(),
+      scope: { start_date: startDate, end_date: endDate, days: Math.round((endTs - startTs) / 86400) + 1 },
       dispatch: {
         open: 0, red_open: 0, cardiac_open: 0, in_transfer: 0, closed_today: 0,
         by_station: {},
@@ -893,24 +923,24 @@ const ACTIONS = {
       result.dispatch.by_station[st] = { open: 0, red_open: 0, in_transfer: 0, closed_today: 0 };
     });
 
-    // 1. Pull all dispatches (today + open from prior days) for full aggregate
+    // 1. Pull all dispatches in scope. Open ALSO from prior days (so "open incidents" reflects truly open work even if older).
     try {
       const incR = await env.DB.prepare(
         `SELECT incident_id, ts, station, sub_location, source, complaint, triage,
                 cardiac_arrest, unit_assigned, status, patient_count, notes,
                 closed_at, closed_by_nid
          FROM dispatch_log
-         WHERE status NOT IN ('complete','cancelled')
-            OR closed_at >= ?1 OR ts >= ?1
-         ORDER BY ts DESC LIMIT 500`
-      ).bind(todayStart).all();
+         WHERE status NOT IN ('complete','cancelled','closed')
+            OR (closed_at >= ?1 AND closed_at <= ?2)
+            OR (ts >= ?1 AND ts <= ?2)
+         ORDER BY ts DESC LIMIT 1000`
+      ).bind(startTs, endTs).all();
       const incidents = incR.results || [];
 
-      const respTimes = [];
       incidents.forEach(inc => {
-        const isOpen = !['complete','cancelled'].includes(inc.status);
-        const isToday = inc.ts >= todayStart;
-        const closedToday = inc.closed_at && inc.closed_at >= todayStart;
+        // 'closed' is a legacy/imported status — treat as not-open like 'complete'
+        const isOpen = !['complete','cancelled','closed'].includes(inc.status);
+        const closedInScope = inc.closed_at && inc.closed_at >= startTs && inc.closed_at <= endTs;
         const station = inc.station || 'UNK';
         const bs = result.dispatch.by_station[station] || (result.dispatch.by_station[station] = { open: 0, red_open: 0, in_transfer: 0, closed_today: 0 });
 
@@ -921,15 +951,15 @@ const ACTIONS = {
           if (inc.cardiac_arrest) result.dispatch.cardiac_open++;
           if (inc.status === 'transporting') { result.dispatch.in_transfer++; bs.in_transfer++; }
         }
-        if (closedToday) {
+        if (closedInScope) {
           result.dispatch.closed_today++;
           bs.closed_today++;
         }
       });
 
-      // Recent strip: last 20 from today
+      // Recent strip: last 20 in scope
       result.dispatch.recent = incidents
-        .filter(i => i.ts >= todayStart)
+        .filter(i => i.ts >= startTs && i.ts <= endTs)
         .slice(0, 20)
         .map(i => ({
           incident_id: i.incident_id,
@@ -960,9 +990,9 @@ const ACTIONS = {
       ).all();
       const pcrs = pcrR.results || [];
       result.pcr.total = pcrs.length;
-      const todayPcrs = pcrs.filter(p => p.ts >= todayStart);
-      result.pcr.today = todayPcrs.length;
-      todayPcrs.forEach(p => {
+      const inScope = pcrs.filter(p => p.ts >= startTs && p.ts <= endTs);
+      result.pcr.today = inScope.length;
+      inScope.forEach(p => {
         const ac = (p.triage_category || 'unspecified').toLowerCase();
         result.pcr.by_acuity[ac] = (result.pcr.by_acuity[ac] || 0) + 1;
         const dp = (p.disposition || 'unspecified').toLowerCase();
@@ -970,7 +1000,7 @@ const ACTIONS = {
         const cc = (p.chief_complaint || 'unspecified').toLowerCase();
         result.pcr.by_complaint[cc] = (result.pcr.by_complaint[cc] || 0) + 1;
       });
-      result.pcr.recent = todayPcrs.slice(0, 20).map(p => ({
+      result.pcr.recent = inScope.slice(0, 20).map(p => ({
         pcr_id: p.pcr_id,
         ts: new Date(p.ts * 1000).toISOString(),
         station: p.station,
@@ -1045,14 +1075,20 @@ const ACTIONS = {
   // ==================== WRITES ====================
 
   async dispatch_create(user, env, params) {
-    const station = (params.station || '').toUpperCase();
+    // Accept frontend legacy aliases (zone/category/case/case_field/unit) for backward compat with GAS-era forms
+    const stationRaw = params.station || params.zone || params.region || '';
+    const station = String(stationRaw).toUpperCase();
     if (!STATIONS.includes(station)) {
-      return { ok: false, error: 'invalid_station', station };
+      return { ok: false, error: 'invalid_station', station, hint: 'send station=ARF1|...|MIN3' };
     }
-    const triage = (params.triage || 'green').toLowerCase();
+    const triageRaw = params.triage || params.category || params.type || 'green';
+    const triage = String(triageRaw).toLowerCase();
     if (!['red','yellow','green','black'].includes(triage)) {
       return { ok: false, error: 'invalid_triage', triage };
     }
+    const complaint = params.complaint || params.case_field || params.case || params.chief_complaint || '';
+    const unitAssigned = params.unit_assigned || params.unit || null;
+    const subLocation = params.sub_location || params.location || '';
     // Generate incident_id: DSP-YYYYMMDD-NNNN (sequential per day)
     const now = Math.floor(Date.now() / 1000);
     const dateStr = new Date(now * 1000).toISOString().slice(0, 10).replace(/-/g, '');
@@ -1061,9 +1097,9 @@ const ACTIONS = {
     ).bind(`DSP-${dateStr}-%`).first();
     const seq = String((seqRow?.n || 0) + 1).padStart(4, '0');
     const incidentId = `DSP-${dateStr}-${seq}`;
-    const cardiacArrest = (params.cardiac_arrest === 'true' || params.cardiac_arrest === '1' || params.cardiac_arrest === 'yes') ? 1 : 0;
+    const cardiacArrest = (params.cardiac_arrest === 'true' || params.cardiac_arrest === '1' || params.cardiac_arrest === 'yes' || params.cardiac_arrest === true) ? 1 : 0;
     const patientCount = Math.max(1, parseInt(params.patient_count || '1', 10));
-    const status = params.unit_assigned ? 'on_scene' : 'pending';
+    const status = unitAssigned ? 'on_scene' : 'pending';
     try {
       await env.DB.prepare(
         `INSERT INTO dispatch_log
@@ -1072,12 +1108,12 @@ const ACTIONS = {
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`
       ).bind(
         incidentId, now, station,
-        params.sub_location || '',
+        subLocation,
         params.source || 'walk-in',
-        params.complaint || '',
+        complaint,
         triage,
         cardiacArrest,
-        params.unit_assigned || null,
+        unitAssigned,
         status,
         patientCount,
         params.notes || '',
@@ -1087,7 +1123,7 @@ const ACTIONS = {
       await env.DB.prepare(
         `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
          VALUES (?1, 'dispatch_create', 'incident', ?2, ?3)`
-      ).bind(user.nid, incidentId, JSON.stringify({ station, triage, status })).run();
+      ).bind(user.nid, incidentId, JSON.stringify({ station, triage, status, complaint, unit: unitAssigned })).run();
       return { ok: true, incident_id: incidentId, status, ts: now };
     } catch (e) {
       return { ok: false, error: 'insert_failed', detail: e.message };

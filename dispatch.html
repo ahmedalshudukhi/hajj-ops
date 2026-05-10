@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Dispatch · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.9">
+<link rel="stylesheet" href="assets/style.css?v=0.2.10">
 
 <style>
   body { background: var(--bg); }
@@ -283,12 +283,12 @@
 <div class="cards-area">
   <div class="section-label" id="dateLabel" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
     <span>Active &amp; recent</span>
-    <div class="date-toggle" style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:500;">
-      <button type="button" id="datePrev" title="Previous day" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); color:#e5e7eb; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:14px; line-height:1;">‹</button>
-      <input type="date" id="dateInput" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); color:#e5e7eb; padding:4px 8px; border-radius:6px; font-size:13px; color-scheme:dark;">
-      <button type="button" id="dateNext" title="Next day" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); color:#e5e7eb; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:14px; line-height:1;">›</button>
-      <button type="button" id="dateToday" title="Today" style="background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.4); color:#93c5fd; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">TODAY</button>
-    </div>
+    <div id="dateBarHost"></div>
+    <!-- Hidden legacy elements kept for any code that still references them -->
+    <input type="date" id="dateInput" style="display:none;">
+    <button type="button" id="datePrev" style="display:none;">‹</button>
+    <button type="button" id="dateNext" style="display:none;">›</button>
+    <button type="button" id="dateToday" style="display:none;">TODAY</button>
   </div>
   <div class="cards-grid" id="cards"></div>
   <div class="empty-cards" id="emptyState" hidden>No incidents on this day.</div>
@@ -301,11 +301,12 @@
   ⚠ <span id="repoBannerCount">0</span> reposition request<span id="repoBannerS">s</span> pending approval — click to review
 </div>
 
-<script src="assets/config.js?v=0.2.9"></script>
-<script src="assets/tempo.js?v=0.2.9"></script>
-<script src="assets/auth.js?v=0.2.9"></script>
-<script src="assets/sublocations.js?v=0.2.9"></script>
-<script src="assets/topbar.js?v=0.2.9"></script>
+<script src="assets/config.js?v=0.2.10"></script>
+<script src="assets/tempo.js?v=0.2.10"></script>
+<script src="assets/auth.js?v=0.2.10"></script>
+<script src="assets/sublocations.js?v=0.2.10"></script>
+<script src="assets/topbar.js?v=0.2.10"></script>
+<script src="assets/dateBar.js?v=0.2.10"></script>
 <script>
 (function () {
 
@@ -533,59 +534,35 @@
     return `${yyyy}-${mm}-${dd}`;
   }
   let _selectedDate = todayLocalISO();
-  function isToday() { return _selectedDate === todayLocalISO(); }
+  let _endDate = todayLocalISO();
+  let _isRange = false;
+  function isToday() { return !_isRange && _selectedDate === todayLocalISO(); }
 
-  // Wire date toggle UI
+  // Wire date bar (Hajj day quick-pick + range mode)
+  let _dateBar = null;
   function initDateToggle() {
-    const inp = document.getElementById('dateInput');
-    const prev = document.getElementById('datePrev');
-    const next = document.getElementById('dateNext');
-    const today = document.getElementById('dateToday');
-    if (!inp) return;
-    inp.value = _selectedDate;
-    inp.max = todayLocalISO();
-    inp.addEventListener('change', () => {
-      _selectedDate = inp.value || todayLocalISO();
-      // Clear current incidents when switching days
-      Object.keys(incidentsById).forEach(k => delete incidentsById[k]);
-      refresh();
-      updateDateUI();
-    });
-    function shiftDay(delta) {
-      const d = new Date(_selectedDate + 'T12:00:00');
-      d.setDate(d.getDate() + delta);
-      const yyyy = d.getFullYear(), mm = String(d.getMonth()+1).padStart(2,'0'), dd = String(d.getDate()).padStart(2,'0');
-      _selectedDate = `${yyyy}-${mm}-${dd}`;
-      inp.value = _selectedDate;
-      Object.keys(incidentsById).forEach(k => delete incidentsById[k]);
-      refresh();
-      updateDateUI();
-    }
-    prev.addEventListener('click', () => shiftDay(-1));
-    next.addEventListener('click', () => shiftDay(1));
-    today.addEventListener('click', () => {
-      _selectedDate = todayLocalISO();
-      inp.value = _selectedDate;
-      Object.keys(incidentsById).forEach(k => delete incidentsById[k]);
-      refresh();
-      updateDateUI();
+    const host = document.getElementById('dateBarHost');
+    if (!host || !window.HAJJ_DATE_BAR) return;
+    _dateBar = window.HAJJ_DATE_BAR.build(host, {
+      onChange: function (scope) {
+        _selectedDate = scope.start_date;
+        _endDate      = scope.end_date;
+        _isRange      = scope.range;
+        // Clear current incidents when switching scope
+        Object.keys(incidentsById).forEach(k => delete incidentsById[k]);
+        refresh();
+        updateDateUI();
+      }
     });
     updateDateUI();
   }
   function updateDateUI() {
-    const today = document.getElementById('dateToday');
-    const next = document.getElementById('dateNext');
-    if (today) today.style.opacity = isToday() ? '0.5' : '1';
-    if (next) next.disabled = isToday();
-    if (next) next.style.opacity = isToday() ? '0.4' : '1';
-    // Update create form visibility — can't create incidents in the past
-    const createPanel = document.querySelector('.create-panel') || document.getElementById('createBtn')?.closest('.dispatch-card, .panel, div');
-    // Don't hide; instead disable/warn
+    // Update create form visibility — can't create incidents in the past or in range mode
     const btn = document.getElementById('createBtn');
     if (btn) {
       if (!isToday()) {
         btn.disabled = true;
-        btn.title = 'Viewing historical day — switch to TODAY to dispatch';
+        btn.title = _isRange ? 'Viewing date range — switch to TODAY to dispatch' : 'Viewing historical day — switch to TODAY to dispatch';
         btn.style.opacity = '0.4';
       } else {
         btn.disabled = false;
@@ -597,12 +574,16 @@
     if (sync) {
       sync.textContent = isToday()
         ? 'Live · syncing every 5s'
-        : `Viewing ${_selectedDate} (read-only)`;
+        : (_isRange
+            ? `Viewing ${_selectedDate} → ${_endDate} (read-only)`
+            : `Viewing ${_selectedDate} (read-only)`);
     }
   }
 
   async function refresh() {
-    const params = { date: _selectedDate, with_days: '1' };
+    const params = _isRange
+      ? { start_date: _selectedDate, end_date: _endDate }
+      : { date: _selectedDate, with_days: '1' };
     const r = await HAJJ.authedCall('dispatch_list', params);
     if (!r || !r.ok) return;
     const list = r.incidents || [];
@@ -1105,6 +1086,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.9"></script>
+<script src="assets/version.js?v=0.2.10"></script>
 </body>
 </html>

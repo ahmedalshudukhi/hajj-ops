@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Active Insights · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.9">
+<link rel="stylesheet" href="assets/style.css?v=0.2.10">
 
 <style>
   body { background: var(--bg); }
@@ -257,10 +257,9 @@
         <span class="meta" id="filterMeta">today · all movements</span>
       </div>
       <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
-        <div style="display:flex; flex-direction:column; gap:2px;">
-          <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-muted, #9ca3af);">Date</label>
-          <input type="date" id="filterDate" min="2026-05-01" max="2026-06-09" value="" style="padding:6px 10px; background:rgba(255,255,255,0.05); border:1px solid var(--border, #1f2937); border-radius:6px; color:#e5e7eb; font-size:13px;">
-        </div>
+        <div id="dateBarHost" style="flex:1 1 100%;"></div>
+        <!-- Legacy filterDate kept for any referencing code -->
+        <input type="date" id="filterDate" min="2026-05-01" max="2026-06-12" value="" style="display:none;">
         <div style="display:flex; flex-direction:column; gap:2px;">
           <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-muted, #9ca3af);">Movement</label>
           <select id="filterMovement" style="padding:6px 10px; background:rgba(255,255,255,0.05); border:1px solid var(--border, #1f2937); border-radius:6px; color:#e5e7eb; font-size:13px;">
@@ -358,10 +357,11 @@
 
 </div>
 
-<script src="assets/config.js?v=0.2.9"></script>
-<script src="assets/tempo.js?v=0.2.9"></script>
-<script src="assets/auth.js?v=0.2.9"></script>
-<script src="assets/topbar.js?v=0.2.9"></script>
+<script src="assets/config.js?v=0.2.10"></script>
+<script src="assets/tempo.js?v=0.2.10"></script>
+<script src="assets/auth.js?v=0.2.10"></script>
+<script src="assets/topbar.js?v=0.2.10"></script>
+<script src="assets/dateBar.js?v=0.2.10"></script>
 <script>
 (function () {
 
@@ -411,9 +411,13 @@
   scheduleNextRefresh();
 
   async function refresh() {
+    // Build scope params from dateBar (default: today only)
+    const scopeParams = _isRange
+      ? { start_date: _selectedDate, end_date: _endDate }
+      : (_selectedDate ? { date: _selectedDate } : {});
     // Fire all data calls in PARALLEL so first paint happens at fastest endpoint
     const [summary, augs, roster, units, avail] = await Promise.all([
-      HAJJ.authedCallSWR('active_summary'),
+      HAJJ.authedCallSWR('active_summary', scopeParams),
       HAJJ.authedCallSWR('augmentations'),
       HAJJ.authedCallSWR('roster_fill'),
       HAJJ.authedCallSWR('unit_positions'),
@@ -832,6 +836,8 @@
   // ===== Filter strip =====
   let _allAugRows = [];
   let _selectedDate = '';
+  let _endDate = '';
+  let _isRange = false;
   let _selectedMovement = '';
 
   function dhDayFromDate(yyyy_mm_dd) {
@@ -903,16 +909,26 @@
     _origRenderAug(r);
   };
 
-  // Wire filter inputs
+  // Wire filter inputs — use shared dateBar component
   setTimeout(function() {
-    const dateInp = document.getElementById('filterDate');
+    const host = document.getElementById('dateBarHost');
+    if (host && window.HAJJ_DATE_BAR) {
+      window.HAJJ_DATE_BAR.build(host, {
+        onChange: function (scope) {
+          _selectedDate = scope.start_date;
+          _endDate      = scope.end_date;
+          _isRange      = scope.range;
+          // Re-fetch active_summary with new scope (SWR cache key changes per params)
+          refresh();
+          applyFilters();
+        }
+      });
+    }
     const movSel  = document.getElementById('filterMovement');
     const reset   = document.getElementById('filterReset');
-    if (dateInp) dateInp.addEventListener('change', function() { _selectedDate = this.value; applyFilters(); });
     if (movSel) movSel.addEventListener('change', function() { _selectedMovement = this.value; applyFilters(); });
     if (reset) reset.addEventListener('click', function() {
-      _selectedDate = ''; _selectedMovement = '';
-      if (dateInp) dateInp.value = '';
+      _selectedDate = ''; _endDate = ''; _isRange = false; _selectedMovement = '';
       if (movSel) movSel.value = '';
       applyFilters();
     });
@@ -1022,6 +1038,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.9"></script>
+<script src="assets/version.js?v=0.2.10"></script>
 </body>
 </html>
