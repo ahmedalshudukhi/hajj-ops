@@ -1012,6 +1012,27 @@ const ACTIONS = {
       result.pcr._err = String(e.message);
     }
 
+    // 2b. Fallback: if PCRs are empty, aggregate complaints from dispatch_log so the panel isn't blank.
+    //     Frontend reads pcr.top_complaints. We always populate it.
+    if (Object.keys(result.pcr.by_complaint).length === 0) {
+      const dispatchComplaints = {};
+      try {
+        const r2 = await env.DB.prepare(
+          `SELECT complaint, COUNT(*) AS n FROM dispatch_log
+           WHERE complaint IS NOT NULL AND complaint != ''
+             AND ts >= ?1 AND ts <= ?2
+           GROUP BY complaint ORDER BY n DESC LIMIT 10`
+        ).bind(startTs, endTs).all();
+        (r2.results || []).forEach(row => { dispatchComplaints[row.complaint.toLowerCase()] = row.n; });
+      } catch (_) {}
+      result.pcr.by_complaint = dispatchComplaints;
+      result.pcr._fallback_source = 'dispatch_log';
+    }
+    result.pcr.top_complaints = Object.entries(result.pcr.by_complaint)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([complaint, count]) => ({ complaint, count }));
+
     // 3. Station status (use existing handler)
     try {
       const stationsResult = await ACTIONS.station_status_list(user, env, params, dj);
@@ -1081,7 +1102,7 @@ const ACTIONS = {
     if (!STATIONS.includes(station)) {
       return { ok: false, error: 'invalid_station', station, hint: 'send station=ARF1|...|MIN3' };
     }
-    const triageRaw = params.triage || params.category || params.type || 'green';
+    const triageRaw = params.triage || params.category || 'green';  // NOTE: NOT params.type — that's UNIT type
     const triage = String(triageRaw).toLowerCase();
     if (!['red','yellow','green','black'].includes(triage)) {
       return { ok: false, error: 'invalid_triage', triage };

@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SV · HMG Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.10">
-<script src="assets/config.js?v=0.2.10"></script>
-<script src="assets/tempo.js?v=0.2.10"></script>
-<script src="assets/auth.js?v=0.2.10"></script>
-<script src="assets/sublocations.js?v=0.2.10"></script>
-<script src="assets/topbar.js?v=0.2.10"></script>
+<link rel="stylesheet" href="assets/style.css?v=0.2.11">
+<script src="assets/config.js?v=0.2.11"></script>
+<script src="assets/tempo.js?v=0.2.11"></script>
+<script src="assets/auth.js?v=0.2.11"></script>
+<script src="assets/sublocations.js?v=0.2.11"></script>
+<script src="assets/topbar.js?v=0.2.11"></script>
 <style>
   .sv-wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
   .sv-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
@@ -423,7 +423,7 @@
           alert('Approve failed: ' + ((r && r.error) || 'unknown'));
           return;
         }
-        loadRepositions();
+        loadReposition();
       });
     });
     pBody.querySelectorAll('.btn-reject').forEach(function(btn) {
@@ -438,7 +438,7 @@
           alert('Reject failed: ' + ((r && r.error) || 'unknown'));
           return;
         }
-        loadRepositions();
+        loadReposition();
       });
     });
 
@@ -475,21 +475,8 @@
     } else {
       loadStationStatus();
     }
-    if (dash && dash.repositions && dash.repositions.ok) {
-      const r = dash.repositions;
-      const pBody = document.getElementById('pendingBody');
-      const rBody = document.getElementById('recentBody');
-      const pending = (r.pending || []).filter(function(p) { return !allowedStations || isAllowed(p.From_Station) || isAllowed(p.To_Station); });
-      const recent = (r.recent || []).filter(function(p) { return !allowedStations || isAllowed(p.From_Station) || isAllowed(p.To_Station); });
-      pBody.innerHTML = pending.length ? pending.map(function(pp) {
-        return '<tr><td><span class="reposition-status pending">pending</span></td><td>' + fmtTime(pp.Created_At) + '</td><td>' + esc(pp.Unit_Code || '') + '</td><td>' + esc(pp.From_Station || '?') + ' → ' + esc(pp.To_Station || '?') + '</td><td>' + esc(pp.Requested_By_NID || '') + '</td><td>' + esc(pp.Reason || '—') + '</td></tr>';
-      }).join('') : '<tr><td colspan="6" class="empty-state">No pending requests.</td></tr>';
-      rBody.innerHTML = recent.length ? recent.slice(-30).reverse().map(function(pp) {
-        return '<tr><td><span class="reposition-status ' + esc(pp.Status) + '">' + esc(pp.Status || '') + '</span></td><td>' + fmtTime(pp.Timestamp) + '</td><td>' + esc(pp.Unit_Code || '') + '</td><td>' + esc(pp.From_Station || '?') + ' → ' + esc(pp.To_Station || '?') + '</td><td>' + esc(pp.Operator_NID || '—') + '</td></tr>';
-      }).join('') : '<tr><td colspan="5" class="empty-state">No recent.</td></tr>';
-    } else {
-      loadReposition();
-    }
+    // ALWAYS call loadReposition — it has the Approve/Reject buttons (the inline mega render did not).
+    loadReposition();
     if (dash && dash.units && dash.units.ok && dash.units.units) {
       // Populate unit dropdown for reposition
       const sel = document.getElementById('repUnit');
@@ -668,6 +655,6 @@
   </div>
 </div>
 
-<script src="assets/version.js?v=0.2.10"></script>
+<script src="assets/version.js?v=0.2.11"></script>
 </body>
 </html>
