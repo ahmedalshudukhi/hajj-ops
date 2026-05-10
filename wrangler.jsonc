@@ -1,20 +1,34 @@
+/**
+ * Cloudflare Workers config for the testing deployment (testhajj.shuki.tech).
+ * The main branch (hajj.shuki.tech / production) uses Pages auto-detection
+ * and does NOT need this file — only testing branch.
+ */
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "hajj-ops",
+  "name": "hajj-ops-test",
   "main": "_worker.js",
   "compatibility_date": "2026-05-06",
   "compatibility_flags": ["nodejs_compat"],
-  "observability": { "enabled": true },
+
+  // Serve static HTML/CSS/JS from repo root.
+  // Worker handles /api/* and non-matching paths fall through to ASSETS.
   "assets": {
-    "directory": ".",
+    "directory": "./",
     "binding": "ASSETS",
     "not_found_handling": "404-page"
   },
+
+  // D1 database binding — same database as production.
+  // Both projects read/write the same data; that's intentional.
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "hajj_cad",
       "database_id": "ce392cb3-6a88-4602-bfa6-ea6d1cd6ea39"
     }
-  ]
+  ],
+
+  // Logs in dashboard
+  "observability": {
+    "enabled": true
+  }
 }
