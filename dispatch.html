@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Dispatch · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.24">
+<link rel="stylesheet" href="assets/style.css?v=0.2.25">
 
 <style>
   body { background: var(--bg); }
@@ -301,12 +301,12 @@
   ⚠ <span id="repoBannerCount">0</span> reposition request<span id="repoBannerS">s</span> pending approval — click to review
 </div>
 
-<script src="assets/config.js?v=0.2.24"></script>
-<script src="assets/tempo.js?v=0.2.24"></script>
-<script src="assets/auth.js?v=0.2.24"></script>
-<script src="assets/sublocations.js?v=0.2.24"></script>
-<script src="assets/topbar.js?v=0.2.24"></script>
-<script src="assets/dateBar.js?v=0.2.24"></script>
+<script src="assets/config.js?v=0.2.25"></script>
+<script src="assets/tempo.js?v=0.2.25"></script>
+<script src="assets/auth.js?v=0.2.25"></script>
+<script src="assets/sublocations.js?v=0.2.25"></script>
+<script src="assets/topbar.js?v=0.2.25"></script>
+<script src="assets/dateBar.js?v=0.2.25"></script>
 <script>
 (function () {
 
@@ -1167,9 +1167,46 @@
     setTimeout(updateHint, 200);
   })();
 
+  // === SMART UNIT SUGGEST ===
+  (function wireSuggest() {
+    const btn = document.getElementById('btnSuggestUnit');
+    const out = document.getElementById('unitSuggestions');
+    const unitEl = document.getElementById('unit');
+    const zoneEl = document.getElementById('zone');
+    const triageEl = document.getElementById('category');
+    if (!btn || !out || !unitEl || !zoneEl) return;
+    btn.addEventListener('click', async () => {
+      const station = zoneEl.value;
+      if (!station) { out.innerHTML = '<span style="color:#fca5a5;">Pick a station first</span>'; return; }
+      out.innerHTML = '<span style="color:#94a3b8;">⏳ Computing best unit…</span>';
+      const triage = triageEl ? triageEl.value : '';
+      const r = await HAJJ.authedCall('unit_suggest', { station, triage });
+      if (!r || !r.ok || !r.suggestions || !r.suggestions.length) {
+        out.innerHTML = '<span style="color:#fca5a5;">No suggestions available</span>';
+        return;
+      }
+      // Render top 3 with reasoning, top one auto-fills the dropdown
+      const top = r.suggestions[0];
+      // Try to set the dropdown
+      let found = false;
+      for (let i = 0; i < unitEl.options.length; i++) {
+        if (unitEl.options[i].value === top.unit_code) { unitEl.selectedIndex = i; found = true; break; }
+      }
+      const top3 = r.suggestions.slice(0, 3).map((s, i) => {
+        const me = (i === 0 ? '✓ ' : '');
+        const status = s.on_incident ? 'on incident' : (s.status || 'available');
+        const color = s.score >= 100 ? '#86efac' : s.score >= 40 ? '#fcd34d' : '#fca5a5';
+        return `<div style="margin-top:3px;"><span style="color:${color}; font-weight:600;">${me}${s.unit_code}</span> <span style="color:#6b7d9e;">(${s.home_station} · ${status} · ${s.score}pts)</span></div>`;
+      }).join('');
+      out.innerHTML = `<div style="color:#86efac; margin-bottom:4px;">→ <strong>${top.unit_code}</strong> auto-selected${found ? '' : ' (not in current dropdown — fix backend)'}</div>${top3}`;
+      // Trigger change event
+      unitEl.dispatchEvent(new Event('change'));
+    });
+  })();
+
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.24"></script>
+<script src="assets/version.js?v=0.2.25"></script>
 </body>
 </html>

@@ -164,4 +164,79 @@
     renderTileGrid: renderTileGrid,
     pagesForRole: pagesForRole
   };
+
+  // === GLOBAL MCI + BROADCAST OVERLAY (rendered on every authed page) ===
+  async function _initOverlay() {
+    if (!window.HAJJ || !window.HAJJ.authedCall) return;
+    if (document.getElementById('cadGlobalOverlay')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'cadGlobalOverlay';
+    overlay.innerHTML = `
+      <div id="cadMciBanner" style="display:none; background:linear-gradient(90deg,#ef4444,#b91c1c,#ef4444); background-size:200% 100%; color:#fff; padding:8px 18px; text-align:center; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; font-size:13px; animation:cad-mci-stripes 4s linear infinite;"></div>
+      <div id="cadBroadcastBar" style="display:none;"></div>
+      <style>
+        @keyframes cad-mci-stripes { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
+        #cadBroadcastBar .bcast { padding:8px 14px; display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:12px; }
+        #cadBroadcastBar .bcast.info { background: rgba(59,130,246,0.13); color:#bfdbfe; border-bottom:1px solid rgba(59,130,246,0.3); }
+        #cadBroadcastBar .bcast.warn { background: rgba(245,158,11,0.13); color:#fde68a; border-bottom:1px solid rgba(245,158,11,0.3); }
+        #cadBroadcastBar .bcast.critical { background: rgba(239,68,68,0.18); color:#fecaca; border-bottom:1px solid rgba(239,68,68,0.4); font-weight:600; }
+        #cadBroadcastBar .bcast button { background:rgba(255,255,255,0.15); color:inherit; border:1px solid rgba(255,255,255,0.25); padding:3px 9px; border-radius:5px; font-size:11px; cursor:pointer; }
+      </style>
+    `;
+    document.body.insertBefore(overlay, document.body.firstChild);
+
+    async function refresh() {
+      try {
+        const [mciR, bcR] = await Promise.all([
+          HAJJ.authedCall('mci_status', {}),
+          HAJJ.authedCall('broadcast_list', { since: Math.floor(Date.now()/1000) - 7200 })
+        ]);
+        // MCI
+        const mciEl = document.getElementById('cadMciBanner');
+        if (mciR && mciR.ok && mciR.mci && mciR.mci.active) {
+          const m = mciR.mci;
+          mciEl.style.display = 'block';
+          mciEl.textContent = `⚠ MCI ${(m.level || '').replace('level_','Level ')} ACTIVE — ${m.reason || 'No reason'} — Declared by ${m.declared_by_name || '?'}`;
+        } else {
+          mciEl.style.display = 'none';
+        }
+        // Broadcasts (last 2hrs, hide if acked)
+        const bcEl = document.getElementById('cadBroadcastBar');
+        const list = (bcR && bcR.ok && bcR.broadcasts) ? bcR.broadcasts.filter(b => !b.acked) : [];
+        if (list.length === 0) { bcEl.style.display = 'none'; bcEl.innerHTML = ''; return; }
+        bcEl.style.display = 'block';
+        bcEl.innerHTML = list.slice(0, 3).map(b => {
+          const t = new Date((b.ts || 0) * 1000);
+          const time = String(t.getHours()).padStart(2,'0') + ':' + String(t.getMinutes()).padStart(2,'0');
+          return `<div class="bcast ${b.level || 'info'}">
+            <div><strong>${b.sender_name || 'OCC'}</strong> @ ${time} · ${escapeHtml(b.text || '')}</div>
+            <button onclick="window.cadAckBroadcast('${b.id}', this)">Acknowledge</button>
+          </div>`;
+        }).join('');
+      } catch (_) {}
+    }
+    function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    window.cadAckBroadcast = async function(id, btn) {
+      btn.disabled = true; btn.textContent = '⏳';
+      const r = await HAJJ.authedCall('broadcast_ack', { id });
+      if (r && r.ok) {
+        // Hide just this one
+        btn.parentElement.parentElement.style.display = 'none';
+      } else {
+        btn.disabled = false; btn.textContent = 'Acknowledge';
+        alert('Ack failed: ' + ((r && r.error) || 'unknown'));
+      }
+    };
+    refresh();
+    setInterval(refresh, 15000);  // 15s refresh on overlay
+  }
+
+  // Auto-init when topbar renders
+  const _origRender = CADTopbar.render;
+  CADTopbar.render = function(opts) {
+    _origRender.call(this, opts);
+    setTimeout(_initOverlay, 200);  // after topbar paints
+  };
+
+
 })();
