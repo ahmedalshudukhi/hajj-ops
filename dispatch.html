@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Dispatch · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.7">
+<link rel="stylesheet" href="assets/style.css?v=0.2.8">
 
 <style>
   body { background: var(--bg); }
@@ -296,11 +296,11 @@
 
 <div class="floater"><span class="dot"></span><span id="syncStatus">Live · syncing every 5s</span></div>
 
-<script src="assets/config.js?v=0.2.7"></script>
-<script src="assets/tempo.js?v=0.2.7"></script>
-<script src="assets/auth.js?v=0.2.7"></script>
-<script src="assets/sublocations.js?v=0.2.7"></script>
-<script src="assets/topbar.js?v=0.2.7"></script>
+<script src="assets/config.js?v=0.2.8"></script>
+<script src="assets/tempo.js?v=0.2.8"></script>
+<script src="assets/auth.js?v=0.2.8"></script>
+<script src="assets/sublocations.js?v=0.2.8"></script>
+<script src="assets/topbar.js?v=0.2.8"></script>
 <script>
 (function () {
 
@@ -324,19 +324,23 @@
       }
     } catch (_) {}
 
-    const dash = await HAJJ.authedCallSWR('dashboard_dispatch'); const r = (dash && dash.units) || { ok:false };
-    if (!r || !r.ok) {
-      // Fallback to plain units_list
+    // Call unit_availability directly — simpler shape, no dashboard wrapper layer.
+    const r = await HAJJ.authedCallSWR('unit_availability');
+    if (!r || !r.ok || !Array.isArray(r.units)) {
+      // Last-ditch fallback to units_list
       const r2 = await HAJJ.authedCall('units_list');
       if (r2 && r2.ok && Array.isArray(r2.units)) {
-        renderAvail({ units: r2.units.map(function(u) { return Object.assign({state:'unknown', open_incidents:0}, u); }), summary:{} });
+        renderAvail({ units: r2.units.map(function(u) {
+          return Object.assign({state: 'unknown', open_incidents: 0, code: u.code || u.id || ''}, u);
+        }), summary: {} });
       } else {
-        sel.innerHTML = '<option value="">(units unavailable — redeploy backend?)</option>';
+        sel.innerHTML = '<option value="">(units unavailable — check console)</option>';
+        console.error('[dispatch] Failed to load units:', { unit_availability: r, units_list: r2 });
       }
       return;
     }
-    if (!r.units || !r.units.length) {
-      sel.innerHTML = '<option value="">(no units in Mob Sheet → Units tab)</option>';
+    if (!r.units.length) {
+      sel.innerHTML = '<option value="">(no units in system)</option>';
       return;
     }
     try { localStorage.setItem('hajj_units_avail_cache', JSON.stringify(r)); } catch (_) {}
@@ -740,7 +744,17 @@
       +       (inc.Unit || '—') + (inc.Type ? ' · ' + inc.Type : '')
       +     '</div>'
       +   '</div>'
-      +   '<div class="timer" data-start="' + startMs + '">⏱ 0:00</div>'
+      +   '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">'
+      +     '<div class="timer" data-start="' + startMs + '">⏱ 0:00</div>'
+      +     '<div style="display:flex; gap:4px;">'
+      +       '<button class="btn-edit-card" data-incident-id="' + (inc.Incident_ID || '') + '" '
+      +         'style="background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.3); color:#93c5fd; padding:2px 7px; border-radius:4px; cursor:pointer; font-size:10px;" '
+      +         'title="Edit incident fields">✎ Edit</button>'
+      +       '<button class="btn-audit-card" data-incident-id="' + (inc.Incident_ID || '') + '" '
+      +         'style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); color:#9ca3af; padding:2px 7px; border-radius:4px; cursor:pointer; font-size:10px;" '
+      +         'title="Show audit trail">⟲ Trail</button>'
+      +     '</div>'
+      +   '</div>'
       + '</div>'
       + '<dl class="inc-meta">'
       +   '<dt>Category</dt><dd>' + (inc.Category || '—') + '</dd>'
@@ -773,8 +787,143 @@
     card.querySelectorAll('[data-transfer]').forEach(btn => {
       btn.addEventListener('click', () => recordEvent(inc.Incident_ID, 'transfer_start'));
     });
+    // Edit button on each card (works for both open and closed incidents)
+    const editBtn = card.querySelector('.btn-edit-card');
+    if (editBtn) editBtn.addEventListener('click', () => openEditModal(inc));
+    // Audit trail button
+    const auditBtn = card.querySelector('.btn-audit-card');
+    if (auditBtn) auditBtn.addEventListener('click', () => openAuditModal(inc.Incident_ID));
 
     return card;
+  }
+
+  // ============ EDIT INCIDENT MODAL ============
+  function openEditModal(inc) {
+    const existing = document.getElementById('editModal');
+    if (existing) existing.remove();
+    const modal = document.createElement('div');
+    modal.id = 'editModal';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:9999; display:flex; align-items:center; justify-content:center;';
+    modal.innerHTML = `
+      <div style="background:#0f172a; border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:20px; width:480px; max-height:90vh; overflow-y:auto;">
+        <h3 style="margin:0 0 14px; color:#e5e7eb;">Edit incident · <span style="color:#9ca3af; font-family:ui-monospace,monospace; font-size:13px;">${inc.Incident_ID}</span></h3>
+        <div style="display:grid; gap:10px;">
+          <label style="font-size:12px; color:#9ca3af;">Station
+            <select id="edStation" style="width:100%; margin-top:3px; padding:6px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:4px; color:#e5e7eb;">
+              ${['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'].map(s => `<option value="${s}" ${(inc.Station||inc.Zone)===s?'selected':''}>${s}</option>`).join('')}
+            </select>
+          </label>
+          <label style="font-size:12px; color:#9ca3af;">Triage
+            <select id="edTriage" style="width:100%; margin-top:3px; padding:6px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:4px; color:#e5e7eb;">
+              ${['red','yellow','green','black'].map(t => `<option value="${t}" ${(inc.Category||'').toLowerCase()===t?'selected':''}>${t.toUpperCase()}</option>`).join('')}
+            </select>
+          </label>
+          <label style="font-size:12px; color:#9ca3af;">Status
+            <select id="edStatus" style="width:100%; margin-top:3px; padding:6px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:4px; color:#e5e7eb;">
+              ${['pending','on_scene','transporting','complete','cancelled'].map(s => `<option value="${s}" ${(inc.Status||'').toLowerCase()===s?'selected':''}>${s}</option>`).join('')}
+            </select>
+          </label>
+          <label style="font-size:12px; color:#9ca3af;">Unit assigned
+            <input type="text" id="edUnit" value="${(inc.Unit || '').replace(/"/g, '&quot;')}" style="width:100%; margin-top:3px; padding:6px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:4px; color:#e5e7eb;">
+          </label>
+          <label style="font-size:12px; color:#9ca3af;">Chief complaint
+            <input type="text" id="edComplaint" value="${(inc.Case || inc.Chief_Complaint || '').replace(/"/g, '&quot;')}" style="width:100%; margin-top:3px; padding:6px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:4px; color:#e5e7eb;">
+          </label>
+          <label style="font-size:12px; color:#9ca3af;">Patient count
+            <input type="number" id="edPC" value="${inc.Patient_Count || 1}" min="1" style="width:100%; margin-top:3px; padding:6px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:4px; color:#e5e7eb;">
+          </label>
+          <label style="font-size:12px; color:#9ca3af;">Notes (will be appended)
+            <textarea id="edNotes" rows="2" placeholder="Reason for edit, additional info..." style="width:100%; margin-top:3px; padding:6px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:4px; color:#e5e7eb; font-family:inherit; resize:vertical;"></textarea>
+          </label>
+          <div id="edMsg" style="font-size:12px; min-height:16px;"></div>
+          <div style="display:flex; gap:8px; justify-content:flex-end;">
+            <button id="edCancel" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); color:#9ca3af; padding:7px 14px; border-radius:4px; cursor:pointer;">Cancel</button>
+            <button id="edSave" style="background:#3b82f6; border:none; color:white; padding:7px 14px; border-radius:4px; cursor:pointer; font-weight:600;">Save changes</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    document.getElementById('edCancel').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    document.getElementById('edSave').addEventListener('click', async () => {
+      const msgEl = document.getElementById('edMsg');
+      const saveBtn = document.getElementById('edSave');
+      saveBtn.disabled = true; saveBtn.textContent = 'Saving...';
+      const params = {
+        incident_id: inc.Incident_ID,
+        station: document.getElementById('edStation').value,
+        triage: document.getElementById('edTriage').value,
+        status: document.getElementById('edStatus').value,
+        unit_assigned: document.getElementById('edUnit').value,
+        complaint: document.getElementById('edComplaint').value,
+        patient_count: document.getElementById('edPC').value,
+        notes: document.getElementById('edNotes').value
+      };
+      const r = await HAJJ.authedCall('dispatch_edit', params);
+      if (!r || !r.ok) {
+        msgEl.style.color = '#fca5a5';
+        msgEl.textContent = 'Failed: ' + ((r && r.error) || 'unknown') + (r && r.detail ? ' (' + r.detail + ')' : '');
+        saveBtn.disabled = false; saveBtn.textContent = 'Save changes';
+        return;
+      }
+      msgEl.style.color = '#86efac';
+      const changeCount = Object.keys(r.changes || {}).length;
+      msgEl.textContent = '✓ Saved · ' + changeCount + ' field' + (changeCount === 1 ? '' : 's') + ' changed';
+      // Optimistically update local state
+      Object.assign(inc, {
+        Station: params.station, Zone: params.station,
+        Category: params.triage, Status: params.status,
+        Unit: params.unit_assigned, Case: params.complaint,
+        Patient_Count: params.patient_count
+      });
+      incidentsById[inc.Incident_ID] = inc;
+      renderCards();
+      renderStats();
+      setTimeout(() => modal.remove(), 700);
+    });
+  }
+
+  // ============ AUDIT TRAIL MODAL ============
+  async function openAuditModal(incidentId) {
+    const existing = document.getElementById('auditModal');
+    if (existing) existing.remove();
+    const modal = document.createElement('div');
+    modal.id = 'auditModal';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:9999; display:flex; align-items:center; justify-content:center;';
+    modal.innerHTML = `
+      <div style="background:#0f172a; border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:20px; width:560px; max-height:80vh; overflow-y:auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+          <h3 style="margin:0; color:#e5e7eb;">Audit trail · <span style="color:#9ca3af; font-family:ui-monospace,monospace; font-size:13px;">${incidentId}</span></h3>
+          <button id="auditClose" style="background:transparent; border:none; color:#9ca3af; font-size:20px; cursor:pointer;">×</button>
+        </div>
+        <div id="auditBody" style="font-size:12px; color:#9ca3af;">Loading…</div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    document.getElementById('auditClose').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    const r = await HAJJ.authedCall('incident_audit_trail', { incident_id: incidentId });
+    const body = document.getElementById('auditBody');
+    if (!r || !r.ok) { body.textContent = 'Failed to load audit trail.'; return; }
+    if (!r.entries || !r.entries.length) { body.textContent = 'No audit entries yet.'; return; }
+    body.innerHTML = r.entries.map(e => {
+      const t = new Date(e.ts).toLocaleString('en-GB', { hour12: false });
+      let detail = '';
+      if (e.action === 'dispatch_edit' && e.details && e.details.changes) {
+        const changes = e.details.changes;
+        detail = '<div style="margin-top:4px; padding-left:12px; font-size:11px;">' +
+          Object.keys(changes).map(k =>
+            `<div><span style="color:#6b7280;">${k}:</span> <span style="color:#fca5a5; text-decoration:line-through;">${changes[k].from || '∅'}</span> → <span style="color:#86efac;">${changes[k].to}</span></div>`
+          ).join('') + '</div>';
+      } else if (e.details) {
+        detail = '<div style="margin-top:4px; padding-left:12px; font-size:11px; color:#6b7280;">' + JSON.stringify(e.details).slice(0, 200) + '</div>';
+      }
+      return '<div style="border-left:2px solid rgba(59,130,246,0.4); padding:6px 10px; margin-bottom:6px; background:rgba(255,255,255,0.02);">'
+        + '<div><strong style="color:#e5e7eb;">' + e.action + '</strong> · <span style="color:#6b7280;">' + t + '</span> · <span style="color:#93c5fd;">' + (e.actor_name || e.actor_nid) + '</span></div>'
+        + detail
+        + '</div>';
+    }).join('');
   }
 
   function buildPcrButton(inc) {
@@ -930,6 +1079,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.7"></script>
+<script src="assets/version.js?v=0.2.8"></script>
 </body>
 </html>

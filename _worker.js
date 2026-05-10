@@ -358,9 +358,13 @@ const ROLE_GATE = {
   dispatch_create: ['dispatcher','leadership','admin'],
   dispatch_event: ['dispatcher','leadership','admin'],
   dispatch_close: ['dispatcher','leadership','admin'],
+  dispatch_edit: ['dispatcher','leadership','admin'],
+  incident_audit_trail: ['dispatcher','cluster_supervisor','leadership','admin'],
   station_status_set: ['cluster_supervisor','leadership','admin'],
   unit_status_set: ['cluster_supervisor','dispatcher','leadership','admin'],
   reposition_request: ['cluster_supervisor','dispatcher','leadership','admin'],
+  reposition_approve: ['cluster_supervisor','leadership','admin'],
+  reposition_reject: ['cluster_supervisor','leadership','admin'],
 };
 
 // Actions that need data.json loaded (cached in module scope after first call)
@@ -1155,8 +1159,10 @@ const ACTIONS = {
     const station = (params.station || '').toUpperCase();
     if (!STATIONS.includes(station)) return { ok: false, error: 'invalid_station', station };
     const status = (params.status || '').toLowerCase();
-    if (!['open','closed','degraded','surge','offline'].includes(status)) {
-      return { ok: false, error: 'invalid_status', status, valid: ['open','closed','degraded','surge','offline'] };
+    // Accept both color (red/yellow/green/black) and operational (open/closed/degraded/surge/offline) vocabularies.
+    const VALID_STATUSES = ['red','yellow','green','black','open','closed','degraded','surge','offline'];
+    if (!VALID_STATUSES.includes(status)) {
+      return { ok: false, error: 'invalid_status', status, valid: VALID_STATUSES };
     }
     // Cluster_supervisor can only set their own cluster
     if (user.role === 'cluster_supervisor' && user.cluster) {
@@ -1235,6 +1241,183 @@ const ACTIONS = {
       next_cron: 'pending',
       schema_version: '1.1'
     };
+  },
+
+  // ==================== REPOSITION APPROVE / REJECT ====================
+
+  async reposition_approve(user, env, params) {
+    const id = parseInt(params.id, 10);
+    if (!id) return { ok: false, error: 'missing_id' };
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      const row = await env.DB.prepare(
+        `SELECT * FROM reposition_log WHERE id = ?1`
+      ).bind(id).first();
+      if (!row) return { ok: false, error: 'not_found', id };
+      if (row.status !== 'requested') return { ok: false, error: 'already_processed', current_status: row.status };
+
+      // Cluster supervisor can only approve repositions touching their cluster
+      if (user.role === 'cluster_supervisor' && user.cluster) {
+        const clusterStations = CLUSTER_STATIONS[user.cluster.toLowerCase()] || [];
+        if (!clusterStations.includes(row.from_station) && !clusterStations.includes(row.to_station)) {
+          return { ok: false, error: 'cross_cluster_forbidden' };
+        }
+      }
+
+      await env.DB.prepare(
+        `UPDATE reposition_log SET status = 'approved', completed_at = ?1, completed_by_nid = ?2 WHERE id = ?3`
+      ).bind(now, user.nid, id).run();
+      await env.DB.prepare(
+        `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
+         VALUES (?1, 'reposition_approve', 'reposition', ?2, ?3)`
+      ).bind(user.nid, String(id), JSON.stringify({
+        unit_code: row.unit_code, from: row.from_station, to: row.to_station
+      })).run();
+      return { ok: true, id, status: 'approved', completed_at: now };
+    } catch (e) {
+      return { ok: false, error: 'approve_failed', detail: e.message };
+    }
+  },
+
+  async reposition_reject(user, env, params) {
+    const id = parseInt(params.id, 10);
+    if (!id) return { ok: false, error: 'missing_id' };
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      const row = await env.DB.prepare(`SELECT * FROM reposition_log WHERE id = ?1`).bind(id).first();
+      if (!row) return { ok: false, error: 'not_found', id };
+      if (row.status !== 'requested') return { ok: false, error: 'already_processed', current_status: row.status };
+      if (user.role === 'cluster_supervisor' && user.cluster) {
+        const clusterStations = CLUSTER_STATIONS[user.cluster.toLowerCase()] || [];
+        if (!clusterStations.includes(row.from_station) && !clusterStations.includes(row.to_station)) {
+          return { ok: false, error: 'cross_cluster_forbidden' };
+        }
+      }
+      await env.DB.prepare(
+        `UPDATE reposition_log SET status = 'rejected', completed_at = ?1, completed_by_nid = ?2,
+         notes = COALESCE(notes,'') || ?3 WHERE id = ?4`
+      ).bind(now, user.nid, params.reason ? `\n[reject]: ${params.reason}` : '', id).run();
+      await env.DB.prepare(
+        `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
+         VALUES (?1, 'reposition_reject', 'reposition', ?2, ?3)`
+      ).bind(user.nid, String(id), JSON.stringify({
+        unit_code: row.unit_code, from: row.from_station, to: row.to_station, reason: params.reason || ''
+      })).run();
+      return { ok: true, id, status: 'rejected', completed_at: now };
+    } catch (e) {
+      return { ok: false, error: 'reject_failed', detail: e.message };
+    }
+  },
+
+  // ==================== DISPATCH EDIT (with audit trail) ====================
+
+  async dispatch_edit(user, env, params) {
+    const incidentId = params.incident_id;
+    if (!incidentId) return { ok: false, error: 'missing_incident_id' };
+
+    // Editable fields only — incident_id, ts, created_by, closed_at, closed_by are immutable
+    const EDITABLE = ['station','sub_location','source','complaint','triage','cardiac_arrest',
+                      'unit_assigned','status','patient_count','notes'];
+    const updates = {};
+    EDITABLE.forEach(f => {
+      if (params[f] !== undefined && params[f] !== null && params[f] !== '') {
+        updates[f] = params[f];
+      }
+    });
+    if (Object.keys(updates).length === 0) {
+      return { ok: false, error: 'no_changes' };
+    }
+
+    // Validate constrained fields
+    if (updates.station) {
+      updates.station = updates.station.toUpperCase();
+      if (!STATIONS.includes(updates.station)) {
+        return { ok: false, error: 'invalid_station', station: updates.station };
+      }
+    }
+    if (updates.triage && !['red','yellow','green','black'].includes(updates.triage.toLowerCase())) {
+      return { ok: false, error: 'invalid_triage', triage: updates.triage };
+    }
+    if (updates.triage) updates.triage = updates.triage.toLowerCase();
+    if (updates.status) {
+      const validStatuses = ['pending','on_scene','transporting','complete','cancelled'];
+      updates.status = updates.status.toLowerCase();
+      if (!validStatuses.includes(updates.status)) {
+        return { ok: false, error: 'invalid_status', status: updates.status, valid: validStatuses };
+      }
+    }
+    if (updates.cardiac_arrest !== undefined) {
+      updates.cardiac_arrest = (updates.cardiac_arrest === 'true' || updates.cardiac_arrest === '1' ||
+                               updates.cardiac_arrest === true || updates.cardiac_arrest === 1) ? 1 : 0;
+    }
+    if (updates.patient_count !== undefined) {
+      updates.patient_count = Math.max(1, parseInt(updates.patient_count, 10) || 1);
+    }
+
+    try {
+      // Fetch current state for audit diff
+      const before = await env.DB.prepare(
+        `SELECT incident_id, station, sub_location, source, complaint, triage,
+                cardiac_arrest, unit_assigned, status, patient_count, notes
+         FROM dispatch_log WHERE incident_id = ?1`
+      ).bind(incidentId).first();
+      if (!before) return { ok: false, error: 'incident_not_found', incident_id: incidentId };
+
+      // Build SET clause dynamically
+      const setClauses = [];
+      const bindVals = [];
+      Object.keys(updates).forEach((k, i) => {
+        setClauses.push(`${k} = ?${i + 1}`);
+        bindVals.push(updates[k]);
+      });
+      bindVals.push(incidentId);
+
+      const r = await env.DB.prepare(
+        `UPDATE dispatch_log SET ${setClauses.join(', ')} WHERE incident_id = ?${bindVals.length}`
+      ).bind(...bindVals).run();
+      if (r.meta?.changes === 0) return { ok: false, error: 'no_rows_updated' };
+
+      // Compute the diff for audit log
+      const changes = {};
+      Object.keys(updates).forEach(k => {
+        if (before[k] !== updates[k]) {
+          changes[k] = { from: before[k], to: updates[k] };
+        }
+      });
+      await env.DB.prepare(
+        `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
+         VALUES (?1, 'dispatch_edit', 'incident', ?2, ?3)`
+      ).bind(user.nid, incidentId, JSON.stringify({ changes, edit_time: new Date().toISOString() })).run();
+
+      return { ok: true, incident_id: incidentId, changes, edited_at: new Date().toISOString() };
+    } catch (e) {
+      return { ok: false, error: 'edit_failed', detail: e.message };
+    }
+  },
+
+  async incident_audit_trail(user, env, params) {
+    // Returns audit log entries for a specific incident
+    const incidentId = params.incident_id;
+    if (!incidentId) return { ok: false, error: 'missing_incident_id' };
+    try {
+      const r = await env.DB.prepare(
+        `SELECT a.id, a.ts, a.actor_nid, a.action, a.details, l.name AS actor_name
+         FROM audit_log a LEFT JOIN allowlist l ON l.nid = a.actor_nid
+         WHERE a.resource = 'incident' AND a.resource_id = ?1
+         ORDER BY a.ts ASC`
+      ).bind(incidentId).all();
+      const entries = (r.results || []).map(row => ({
+        id: row.id,
+        ts: new Date(row.ts * 1000).toISOString(),
+        actor_nid: row.actor_nid,
+        actor_name: row.actor_name,
+        action: row.action,
+        details: row.details ? JSON.parse(row.details) : {}
+      }));
+      return { ok: true, incident_id: incidentId, entries, count: entries.length };
+    } catch (e) {
+      return { ok: false, error: 'fetch_failed', detail: e.message };
+    }
   },
 
 };

@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SV · HMG Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.7">
-<script src="assets/config.js?v=0.2.7"></script>
-<script src="assets/tempo.js?v=0.2.7"></script>
-<script src="assets/auth.js?v=0.2.7"></script>
-<script src="assets/sublocations.js?v=0.2.7"></script>
-<script src="assets/topbar.js?v=0.2.7"></script>
+<link rel="stylesheet" href="assets/style.css?v=0.2.8">
+<script src="assets/config.js?v=0.2.8"></script>
+<script src="assets/tempo.js?v=0.2.8"></script>
+<script src="assets/auth.js?v=0.2.8"></script>
+<script src="assets/sublocations.js?v=0.2.8"></script>
+<script src="assets/topbar.js?v=0.2.8"></script>
 <style>
   .sv-wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
   .sv-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
@@ -108,8 +108,8 @@
   <div class="sv-section">
     <h3>Pending requests</h3>
     <table class="sv-table">
-      <thead><tr><th>Status</th><th>Time</th><th>Unit</th><th>From → To</th><th>By</th><th>Reason</th></tr></thead>
-      <tbody id="pendingBody"><tr><td colspan="6" class="empty-state">Loading…</td></tr></tbody>
+      <thead><tr><th>Status</th><th>Time</th><th>Unit</th><th>From → To</th><th>By</th><th>Reason</th><th>Action</th></tr></thead>
+      <tbody id="pendingBody"><tr><td colspan="7" class="empty-state">Loading…</td></tr></tbody>
     </table>
   </div>
 
@@ -396,15 +396,51 @@
     });
 
     pBody.innerHTML = pending.length ? pending.map(function(p) {
+      const repId = p.id || p.ID || p.Id || '';
       return '<tr>'
         + '<td><span class="reposition-status pending">pending</span></td>'
-        + '<td>' + fmtTime(p.Created_At) + '</td>'
-        + '<td>' + esc(p.Unit_Code || '') + '</td>'
-        + '<td>' + esc(p.From_Station || '?') + ' → ' + esc(p.To_Station || '?') + '</td>'
-        + '<td>' + esc(p.Requested_By_NID || '') + '</td>'
-        + '<td>' + esc(p.Reason || '—') + '</td>'
+        + '<td>' + fmtTime(p.Created_At || p.Timestamp || p.requested_at) + '</td>'
+        + '<td>' + esc(p.Unit_Code || p.unit_code || '') + '</td>'
+        + '<td>' + esc(p.From_Station || p.from_station || '?') + ' → ' + esc(p.To_Station || p.to_station || '?') + '</td>'
+        + '<td>' + esc(p.Requested_By_NID || p.requested_by_nid || '') + '</td>'
+        + '<td>' + esc(p.Reason || p.reason || '—') + '</td>'
+        + '<td>'
+        +   '<button class="btn-approve" data-rep-id="' + repId + '" style="background:rgba(34,197,94,0.15); color:#86efac; border:1px solid rgba(34,197,94,0.3); padding:3px 9px; margin-right:4px; border-radius:4px; cursor:pointer; font-size:11px;">✓ Approve</button>'
+        +   '<button class="btn-reject" data-rep-id="' + repId + '" style="background:rgba(239,68,68,0.15); color:#fca5a5; border:1px solid rgba(239,68,68,0.3); padding:3px 9px; border-radius:4px; cursor:pointer; font-size:11px;">✗ Reject</button>'
+        + '</td>'
         + '</tr>';
-    }).join('') : '<tr><td colspan="6" class="empty-state">No pending requests.</td></tr>';
+    }).join('') : '<tr><td colspan="7" class="empty-state">No pending requests.</td></tr>';
+
+    // Wire approve/reject buttons after render
+    pBody.querySelectorAll('.btn-approve').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        const id = btn.dataset.repId;
+        if (!id) return;
+        btn.disabled = true; btn.textContent = '⏳';
+        const r = await HAJJ.authedCall('reposition_approve', { id: id });
+        if (!r || !r.ok) {
+          btn.disabled = false; btn.textContent = '✓ Approve';
+          alert('Approve failed: ' + ((r && r.error) || 'unknown'));
+          return;
+        }
+        loadRepositions();
+      });
+    });
+    pBody.querySelectorAll('.btn-reject').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        const id = btn.dataset.repId;
+        if (!id) return;
+        const reason = prompt('Reason for rejection (optional)') || '';
+        btn.disabled = true; btn.textContent = '⏳';
+        const r = await HAJJ.authedCall('reposition_reject', { id: id, reason: reason });
+        if (!r || !r.ok) {
+          btn.disabled = false; btn.textContent = '✗ Reject';
+          alert('Reject failed: ' + ((r && r.error) || 'unknown'));
+          return;
+        }
+        loadRepositions();
+      });
+    });
 
     rBody.innerHTML = recent.length ? recent.slice(-30).reverse().map(function(p) {
       return '<tr>'
@@ -632,6 +668,6 @@
   </div>
 </div>
 
-<script src="assets/version.js?v=0.2.7"></script>
+<script src="assets/version.js?v=0.2.8"></script>
 </body>
 </html>

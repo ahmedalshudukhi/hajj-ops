@@ -239,6 +239,10 @@
     station_status_set:     { method: 'GET', exec: true },
     unit_status_set:        { method: 'GET', exec: true },
     reposition_request:     { method: 'GET', exec: true },
+    reposition_approve:     { method: 'GET', exec: true },
+    reposition_reject:      { method: 'GET', exec: true },
+    dispatch_edit:          { method: 'GET', exec: true },
+    incident_audit_trail:   { method: 'GET', exec: true },
     admin_apply_validation: { method: 'GET', exec: true }
   };
 
