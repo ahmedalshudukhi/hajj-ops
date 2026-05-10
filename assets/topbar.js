@@ -186,6 +186,17 @@
       </style>
     `;
     document.body.insertBefore(overlay, document.body.firstChild);
+    // Help button (bottom-right, opens shortcut overlay)
+    if (window.CADShortcuts && !document.getElementById('cadHelpBtn')) {
+      const btn = document.createElement('button');
+      btn.id = 'cadHelpBtn';
+      btn.textContent = '?';
+      btn.title = 'Keyboard shortcuts (press ?)';
+      btn.style.cssText = 'position:fixed; bottom:14px; right:14px; width:36px; height:36px; border-radius:50%; background:rgba(56,189,248,0.16); color:#cdf1ff; border:1px solid rgba(56,189,248,0.4); font-size:18px; font-weight:700; cursor:pointer; z-index:200; backdrop-filter:blur(6px);';
+      btn.addEventListener('click', () => CADShortcuts.showHelp());
+      document.body.appendChild(btn);
+    }
+
 
     async function refresh() {
       try {

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Dispatch · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.27">
+<link rel="stylesheet" href="assets/style.css?v=0.2.28">
 
 <style>
   body { background: var(--bg); }
@@ -305,12 +305,13 @@
   ⚠ <span id="repoBannerCount">0</span> reposition request<span id="repoBannerS">s</span> pending approval — click to review
 </div>
 
-<script src="assets/config.js?v=0.2.27"></script>
-<script src="assets/tempo.js?v=0.2.27"></script>
-<script src="assets/auth.js?v=0.2.27"></script>
-<script src="assets/sublocations.js?v=0.2.27"></script>
-<script src="assets/topbar.js?v=0.2.27"></script>
-<script src="assets/dateBar.js?v=0.2.27"></script>
+<script src="assets/config.js?v=0.2.28"></script>
+<script src="assets/tempo.js?v=0.2.28"></script>
+<script src="assets/auth.js?v=0.2.28"></script>
+<script src="assets/shortcuts.js?v=0.2.28"></script>
+<script src="assets/sublocations.js?v=0.2.28"></script>
+<script src="assets/topbar.js?v=0.2.28"></script>
+<script src="assets/dateBar.js?v=0.2.28"></script>
 <script>
 (function () {
 
@@ -1208,9 +1209,47 @@
     });
   })();
 
+
+  // === KEYBOARD SHORTCUTS for dispatch ===
+  (function wireDispatchShortcuts() {
+    if (!window.CADShortcuts) return;
+    function focusForm() {
+      const el = document.getElementById('zone') || document.querySelector('input,select,textarea');
+      if (el) { el.focus(); window.scrollTo(0, 0); }
+    }
+    CADShortcuts.register('n', 'New incident - focus form', focusForm);
+    function activeIncidentId() {
+      const el = document.querySelector('[data-incident-id].is-selected') ||
+                 document.querySelector('[data-incident-id]:focus') ||
+                 document.querySelector('[data-incident-id]');
+      return el ? el.getAttribute('data-incident-id') : null;
+    }
+    CADShortcuts.register('e', 'En route - top incident', () => {
+      const id = activeIncidentId();
+      if (!id) return alert('No incident selected.');
+      HAJJ.authedCall('dispatch_event', { incident_id: id, event_type: 'en_route' }).then(() => location.reload());
+    });
+    CADShortcuts.register('o', 'On scene - top incident', () => {
+      const id = activeIncidentId();
+      if (!id) return alert('No incident selected.');
+      HAJJ.authedCall('dispatch_event', { incident_id: id, event_type: 'on_scene' }).then(() => location.reload());
+    });
+    CADShortcuts.register('t', 'Transporting - top incident', () => {
+      const id = activeIncidentId();
+      if (!id) return alert('No incident selected.');
+      HAJJ.authedCall('dispatch_event', { incident_id: id, event_type: 'transporting' }).then(() => location.reload());
+    });
+    CADShortcuts.register('c', 'Close - top incident', () => {
+      const id = activeIncidentId();
+      if (!id) return alert('No incident selected.');
+      if (!confirm('Close incident ' + id + '?')) return;
+      HAJJ.authedCall('dispatch_close', { incident_id: id }).then(() => location.reload());
+    });
+  })();
+
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.27"></script>
+<script src="assets/version.js?v=0.2.28"></script>
 </body>
 </html>
