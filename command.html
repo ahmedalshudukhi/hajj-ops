@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0a0e1a">
 <title>OCC Command Center · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.28">
+<link rel="stylesheet" href="assets/style.css?v=0.2.29">
 <style>
   body {
     background: radial-gradient(ellipse at top, #0d1830 0%, #04060e 70%);
@@ -391,6 +391,12 @@
         <div class="section-h"><h2>Alerts</h2><span class="meta" id="vAlertCount">0</span></div>
         <div id="alertList"><div class="alert-empty">All clear</div></div>
       </div>
+      <div class="alert-card" id="presenceCard" style="padding-bottom: 14px;">
+        <div class="section-h"><h2>Online Now</h2><span class="meta" id="vPresenceCount">0</span></div>
+        <div id="presenceBody" style="display:flex; flex-direction:column; gap:10px;">
+          <div style="color:#6b7d9e; font-size:12px; text-align:center; padding:8px 0;">No data</div>
+        </div>
+      </div>
       <div class="activity-card">
         <div class="section-h"><h2>Activity Stream</h2><span class="meta" id="vActivityMeta">—</span></div>
         <div class="activity-list" id="activityList"></div>
@@ -418,9 +424,9 @@
   </div>
 </div>
 
-<script src="assets/auth.js?v=0.2.28"></script>
-<script src="assets/shortcuts.js?v=0.2.28"></script>
-<script src="assets/version.js?v=0.2.28"></script>
+<script src="assets/auth.js?v=0.2.29"></script>
+<script src="assets/shortcuts.js?v=0.2.29"></script>
+<script src="assets/version.js?v=0.2.29"></script>
 <script>
 (async function() {
   // Role gate
@@ -687,9 +693,34 @@
   // === Refresh loop ===
   async function refresh() {
     try {
-      const r = await HAJJ.authedCallSWR('command_summary');
+      const [r, p] = await Promise.all([
+        HAJJ.authedCallSWR('command_summary'),
+        HAJJ.authedCall('presence_list', { window: 300 })
+      ]);
       if (r && r.ok) render(r);
-    } catch (e) { console.error('command_summary error', e); }
+      if (p && p.ok) renderPresence(p);
+    } catch (e) { console.error('refresh error', e); }
+  }
+
+  function renderPresence(p) {
+    document.getElementById('vPresenceCount').textContent = p.count + ' online';
+    const body = document.getElementById('presenceBody');
+    if (!p.count) { body.innerHTML = '<div style="color:#6b7d9e; font-size:12px; text-align:center; padding:8px 0;">No active users</div>'; return; }
+    // Group: by role chip strip + user list
+    const roleChips = Object.entries(p.by_role).map(([role, n]) =>
+      `<span style="display:inline-block; padding:3px 8px; border-radius:5px; font-size:10px; font-weight:600; letter-spacing:0.05em; background:rgba(99,179,237,0.13); color:#cdf1ff; margin-right:4px; margin-bottom:4px;">${role.replace(/_/g,' ')} · ${n}</span>`
+    ).join('');
+    const userRows = p.users.slice(0, 14).map(u => {
+      const fresh = u.seconds_ago < 90;
+      const pageClean = (u.page || '/').replace(/\?.*$/, '').replace(/^\//, '') || 'lobby';
+      return `<div style="display:flex; align-items:center; gap:8px; padding:5px 0; font-size:12px; border-bottom:1px solid rgba(99,179,237,0.05);">
+        <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:${fresh ? '#22c55e' : '#94a3b8'}; box-shadow: ${fresh ? '0 0 6px rgba(34,197,94,0.6)' : 'none'};"></span>
+        <span style="color:#e8f1ff; font-weight:600; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${u.name || u.nid}</span>
+        <span style="color:#6b7d9e; font-size:10px;">${pageClean}</span>
+        <span style="color:#6b7d9e; font-size:10px; min-width:30px; text-align:right;">${u.seconds_ago < 60 ? 'now' : Math.floor(u.seconds_ago/60)+'m'}</span>
+      </div>`;
+    }).join('');
+    body.innerHTML = (roleChips ? '<div style="margin-bottom:6px;">' + roleChips + '</div>' : '') + userRows;
   }
   refresh();
   setInterval(refresh, 5000);

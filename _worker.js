@@ -362,6 +362,8 @@ const ROLE_GATE = {
   report_shift_handoff: ['leadership','admin','dispatcher','cluster_supervisor'],
   report_incident_detail: ['leadership','admin','dispatcher','cluster_supervisor'],
   audit_search: ['admin','leadership'],
+  presence_ping: null,                  // any authed user
+  presence_list: ['cluster_supervisor','dispatcher','leadership','admin'],
   sar_summary: ['sar','admin'],
   dispatch_list: ['cluster_supervisor','dispatcher','leadership','admin'],
   dashboard_active: ['cluster_supervisor','dispatcher','leadership','admin'],
@@ -1575,6 +1577,72 @@ const ACTIONS = {
       })) };
     } catch (e) {
       return { ok: false, error: 'feed_failed', detail: e.message };
+    }
+  },
+
+  // ==============================================================
+  // presence_ping — keep-alive ping from any authed user every ~60s
+  // presence_list — current online users (active in last 5 min)
+  // ==============================================================
+  async presence_ping(user, env, params) {
+    const now = Math.floor(Date.now() / 1000);
+    const page = String(params.page || '/').slice(0, 80);
+    try {
+      await env.DB.prepare(
+        `CREATE TABLE IF NOT EXISTS presence (
+           nid TEXT PRIMARY KEY,
+           name TEXT, role TEXT, page TEXT,
+           last_ts INTEGER NOT NULL,
+           since_ts INTEGER NOT NULL,
+           ip TEXT,
+           ua TEXT
+         )`).run();
+      // since_ts only updates if no row exists or stale > 30 min
+      const ip = (params.ip || '').slice(0, 64);
+      const ua = (params.ua || '').slice(0, 200);
+      await env.DB.prepare(
+        `INSERT INTO presence (nid, name, role, page, last_ts, since_ts, ip, ua)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6, ?7)
+         ON CONFLICT(nid) DO UPDATE SET
+           name = excluded.name,
+           role = excluded.role,
+           page = excluded.page,
+           last_ts = excluded.last_ts,
+           since_ts = CASE WHEN (excluded.last_ts - presence.last_ts) > 1800 THEN excluded.last_ts ELSE presence.since_ts END,
+           ip = excluded.ip,
+           ua = excluded.ua`
+      ).bind(user.nid, user.name, user.role, page, now, ip, ua).run();
+      return { ok: true, ts: now };
+    } catch (e) {
+      return { ok: false, error: 'ping_failed', detail: e.message };
+    }
+  },
+
+  async presence_list(user, env, params) {
+    const now = Math.floor(Date.now() / 1000);
+    const window = parseInt(params.window || 300, 10);  // 5 min default
+    try {
+      const r = await env.DB.prepare(
+        `SELECT nid, name, role, page, last_ts, since_ts
+         FROM presence WHERE last_ts >= ?1 ORDER BY last_ts DESC`
+      ).bind(now - window).all();
+      const users = (r.results || []).map(u => ({
+        ...u,
+        seconds_ago: now - u.last_ts,
+        session_minutes: Math.floor((now - u.since_ts) / 60)
+      }));
+      // Group by role
+      const byRole = {};
+      const byPage = {};
+      users.forEach(u => {
+        byRole[u.role || 'unknown'] = (byRole[u.role || 'unknown'] || 0) + 1;
+        const p = (u.page || '/').replace(/\?.*$/, '').replace(/^\//, '') || 'lobby';
+        byPage[p] = (byPage[p] || 0) + 1;
+      });
+      return { ok: true, count: users.length, users, by_role: byRole, by_page: byPage, window_sec: window };
+    } catch (e) {
+      // Table doesn't exist yet
+      return { ok: true, count: 0, users: [], by_role: {}, by_page: {}, window_sec: window };
     }
   },
 

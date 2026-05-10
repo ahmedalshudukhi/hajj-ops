@@ -186,6 +186,62 @@
       </style>
     `;
     document.body.insertBefore(overlay, document.body.firstChild);
+    // Online users pill (visible on all pages once first ping returns)
+    if (!document.getElementById('cadOnlinePill')) {
+      const pill = document.createElement('div');
+      pill.id = 'cadOnlinePill';
+      pill.title = 'Online users (last 5 min)';
+      pill.style.cssText = 'position:fixed; bottom:14px; right:60px; padding:6px 12px; border-radius:999px; background:rgba(34,197,94,0.13); color:#6ee7b7; border:1px solid rgba(34,197,94,0.32); font-size:12px; font-weight:600; cursor:pointer; z-index:200; backdrop-filter:blur(6px); display:none;';
+      pill.innerHTML = '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px rgba(34,197,94,0.7);margin-right:6px;vertical-align:middle;"></span><span id="cadOnlinePillNum">—</span>';
+      pill.addEventListener('click', async () => {
+        if (window.location.pathname === '/command') return; // already there
+        // Show simple modal with users
+        const r = await HAJJ.authedCall('presence_list', { window: 300 });
+        if (!r || !r.ok) return;
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.75); backdrop-filter:blur(4px); z-index:9999; display:flex; align-items:center; justify-content:center; padding:20px;';
+        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+        const list = (r.users || []).map(u => {
+          const fresh = u.seconds_ago < 90;
+          return '<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid rgba(99,179,237,0.08);font-size:13px;align-items:center;"><span style="width:8px;height:8px;border-radius:50%;background:' + (fresh ? '#22c55e' : '#94a3b8') + ';"></span><span style="flex:1;color:#e7ecf7;font-weight:600;">' + (u.name || u.nid) + '</span><span style="color:#93a4cd;font-size:11px;">' + (u.role || '') + '</span><span style="color:#6b7d9e;font-size:11px;">' + (u.page || '/').replace(/^\//, '') + '</span><span style="color:#6b7d9e;font-size:11px;min-width:36px;text-align:right;">' + (u.seconds_ago < 60 ? 'now' : Math.floor(u.seconds_ago/60) + 'm') + '</span></div>';
+        }).join('');
+        overlay.innerHTML = '<div style="background:linear-gradient(135deg,#0f1830,#06101e);border:1px solid rgba(99,179,237,0.25);border-radius:14px;padding:24px 28px;max-width:540px;width:100%;max-height:84vh;overflow-y:auto;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;"><h2 style="margin:0;color:#e7ecf7;font-size:18px;">Online Users · ' + r.count + '</h2><span style="cursor:pointer;color:#93a4cd;font-size:18px;" onclick="this.closest(\'div\').parentElement.remove()">×</span></div>' + (list || '<div style="color:#93a4cd;text-align:center;padding:20px 0;">No active users</div>') + '</div>';
+        document.body.appendChild(overlay);
+      });
+      document.body.appendChild(pill);
+      // Refresh count every 60s
+      async function _refreshOnline() {
+        const r = await HAJJ.authedCall('presence_list', { window: 300 });
+        if (r && r.ok) {
+          const n = r.count || 0;
+          if (n > 0) {
+            pill.style.display = '';
+            document.getElementById('cadOnlinePillNum').textContent = n + ' online';
+          } else {
+            pill.style.display = 'none';
+          }
+        }
+      }
+      _refreshOnline();
+      setInterval(_refreshOnline, 60000);
+    }
+
+    // === PRESENCE PING (every 60s while page open) ===
+    if (!window.cadPresenceTimer) {
+      function _ping() {
+        try {
+          HAJJ.authedCall('presence_ping', {
+            page: location.pathname,
+            ua: navigator.userAgent.slice(0, 200)
+          }).catch(() => {});
+        } catch (_) {}
+      }
+      _ping();
+      window.cadPresenceTimer = setInterval(_ping, 60 * 1000);
+      // Re-ping on visibility change so we catch resumed tabs
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) _ping(); });
+    }
+
     // Help button (bottom-right, opens shortcut overlay)
     if (window.CADShortcuts && !document.getElementById('cadHelpBtn')) {
       const btn = document.createElement('button');
