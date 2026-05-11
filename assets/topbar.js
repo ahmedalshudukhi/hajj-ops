@@ -94,7 +94,14 @@
     { href: 'mci.html',        label: 'MCI Cmd',    roles: ['cluster_supervisor','dispatcher','leadership','admin'] },
     { href: 'triage.html',     label: 'Triage',     roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin'] },
     { href: 'shifts.html',     label: 'Shifts',     roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'] },
-    { href: 'me.html',       label: 'My schedule', roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin'] },
+    { href: 'me.html',         label: 'Me',         roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'] },
+    { href: 'code.html',       label: 'Code Blue',  roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin'] },
+    { href: 'runbook.html',    label: 'Runbook',    roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'] },
+    { href: 'heat.html',       label: 'Heat',       roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'] },
+    { href: 'board.html',      label: 'Board',      roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'] },
+    { href: 'pulse.html',      label: 'Pulse',      roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'] },
+    { href: 'handover.html',   label: 'Handover',   roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'] },
+    { href: 'supplies.html',   label: 'Supplies',   roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'] },
     { href: 'diagnostic.html', label: 'Diag',       roles: ['admin'] },
     { href: 'system.html',  label: 'System',    roles: ['admin','leadership'] }
   ];

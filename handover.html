@@ -1,0 +1,63 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Handover</title><link rel="stylesheet" href="assets/style.css?v=0.2.39"><style>body { background:#0a0e1a; color:#e7ecf7; font-family:Inter,system-ui,sans-serif; }.ho-shell { max-width:1100px; margin:0 auto; padding:20px; }.ho-search { display:flex; gap:10px; margin:14px 0 18px; }.ho-search input { flex:1; padding:12px 16px; border-radius:8px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.3); font-size:14px; }.ho-search button { padding:12px 22px; background:rgba(56,189,248,0.25); color:#cdf1ff; border:1px solid rgba(56,189,248,0.45); border-radius:8px; cursor:pointer; font-weight:700; }.ho-card { background:rgba(20,28,50,0.5); border:1px solid rgba(99,179,237,0.18); border-radius:12px; padding:20px 24px; margin-bottom:14px; }.ho-card h2 { margin:0 0 12px; font-size:16px; color:#cdf1ff; padding-bottom:8px; border-bottom:1px solid rgba(99,179,237,0.12); }.ho-radio { background:rgba(15,23,42,0.7); padding:16px 22px; border-radius:10px; font-size:14px; line-height:1.6; color:#e8f1ff; border-left:4px solid #67e8f9; font-family:ui-monospace,Menlo,monospace; }.ho-mist { display:grid; grid-template-columns:60px 1fr; gap:10px 16px; margin-top:6px; }.ho-mist .letter { background:rgba(67,232,249,0.18); color:#67e8f9; border-radius:7px; padding:10px; text-align:center; font-weight:800; font-size:18px; }.ho-mist .content { padding:10px 0; color:#cbd5e1; line-height:1.6; }.ho-sbar { display:grid; grid-template-columns:60px 1fr; gap:10px 16px; margin-top:6px; }.ho-sbar .letter { background:rgba(168,85,247,0.18); color:#d8b4fe; border-radius:7px; padding:10px; text-align:center; font-weight:800; font-size:18px; }.ho-sbar .content { padding:10px 0; color:#cbd5e1; line-height:1.6; }.ho-actions { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }.ho-btn { padding:10px 18px; background:rgba(56,189,248,0.20); color:#cdf1ff; border:1px solid rgba(56,189,248,0.4); border-radius:7px; cursor:pointer; font-weight:600; font-size:12px; }.ho-btn.good { background:rgba(34,197,94,0.18); color:#86efac; border-color:rgba(34,197,94,0.4); }.ho-meta { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin-bottom:12px; }.ho-meta-cell { padding:10px 14px; background:rgba(15,23,42,0.5); border-radius:8px; }.ho-meta-cell .l { font-size:10px; color:#93a4cd; letter-spacing:0.13em; text-transform:uppercase; }.ho-meta-cell .v { color:#e8f1ff; font-weight:700; margin-top:3px; font-size:13px; }.ho-pill { display:inline-block; padding:3px 10px; border-radius:5px; font-size:10px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; }.ho-pill.red { background:rgba(239,68,68,0.20); color:#fca5a5; }.ho-pill.yellow { background:rgba(245,158,11,0.18); color:#fcd34d; }.ho-pill.green { background:rgba(34,197,94,0.18); color:#86efac; }.ho-pill.cardiac { background:rgba(239,68,68,0.25); color:#fca5a5; margin-left:8px; }</style></head><body><div id="topbar"></div><div class="ho-shell"><h1 style="font-size:28px; margin:16px 0 4px;">Hospital Handover</h1><p style="color:#93a4cd; margin:0 0 4px;">Pre-arrival composer. Auto-generates radio call + MIST + SBAR reports from incident + PCR data.</p><div class="ho-search"><input type="text" id="hoInc" placeholder="Incident ID (e.g. DSP-...)" /><button id="hoBuild">Build Handover</button></div><div id="hoResult"><div style="color:#6b7d9e; padding:30px; text-align:center;">Enter an incident ID to build the handover.</div></div></div><script src="assets/auth.js?v=0.2.39"></script><script src="assets/shortcuts.js?v=0.2.39"></script><script src="assets/topbar.js?v=0.2.39"></script><script src="assets/version.js?v=0.2.39"></script><script>
+(async function() {
+  if (!await HAJJ.requireRole(['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'])) return;
+  CADTopbar.render({ title: "Handover" });
+  document.getElementById('hoBuild').addEventListener('click', build);
+  document.getElementById('hoInc').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') build();
+  });
+  function copy(text) {
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(function(){alert('Copied');}, function(){alert('Copy failed');});
+    else alert('Clipboard API not available — please copy manually');
+  }
+  window.cadHoCopy = copy;
+  async function build() {
+    const inc = document.getElementById('hoInc').value.trim();
+    if (!inc) return alert('Enter incident ID');
+    document.getElementById('hoResult').innerHTML = '<div style="color:#6b7d9e; padding:30px; text-align:center;">Building...</div>';
+    const r = await HAJJ.authedCall('handover_compose', { incident_id: inc });
+    if (!r || !r.ok) { document.getElementById('hoResult').innerHTML = '<div style="color:#fca5a5; padding:14px;">Error: ' + ((r && r.error) || 'unknown') + '</div>'; return; }
+    const d = r.dispatch;
+    const cardiacFlag = d.cardiac_arrest ? '<span class="ho-pill cardiac">⚡ CARDIAC ARREST</span>' : '';
+    const pcrStatus = r.pcr ? 'PCR draft exists (' + (r.pcr.status || 'draft') + ')' : 'No PCR yet';
+    let html = '<div class="ho-card">' +
+      '<h2>' + r.incident_id + ' <span class="ho-pill ' + (d.triage || 'green') + '">' + (d.triage || '--').toUpperCase() + '</span>' + cardiacFlag + '</h2>' +
+      '<div class="ho-meta">' +
+        '<div class="ho-meta-cell"><div class="l">Station / Location</div><div class="v">' + (d.station || '--') + (d.sub_location ? ' / ' + d.sub_location : '') + '</div></div>' +
+        '<div class="ho-meta-cell"><div class="l">Unit</div><div class="v">' + (d.unit_assigned || '--') + '</div></div>' +
+        '<div class="ho-meta-cell"><div class="l">Complaint</div><div class="v">' + (d.complaint || '--') + '</div></div>' +
+        '<div class="ho-meta-cell"><div class="l">PCR</div><div class="v">' + pcrStatus + '</div></div>' +
+      '</div></div>';
+    html += '<div class="ho-card"><h2>Radio Call (one-liner)</h2><div class="ho-radio" id="hoRadioText">' + r.radio + '</div>' +
+      '<div class="ho-actions"><button class="ho-btn good" onclick="window.cadHoCopy(document.getElementById(\'hoRadioText\').textContent)">Copy radio call</button></div></div>';
+    html += '<div class="ho-card"><h2>MIST Report</h2><div class="ho-mist">' +
+      '<div class="letter">M</div><div class="content"><strong>Mechanism:</strong> ' + r.mist.M + '</div>' +
+      '<div class="letter">I</div><div class="content"><strong>Injuries:</strong> ' + r.mist.I + '</div>' +
+      '<div class="letter">S</div><div class="content"><strong>Signs:</strong> ' + r.mist.S + '</div>' +
+      '<div class="letter">T</div><div class="content"><strong>Treatment:</strong> ' + r.mist.T + '</div>' +
+      '</div><div class="ho-actions"><button class="ho-btn" id="hoCopyMist">Copy MIST</button></div></div>';
+    html += '<div class="ho-card"><h2>SBAR Report</h2><div class="ho-sbar">' +
+      '<div class="letter">S</div><div class="content"><strong>Situation:</strong> ' + r.sbar.S + '</div>' +
+      '<div class="letter">B</div><div class="content"><strong>Background:</strong> ' + r.sbar.B + '</div>' +
+      '<div class="letter">A</div><div class="content"><strong>Assessment:</strong> ' + r.sbar.A + '</div>' +
+      '<div class="letter">R</div><div class="content"><strong>Recommendation:</strong> ' + r.sbar.R + '</div>' +
+      '</div><div class="ho-actions"><button class="ho-btn" id="hoCopySbar">Copy SBAR</button>' +
+      '<a href="/pcr" class="ho-btn">Edit PCR</a><a href="/hospitals" class="ho-btn">Hospital ED status</a></div></div>';
+    document.getElementById('hoResult').innerHTML = html;
+    document.getElementById('hoCopyMist').addEventListener('click', function() {
+      copy('MIST report for ' + r.incident_id + '\n' +
+           'M: ' + r.mist.M + '\n' +
+           'I: ' + r.mist.I + '\n' +
+           'S: ' + r.mist.S + '\n' +
+           'T: ' + r.mist.T);
+    });
+    document.getElementById('hoCopySbar').addEventListener('click', function() {
+      copy('SBAR for ' + r.incident_id + '\n' +
+           'S: ' + r.sbar.S + '\n' +
+           'B: ' + r.sbar.B + '\n' +
+           'A: ' + r.sbar.A + '\n' +
+           'R: ' + r.sbar.R);
+    });
+  }
+})();
+</script></body></html>

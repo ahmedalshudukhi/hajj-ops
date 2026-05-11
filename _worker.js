@@ -411,6 +411,12 @@ const ROLE_GATE = {
   code_blue_list: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'],
   heat_watch: null,
   me_summary: null,
+  board_summary: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'],
+  pulse_feed: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'],
+  handover_compose: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'],
+  supplies_request: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin'],
+  supplies_list: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'],
+  supplies_set_status: ['cluster_supervisor','leadership','admin'],
   sar_summary: ['sar','admin'],
   dispatch_list: ['cluster_supervisor','dispatcher','leadership','admin'],
   dashboard_active: ['cluster_supervisor','dispatcher','leadership','admin'],
@@ -3109,6 +3115,257 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
         last_presence: lastPresence,
         server_now: now
       };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // board_summary — kanban-style operations board
+  // ==============================================================
+  async board_summary(user, env, params) {
+    try {
+      const lookback = parseInt(params.lookback_hours || 12, 10);
+      const since = Math.floor(Date.now()/1000) - lookback * 3600;
+      const r = await env.DB.prepare(
+        `SELECT d.incident_id, d.ts, d.station, d.sub_location, d.triage, d.complaint,
+                d.cardiac_arrest, d.unit_assigned, d.status, d.closed_at,
+                (SELECT MIN(ts) FROM incident_events WHERE incident_id = d.incident_id AND event_type = 'on_scene') AS on_scene_at,
+                (SELECT MIN(ts) FROM incident_events WHERE incident_id = d.incident_id AND event_type = 'transporting') AS transporting_at
+         FROM dispatch_log d
+         WHERE d.ts >= ?1 AND COALESCE(d.is_drill,0) = 0
+         ORDER BY d.ts DESC LIMIT 300`
+      ).bind(since).all();
+      const all = r.results || [];
+      const cols = { new: [], en_route: [], on_scene: [], transporting: [], closed: [] };
+      const now = Math.floor(Date.now()/1000);
+      all.forEach(inc => {
+        if (inc.closed_at) { cols.closed.push(inc); return; }
+        if (inc.transporting_at) { cols.transporting.push(inc); return; }
+        if (inc.on_scene_at) { cols.on_scene.push(inc); return; }
+        // Otherwise check events for en_route
+        cols.new.push(inc);
+      });
+      // Try to upgrade items in cols.new to en_route if they have en_route event
+      // (do this in a single query)
+      const newIds = cols.new.map(i => i.incident_id);
+      if (newIds.length > 0) {
+        try {
+          const placeholders = newIds.map((_, i) => '?' + (i+1)).join(',');
+          const er = await env.DB.prepare(
+            `SELECT incident_id, MIN(ts) AS ts FROM incident_events WHERE incident_id IN (${placeholders}) AND event_type = 'en_route' GROUP BY incident_id`
+          ).bind(...newIds).all();
+          const erSet = new Map();
+          (er.results || []).forEach(r => erSet.set(r.incident_id, r.ts));
+          const stillNew = [], enroute = [];
+          cols.new.forEach(i => {
+            if (erSet.has(i.incident_id)) { i.en_route_at = erSet.get(i.incident_id); enroute.push(i); }
+            else stillNew.push(i);
+          });
+          cols.new = stillNew;
+          cols.en_route = enroute;
+        } catch (_) {}
+      }
+      return {
+        ok: true, lookback_hours: lookback, columns: cols,
+        counts: { new: cols.new.length, en_route: cols.en_route.length, on_scene: cols.on_scene.length, transporting: cols.transporting.length, closed: cols.closed.length },
+        total: all.length, server_now: now
+      };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // pulse_feed — chronological activity stream across all sources
+  // ==============================================================
+  async pulse_feed(user, env, params) {
+    try {
+      const lookback = parseInt(params.lookback_minutes || 60, 10);
+      const since = Math.floor(Date.now()/1000) - lookback * 60;
+      const events = [];
+      // dispatches created
+      const dR = await env.DB.prepare(
+        `SELECT incident_id, ts, station, triage, complaint, cardiac_arrest, created_by_nid
+         FROM dispatch_log WHERE ts >= ?1 AND COALESCE(is_drill,0) = 0
+         ORDER BY ts DESC LIMIT 100`
+      ).bind(since).all();
+      (dR.results || []).forEach(d => events.push({
+        ts: d.ts, kind: 'dispatch', station: d.station,
+        text: 'Dispatch ' + d.incident_id + ' @ ' + (d.station || '?') + (d.complaint ? ': ' + d.complaint.slice(0, 50) : ''),
+        triage: d.triage, cardiac: d.cardiac_arrest, ref: d.incident_id
+      }));
+      // closed
+      const cR = await env.DB.prepare(
+        `SELECT incident_id, closed_at, station, triage FROM dispatch_log
+         WHERE closed_at >= ?1 AND COALESCE(is_drill,0) = 0 ORDER BY closed_at DESC LIMIT 100`
+      ).bind(since).all();
+      (cR.results || []).forEach(d => events.push({
+        ts: d.closed_at, kind: 'closed', station: d.station,
+        text: 'Closed ' + d.incident_id, triage: d.triage, ref: d.incident_id
+      }));
+      // event milestones
+      try {
+        const eR = await env.DB.prepare(
+          `SELECT incident_id, event_type, ts FROM incident_events
+           WHERE ts >= ?1 ORDER BY ts DESC LIMIT 100`
+        ).bind(since).all();
+        (eR.results || []).forEach(e => events.push({
+          ts: e.ts, kind: 'event_' + e.event_type,
+          text: e.event_type.replace(/_/g, ' ').toUpperCase() + ' · ' + e.incident_id, ref: e.incident_id
+        }));
+      } catch (_) {}
+      // broadcasts
+      try {
+        const bR = await env.DB.prepare(
+          `SELECT id, ts, text, level, sender_name FROM broadcasts WHERE ts >= ?1 ORDER BY ts DESC LIMIT 30`
+        ).bind(since).all();
+        (bR.results || []).forEach(b => events.push({
+          ts: b.ts, kind: 'broadcast_' + (b.level || 'info'),
+          text: 'Broadcast (' + (b.sender_name || '?') + '): ' + (b.text || '').slice(0, 80)
+        }));
+      } catch (_) {}
+      // code blue
+      try {
+        const cbR = await env.DB.prepare(
+          `SELECT incident_id, ts, event_type, by_name FROM code_blue_events
+           WHERE ts >= ?1 AND event_type IN ('arrest_start', 'rosc', 'termination') ORDER BY ts DESC LIMIT 20`
+        ).bind(since).all();
+        (cbR.results || []).forEach(c => events.push({
+          ts: c.ts, kind: 'code_' + c.event_type,
+          text: 'Code Blue ' + c.event_type.toUpperCase() + ' · ' + (c.incident_id || '?') + (c.by_name ? ' by ' + c.by_name : '')
+        }));
+      } catch (_) {}
+      // MCI state changes
+      try {
+        const mR = await env.DB.prepare(
+          `SELECT action, ts, details FROM audit_log WHERE action = 'mci_set' AND ts >= ?1 ORDER BY ts DESC LIMIT 10`
+        ).bind(since).all();
+        (mR.results || []).forEach(m => events.push({
+          ts: m.ts, kind: 'mci',
+          text: 'MCI ' + (m.details || '')
+        }));
+      } catch (_) {}
+      events.sort((a, b) => b.ts - a.ts);
+      return { ok: true, events: events.slice(0, 100), lookback_minutes: lookback, server_now: Math.floor(Date.now()/1000) };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // handover_compose — build a hospital pre-arrival report from incident data
+  // ==============================================================
+  async handover_compose(user, env, params) {
+    const incidentId = String(params.incident_id || '');
+    if (!incidentId) return { ok: false, error: 'missing_incident_id' };
+    try {
+      const d = await env.DB.prepare(
+        `SELECT * FROM dispatch_log WHERE incident_id = ?1 LIMIT 1`
+      ).bind(incidentId).first();
+      if (!d) return { ok: false, error: 'incident_not_found' };
+      // PCR if any
+      let pcr = null;
+      try {
+        const p = await env.DB.prepare(
+          `SELECT * FROM pcr_drafts WHERE incident_id = ?1 ORDER BY updated_at DESC LIMIT 1`
+        ).bind(incidentId).first();
+        pcr = p;
+      } catch (_) {}
+      // Build MIST report (Mechanism, Injuries, Signs, Treatment)
+      const mist = {
+        M: d.complaint || (pcr && pcr.chief_complaint) || 'unknown mechanism',
+        I: (pcr && pcr.assessment) || (pcr && pcr.chief_complaint) || 'see complaint',
+        S: (pcr && pcr.vitals_initial) || 'vitals pending',
+        T: (pcr && pcr.interventions) || 'transport initiated'
+      };
+      const sbar = {
+        S: 'Patient with ' + (d.complaint || 'medical complaint') + ' at ' + (d.station || '?') + (d.sub_location ? ' / ' + d.sub_location : '') + '. Triage: ' + (d.triage || '?').toUpperCase() + '.',
+        B: pcr ? 'Pt age ' + (pcr.patient_age || '?') + ', ' + (pcr.patient_gender || '?') + '. PMHx: ' + (pcr.history || 'unknown') + '. Allergies: ' + (pcr.allergies || 'NKDA') + '.' : 'Demographics pending PCR.',
+        A: 'Assessment: ' + ((pcr && pcr.assessment) || 'see complaint') + '. Initial vitals: ' + ((pcr && pcr.vitals_initial) || 'pending') + '.',
+        R: 'Recommend: receiving facility prep. ETA per dispatcher. ' + (d.cardiac_arrest ? '⚠ CARDIAC ARREST CASE.' : '')
+      };
+      // Radio call (one-liner)
+      const triageWord = { red: 'PRIORITY 1', yellow: 'PRIORITY 2', green: 'PRIORITY 3', black: 'EXPECTANT' }[d.triage] || 'PRIORITY UNK';
+      const radio = (d.unit_assigned || 'Unit') + ' inbound, ' + triageWord +
+        ', ' + (pcr && pcr.patient_age ? pcr.patient_age + 'y/o ' + (pcr.patient_gender || '') + ', ' : '') +
+        (d.complaint || 'medical') + '. From ' + (d.station || '?') + (d.cardiac_arrest ? ', CARDIAC ARREST' : '') + '. ETA pending.';
+      return { ok: true, incident_id: incidentId, dispatch: d, pcr, mist, sbar, radio };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // supplies — request and track supply needs (often tied to equipment.status='low')
+  // ==============================================================
+  async _ensureSuppliesTable(env) {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS supply_requests (
+      id TEXT PRIMARY KEY,
+      station TEXT,
+      item TEXT,
+      quantity TEXT,
+      urgency TEXT,
+      reason TEXT,
+      requested_by_nid TEXT,
+      requested_by_name TEXT,
+      requested_at INTEGER,
+      status TEXT DEFAULT 'open',
+      fulfilled_by_nid TEXT,
+      fulfilled_by_name TEXT,
+      fulfilled_at INTEGER,
+      notes TEXT
+    )`).run();
+  },
+
+  async supplies_request(user, env, params) {
+    await ACTIONS._ensureSuppliesTable(env);
+    const id = 'SR-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+    const now = Math.floor(Date.now()/1000);
+    try {
+      await env.DB.prepare(
+        `INSERT INTO supply_requests (id, station, item, quantity, urgency, reason, requested_by_nid, requested_by_name, requested_at, status)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,'open')`
+      ).bind(
+        id, String(params.station || ''), String(params.item || ''),
+        String(params.quantity || '1'), String(params.urgency || 'normal'),
+        String(params.reason || ''), user.nid, user.name || '', now
+      ).run();
+      return { ok: true, id, ts: now };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  async supplies_list(user, env, params) {
+    await ACTIONS._ensureSuppliesTable(env);
+    try {
+      let where = '', binds = [];
+      const filters = [];
+      if (params.station) { filters.push('station = ?' + (binds.length + 1)); binds.push(params.station); }
+      if (params.status) { filters.push('status = ?' + (binds.length + 1)); binds.push(params.status); }
+      if (!filters.length) {
+        filters.push('requested_at >= ?1');
+        binds.push(Math.floor(Date.now()/1000) - 7 * 86400);
+      }
+      where = 'WHERE ' + filters.join(' AND ');
+      const r = await env.DB.prepare(
+        `SELECT * FROM supply_requests ${where} ORDER BY requested_at DESC LIMIT 200`
+      ).bind(...binds).all();
+      const requests = r.results || [];
+      const counts = { open: 0, in_progress: 0, fulfilled: 0, cancelled: 0 };
+      requests.forEach(r => { if (counts[r.status] != null) counts[r.status]++; });
+      return { ok: true, requests, counts };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  async supplies_set_status(user, env, params) {
+    await ACTIONS._ensureSuppliesTable(env);
+    const id = String(params.id || '');
+    const status = String(params.status || 'open');
+    const notes = String(params.notes || '');
+    if (!id) return { ok: false, error: 'missing_id' };
+    if (!['open','in_progress','fulfilled','cancelled'].includes(status)) return { ok: false, error: 'invalid_status' };
+    const now = Math.floor(Date.now()/1000);
+    try {
+      await env.DB.prepare(
+        `UPDATE supply_requests SET status = ?1, notes = COALESCE(notes, '') || CASE WHEN ?2 != '' THEN char(10) || ?2 ELSE '' END,
+         fulfilled_by_nid = CASE WHEN ?1 = 'fulfilled' THEN ?3 ELSE fulfilled_by_nid END,
+         fulfilled_by_name = CASE WHEN ?1 = 'fulfilled' THEN ?4 ELSE fulfilled_by_name END,
+         fulfilled_at = CASE WHEN ?1 = 'fulfilled' THEN ?5 ELSE fulfilled_at END
+         WHERE id = ?6`
+      ).bind(status, notes, user.nid, user.name || '', now, id).run();
+      return { ok: true, ts: now };
     } catch (e) { return { ok: false, error: e.message }; }
   },
 
