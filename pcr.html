@@ -1,201 +1,570 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PCR · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.34">
+<meta name="theme-color" content="#0a0e1a"><title>PCR · Hajj 2026</title>
+<link rel="stylesheet" href="assets/style.css?v=0.2.35">
 <style>
 body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-serif; }
-.pc-shell { max-width:1100px; margin:0 auto; padding:20px; }
-.pc-toolbar { background:rgba(20,28,50,0.6); border:1px solid rgba(99,179,237,0.18); border-radius:12px; padding:14px 18px; display:flex; gap:12px; flex-wrap:wrap; align-items:end; margin:12px 0 18px; }
-.pc-toolbar input { padding:10px 14px; border-radius:7px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.25); font-size:14px; }
-.pc-btn { padding:10px 16px; background:rgba(56,189,248,0.2); color:#cdf1ff; border:1px solid rgba(56,189,248,0.4); border-radius:7px; cursor:pointer; font-weight:600; font-size:13px; }
+.pc-shell { max-width:1200px; margin:0 auto; padding:20px; }
+.pc-tabs { display:flex; gap:6px; margin:14px 0 18px; border-bottom:1px solid rgba(99,179,237,0.18); }
+.pc-tabs button { background:transparent; border:none; color:#93a4cd; padding:11px 18px; cursor:pointer; font-size:13px; font-weight:600; border-bottom:3px solid transparent; transition:all 0.15s; }
+.pc-tabs button:hover { color:#cdf1ff; }
+.pc-tabs button.active { color:#67e8f9; border-bottom-color:#67e8f9; }
+.pc-tab-content { display:none; }
+.pc-tab-content.visible { display:block; }
+
+/* === DRAFTS LIST (My PCRs / All PCRs) === */
+.pc-drafts-toolbar { display:flex; gap:10px; align-items:end; flex-wrap:wrap; margin-bottom:14px; }
+.pc-drafts-toolbar input { padding:10px 14px; border-radius:7px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.25); font-size:14px; min-width:180px; }
+.pc-drafts-toolbar select { padding:10px 14px; border-radius:7px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.25); font-size:13px; }
+.pc-btn { padding:10px 18px; background:rgba(56,189,248,0.2); color:#cdf1ff; border:1px solid rgba(56,189,248,0.4); border-radius:7px; cursor:pointer; font-weight:600; font-size:13px; }
 .pc-btn:hover { background:rgba(56,189,248,0.3); }
 .pc-btn.ghost { background:transparent; color:#94a3b8; border-color:rgba(99,179,237,0.2); }
+.pc-btn.danger { background:rgba(239,68,68,0.18); color:#fca5a5; border-color:rgba(239,68,68,0.4); }
 
-.pc-form { background:rgba(20,28,50,0.4); border:1px solid rgba(99,179,237,0.15); border-radius:12px; padding:20px 24px; }
-.pc-form h2 { font-size:14px; color:#cdf1ff; letter-spacing:0.06em; text-transform:uppercase; margin:18px 0 10px; padding-bottom:6px; border-bottom:1px solid rgba(99,179,237,0.15); }
-.pc-form h2:first-child { margin-top:0; }
-.pc-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; }
-.pc-grid label { display:block; font-size:11px; color:#93a4cd; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:5px; }
-.pc-grid input, .pc-grid select, .pc-grid textarea { width:100%; padding:9px 12px; border-radius:7px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.25); font-size:13px; font-family:inherit; }
-.pc-grid textarea { min-height:80px; resize:vertical; }
-.pc-full { grid-column:1/-1; }
-.pc-status { display:inline-block; padding:3px 9px; border-radius:5px; font-size:11px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; margin-left:8px; }
-.pc-status.draft { background:rgba(245,158,11,0.18); color:#fcd34d; }
-.pc-status.signed { background:rgba(34,197,94,0.18); color:#86efac; }
-.pc-saved { position:fixed; bottom:14px; left:50%; transform:translateX(-50%); background:rgba(34,197,94,0.18); color:#86efac; padding:8px 16px; border-radius:8px; border:1px solid rgba(34,197,94,0.4); font-size:12px; font-weight:600; opacity:0; transition:opacity 0.2s; pointer-events:none; }
-.pc-saved.visible { opacity:1; }
-.pc-mine { display:flex; flex-direction:column; gap:8px; margin-top:14px; }
-.pc-mine-row { background:rgba(20,28,50,0.4); border:1px solid rgba(99,179,237,0.15); border-radius:8px; padding:10px 14px; cursor:pointer; transition:background 0.15s; }
-.pc-mine-row:hover { background:rgba(99,179,237,0.08); }
-.pc-mine-row .top { display:flex; justify-content:space-between; }
-.pc-mine-row .id { font-family:ui-monospace,Menlo,monospace; color:#cdf1ff; font-size:12px; }
+.pc-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:12px; }
+.pc-card { background:rgba(20,28,50,0.5); border:1px solid rgba(99,179,237,0.18); border-radius:12px; padding:14px 18px; cursor:pointer; transition:transform 0.15s, border-color 0.15s; }
+.pc-card:hover { transform:translateY(-2px); border-color:rgba(56,189,248,0.4); }
+.pc-card.signed { border-left:4px solid #22c55e; }
+.pc-card.draft { border-left:4px solid #f59e0b; }
+.pc-card .top { display:flex; justify-content:space-between; align-items:start; }
+.pc-card .id { font-family:ui-monospace,Menlo,monospace; color:#cdf1ff; font-size:12px; font-weight:600; }
+.pc-card .status-pill { font-size:10px; padding:2px 8px; border-radius:4px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; }
+.pc-card .status-pill.draft { background:rgba(245,158,11,0.18); color:#fcd34d; }
+.pc-card .status-pill.signed { background:rgba(34,197,94,0.18); color:#86efac; }
+.pc-card .meta { font-size:12px; color:#cbd5e1; margin-top:6px; line-height:1.5; }
+.pc-card .meta .lbl { color:#93a4cd; }
+.pc-card .complaint { font-size:13px; color:#e7ecf7; margin:8px 0 6px; font-weight:500; }
+.pc-card .when { font-size:11px; color:#6b7d9e; margin-top:5px; }
+
+/* === EDITOR === */
+.pc-empty { text-align:center; padding:50px; color:#6b7d9e; }
+.pc-editor-back { display:flex; gap:8px; margin-bottom:14px; align-items:center; }
+
+.pc-section { background:rgba(20,28,50,0.4); border:1px solid rgba(99,179,237,0.15); border-radius:12px; padding:18px 22px; margin-bottom:14px; }
+.pc-section-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid rgba(99,179,237,0.12); }
+.pc-section-head h3 { margin:0; font-size:13px; color:#67e8f9; letter-spacing:0.08em; text-transform:uppercase; font-weight:700; }
+.pc-section-head .hint { font-size:11px; color:#6b7d9e; }
+.pc-section.cardiac { border:1px solid rgba(239,68,68,0.3); background:rgba(239,68,68,0.06); }
+.pc-section.cardiac .pc-section-head h3 { color:#fca5a5; }
+
+.pc-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
+.pc-grid .full { grid-column:1/-1; }
+.pc-field label { display:block; font-size:11px; color:#93a4cd; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:5px; font-weight:600; }
+.pc-field input, .pc-field select, .pc-field textarea { width:100%; padding:10px 13px; border-radius:7px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.25); font-size:14px; font-family:inherit; transition:border-color 0.15s; }
+.pc-field input:focus, .pc-field select:focus, .pc-field textarea:focus { outline:none; border-color:rgba(56,189,248,0.5); }
+.pc-field textarea { min-height:80px; resize:vertical; }
+.pc-field .voice-btn { background:rgba(168,85,247,0.16); color:#d8b4fe; border:1px solid rgba(168,85,247,0.35); padding:3px 9px; border-radius:5px; font-size:10px; cursor:pointer; margin-left:8px; vertical-align:middle; }
+.pc-field .now-btn { background:rgba(34,197,94,0.16); color:#86efac; border:1px solid rgba(34,197,94,0.35); padding:3px 9px; border-radius:5px; font-size:10px; cursor:pointer; margin-left:6px; vertical-align:middle; }
+
+.pc-saved-toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:rgba(34,197,94,0.20); color:#86efac; padding:10px 22px; border-radius:10px; border:1px solid rgba(34,197,94,0.4); font-size:13px; font-weight:600; opacity:0; transition:opacity 0.25s, transform 0.25s; pointer-events:none; z-index:9999; }
+.pc-saved-toast.visible { opacity:1; transform:translateX(-50%) translateY(-4px); }
+.pc-saved-toast.error { background:rgba(239,68,68,0.20); color:#fca5a5; border-color:rgba(239,68,68,0.4); }
+
+.pc-meds-list { display:flex; flex-direction:column; gap:6px; margin-top:6px; }
+.pc-med-row { display:grid; grid-template-columns:1fr 80px 100px 100px 36px; gap:8px; align-items:center; padding:7px 10px; background:rgba(15,23,42,0.5); border-radius:7px; }
+.pc-med-row input, .pc-med-row select { padding:7px 10px; font-size:12px; border-radius:5px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.2); }
+.pc-med-row .remove-btn { background:rgba(239,68,68,0.18); color:#fca5a5; border:1px solid rgba(239,68,68,0.35); padding:4px 6px; border-radius:4px; cursor:pointer; font-size:11px; }
+.pc-add-med { background:rgba(99,179,237,0.13); color:#cdf1ff; border:1px solid rgba(99,179,237,0.3); padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; margin-top:8px; }
+
+.pc-actions-bar { position:sticky; bottom:0; background:rgba(8,14,28,0.95); backdrop-filter:blur(10px); border-top:1px solid rgba(99,179,237,0.2); padding:12px 18px; margin:14px -20px -20px -20px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
+.pc-actions-bar .meta { color:#93a4cd; font-size:11px; flex:1; align-self:center; }
+
+.pc-arrest-hint { background:rgba(239,68,68,0.10); border-left:3px solid #ef4444; padding:10px 14px; border-radius:6px; margin-bottom:14px; color:#fcaaaa; font-size:12px; line-height:1.5; }
+
+.pc-quick-tile { display:inline-block; padding:6px 12px; background:rgba(99,179,237,0.12); border:1px solid rgba(99,179,237,0.25); border-radius:6px; color:#cdf1ff; font-size:11px; cursor:pointer; margin:2px; transition:background 0.12s; }
+.pc-quick-tile:hover { background:rgba(99,179,237,0.22); }
+.pc-quick-tile.selected { background:rgba(34,197,94,0.18); border-color:rgba(34,197,94,0.4); color:#86efac; }
+
+@media (max-width:680px) {
+  .pc-med-row { grid-template-columns:1fr; }
+}
 </style>
 </head><body>
 <div id="topbar"></div>
 <div class="pc-shell">
-  <h1 style="font-size:28px; margin:16px 0 4px;">Patient Care Report</h1>
-  <p style="color:#93a4cd; margin:0 0 4px;">Draft and save PCRs. Auto-fills from incident on first open.</p>
+  <div id="pcEmpty" class="pc-empty">Loading...</div>
 
-  <div class="pc-toolbar">
-    <div style="flex:1; min-width:200px;">
-      <label style="display:block; font-size:11px; color:#93a4cd; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:5px;">Incident ID</label>
-      <input type="text" id="pcIncident" placeholder="DSP-..." style="width:100%;" />
+  <div id="pcMain" style="display:none;">
+    <div style="display:flex; justify-content:space-between; align-items:start; gap:14px; flex-wrap:wrap;">
+      <div>
+        <h1 style="font-size:28px; margin:16px 0 4px;">Patient Care Reports</h1>
+        <p style="color:#93a4cd; margin:0 0 4px;">Drafts auto-save as you type. Click any card below to edit. All your PCRs are listed under "My PCRs".</p>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center; margin-top:16px;">
+        <input type="text" id="pcNewIncident" placeholder="Incident ID (e.g. DSP-...)" style="padding:10px 14px; border-radius:7px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.25); font-size:14px; min-width:200px;" />
+        <button class="pc-btn" id="pcStartNew">+ New PCR</button>
+      </div>
     </div>
-    <button class="pc-btn" id="pcLoad">Load / Create</button>
-    <button class="pc-btn ghost" onclick="window.print()">🖨️ Print</button>
+
+    <div class="pc-tabs" id="pcTabs">
+      <button data-tab="mine" class="active">My PCRs</button>
+      <button data-tab="all" id="pcAllTab" style="display:none;">All PCRs (review)</button>
+    </div>
+
+    <div class="pc-tab-content visible" data-tab="mine">
+      <div class="pc-drafts-toolbar">
+        <input type="text" id="pcSearchMine" placeholder="Search incident ID or complaint" />
+        <select id="pcStatusMine">
+          <option value="">All status</option>
+          <option value="draft">Draft only</option>
+          <option value="reviewed">Reviewed</option>
+          <option value="signed">Signed</option>
+        </select>
+        <span id="pcMineCount" style="color:#93a4cd; font-size:12px; align-self:center;"></span>
+      </div>
+      <div id="pcMineCards" class="pc-cards"><div class="pc-empty">Loading drafts...</div></div>
+    </div>
+
+    <div class="pc-tab-content" data-tab="all">
+      <div class="pc-drafts-toolbar">
+        <input type="text" id="pcSearchAll" placeholder="Search incident, author, or complaint" />
+        <select id="pcStatusAll">
+          <option value="">All status</option>
+          <option value="draft">Draft only</option>
+          <option value="reviewed">Reviewed</option>
+          <option value="signed">Signed</option>
+        </select>
+        <span id="pcAllCount" style="color:#93a4cd; font-size:12px; align-self:center;"></span>
+      </div>
+      <div id="pcAllCards" class="pc-cards"><div class="pc-empty">Loading...</div></div>
+    </div>
   </div>
 
-  <div id="pcMineWrap"><h2 style="font-size:14px; color:#cdf1ff; letter-spacing:0.06em; text-transform:uppercase;">My recent PCRs</h2><div class="pc-mine" id="pcMine"><div style="color:#6b7d9e; padding:10px;">Loading…</div></div></div>
-
-  <div id="pcEditor" style="display:none; margin-top:24px;"></div>
+  <div id="pcEditor" style="display:none;">
+    <div class="pc-editor-back">
+      <button class="pc-btn ghost" id="pcBackBtn">← Back to PCRs</button>
+      <span style="color:#93a4cd; font-size:12px;">Auto-saving every change</span>
+    </div>
+    <div id="pcEditorBody"></div>
+  </div>
 </div>
-<div class="pc-saved" id="pcSaved">✓ Saved</div>
 
-<script src="assets/auth.js?v=0.2.34"></script>
-<script src="assets/shortcuts.js?v=0.2.34"></script>
-<script src="assets/voice.js?v=0.2.34"></script>
-<script src="assets/topbar.js?v=0.2.34"></script>
-<script src="assets/version.js?v=0.2.34"></script>
+<div class="pc-saved-toast" id="pcSaved">✓ Saved</div>
+
+<script src="assets/auth.js?v=0.2.35"></script>
+<script src="assets/shortcuts.js?v=0.2.35"></script>
+<script src="assets/voice.js?v=0.2.35"></script>
+<script src="assets/topbar.js?v=0.2.35"></script>
+<script src="assets/version.js?v=0.2.35"></script>
 <script>
 (async function() {
   if (!await HAJJ.requireRole(['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'])) return;
   CADTopbar.render({ title: "PCR" });
 
+  const me = await HAJJ.whoami();
+  const myNid = me && me.user && me.user.nid;
+  const myRole = me && me.user && me.user.role;
+  const canViewAll = ['leadership','admin'].includes(myRole);
+  if (canViewAll) document.getElementById('pcAllTab').style.display = '';
+
+  document.getElementById('pcEmpty').style.display = 'none';
+  document.getElementById('pcMain').style.display = 'block';
+
   let currentPCR = null;
   let saveTimer = null;
+  let medsList = []; // array of {name, dose, route, time}
+  let transferMeds = []; // same shape but for transfer-clinic specific
+  let savePending = false;
 
-  async function loadMine() {
-    const r = await HAJJ.authedCall('pcr_list_mine', {});
-    const wrap = document.getElementById('pcMine');
-    if (!r || !r.ok || !r.drafts.length) { wrap.innerHTML = '<div style="color:#6b7d9e; padding:10px;">No drafts yet. Enter an incident ID above to start.</div>'; return; }
-    wrap.innerHTML = r.drafts.map(d => `
-      <div class="pc-mine-row" onclick="document.getElementById('pcIncident').value='${d.incident_id}'; document.getElementById('pcLoad').click();">
-        <div class="top">
-          <span class="id">${d.incident_id}</span>
-          <span class="pc-status ${d.status}">${d.status||'draft'}</span>
-        </div>
-        <div style="font-size:11px; color:#93a4cd; margin-top:4px;">${(d.chief_complaint||'(no complaint)')} · ${d.patient_age||'?'}/${d.patient_gender||'?'} · updated ${new Date(d.updated_at*1000).toLocaleString()}</div>
-      </div>
-    `).join('');
-  }
+  // === TAB SWITCHING ===
+  document.querySelectorAll('.pc-tabs button').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.pc-tabs button').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      document.querySelectorAll('.pc-tab-content').forEach(c => c.classList.remove('visible'));
+      document.querySelector('.pc-tab-content[data-tab="' + b.dataset.tab + '"]').classList.add('visible');
+      if (b.dataset.tab === 'mine') loadMine();
+      else if (b.dataset.tab === 'all') loadAll();
+    });
+  });
 
-  document.getElementById('pcLoad').addEventListener('click', async () => {
-    const incident_id = document.getElementById('pcIncident').value.trim();
+  // === START NEW PCR ===
+  document.getElementById('pcStartNew').addEventListener('click', async () => {
+    const incident_id = document.getElementById('pcNewIncident').value.trim();
     if (!incident_id) return alert('Enter an incident ID');
     const r = await HAJJ.authedCall('pcr_draft', { incident_id });
-    if (!r || !r.ok) { alert('Error: ' + ((r && r.error)||'unknown')); return; }
+    if (!r || !r.ok) return alert('Error: ' + ((r && r.error)||'unknown'));
     currentPCR = r.pcr;
-    renderEditor();
+    parseMedsFromPCR();
+    showEditor();
+    document.getElementById('pcNewIncident').value = '';
   });
+
+  function parseMedsFromPCR() {
+    try { medsList = JSON.parse(currentPCR.medications_administered || '[]'); }
+    catch (_) { medsList = []; }
+    try { transferMeds = JSON.parse(currentPCR.transfer_clinic_meds || '[]'); }
+    catch (_) { transferMeds = []; }
+  }
+
+  // === LOAD MY PCRs ===
+  async function loadMine() {
+    const r = await HAJJ.authedCall('pcr_list_mine', {});
+    const wrap = document.getElementById('pcMineCards');
+    const q = (document.getElementById('pcSearchMine').value || '').toLowerCase().trim();
+    const sf = document.getElementById('pcStatusMine').value;
+    if (!r || !r.ok) { wrap.innerHTML = '<div class="pc-empty">Error loading: ' + ((r && r.error)||'unknown') + '</div>'; return; }
+    let drafts = r.drafts || [];
+    if (q) drafts = drafts.filter(d => (d.incident_id||'').toLowerCase().includes(q) || (d.chief_complaint||'').toLowerCase().includes(q));
+    if (sf) drafts = drafts.filter(d => (d.status||'draft') === sf);
+    document.getElementById('pcMineCount').textContent = drafts.length + ' PCR' + (drafts.length === 1 ? '' : 's');
+    if (!drafts.length) { wrap.innerHTML = '<div class="pc-empty">No PCRs match. Start a new one above.</div>'; return; }
+    wrap.innerHTML = drafts.map(d => renderCard(d)).join('');
+    bindCardClicks(wrap);
+  }
+
+  async function loadAll() {
+    const r = await HAJJ.authedCall('pcr_list_all', {});
+    const wrap = document.getElementById('pcAllCards');
+    const q = (document.getElementById('pcSearchAll').value || '').toLowerCase().trim();
+    const sf = document.getElementById('pcStatusAll').value;
+    if (!r || !r.ok) { wrap.innerHTML = '<div class="pc-empty">Error</div>'; return; }
+    let drafts = r.drafts || [];
+    if (q) drafts = drafts.filter(d => (d.incident_id||'').toLowerCase().includes(q) || (d.chief_complaint||'').toLowerCase().includes(q) || (d.author_name||'').toLowerCase().includes(q));
+    if (sf) drafts = drafts.filter(d => (d.status||'draft') === sf);
+    document.getElementById('pcAllCount').textContent = drafts.length + ' PCRs (all authors)';
+    if (!drafts.length) { wrap.innerHTML = '<div class="pc-empty">No PCRs match</div>'; return; }
+    wrap.innerHTML = drafts.map(d => renderCard(d, true)).join('');
+    bindCardClicks(wrap);
+  }
+
+  function renderCard(d, showAuthor) {
+    const status = d.status || 'draft';
+    const updated = d.updated_at ? new Date(d.updated_at * 1000).toLocaleString() : '—';
+    const isArrest = (d.arrest_start_ts || d.rosc_status || d.cpr_cycles);
+    return '<div class="pc-card ' + status + '" data-pcr-id="' + d.id + '">' +
+      '<div class="top">' +
+        '<span class="id">' + d.incident_id + (isArrest ? ' <span title="Cardiac arrest" style="color:#fca5a5;">⚡</span>' : '') + '</span>' +
+        '<span class="status-pill ' + status + '">' + status + '</span>' +
+      '</div>' +
+      '<div class="complaint">' + (d.chief_complaint ? d.chief_complaint.slice(0, 80) : '<i style="color:#6b7d9e;">no complaint yet</i>') + '</div>' +
+      '<div class="meta">' +
+        '<span class="lbl">Patient:</span> ' + (d.patient_age || '?') + ' / ' + (d.patient_gender || '?') + (d.patient_nationality ? ' · ' + d.patient_nationality : '') +
+      '</div>' +
+      (showAuthor ? '<div class="meta"><span class="lbl">Author:</span> ' + (d.author_name || d.author_nid || '—') + '</div>' : '') +
+      (d.disposition ? '<div class="meta"><span class="lbl">Disposition:</span> ' + d.disposition.replace(/_/g, ' ') + '</div>' : '') +
+      '<div class="when">Updated: ' + updated + '</div>' +
+    '</div>';
+  }
+
+  function bindCardClicks(wrap) {
+    wrap.querySelectorAll('.pc-card').forEach(c => {
+      c.addEventListener('click', async () => {
+        const id = c.dataset.pcrId;
+        const r = await HAJJ.authedCall('pcr_list_mine', {});  // re-fetch fresh
+        const found = (r && r.ok && r.drafts || []).find(d => d.id === id);
+        if (found) {
+          currentPCR = found;
+          parseMedsFromPCR();
+          showEditor();
+          return;
+        }
+        // If not in mine, try all
+        if (canViewAll) {
+          const ra = await HAJJ.authedCall('pcr_list_all', {});
+          const foundAll = (ra && ra.ok && ra.drafts || []).find(d => d.id === id);
+          if (foundAll) { currentPCR = foundAll; parseMedsFromPCR(); showEditor(); return; }
+        }
+        alert('Could not load PCR');
+      });
+    });
+  }
+
+  ['pcSearchMine','pcStatusMine'].forEach(id => document.getElementById(id).addEventListener('input', loadMine));
+  ['pcSearchAll','pcStatusAll'].forEach(id => document.getElementById(id).addEventListener('input', loadAll));
+
+  // === EDITOR ===
+  function showEditor() {
+    document.getElementById('pcMain').style.display = 'none';
+    document.getElementById('pcEditor').style.display = 'block';
+    renderEditor();
+    window.scrollTo(0, 0);
+  }
+  function hideEditor() {
+    document.getElementById('pcEditor').style.display = 'none';
+    document.getElementById('pcMain').style.display = 'block';
+    loadMine();
+  }
+  document.getElementById('pcBackBtn').addEventListener('click', hideEditor);
 
   function renderEditor() {
     const p = currentPCR;
-    document.getElementById('pcEditor').style.display = 'block';
-    document.getElementById('pcEditor').innerHTML = `
-    <div class="pc-form">
-      <h2>Identification</h2>
-      <div class="pc-grid">
-        <div><label>Incident ID</label><input type="text" id="pf_incident_id" value="${p.incident_id||''}" disabled /></div>
-        <div><label>PCR ID</label><input type="text" id="pf_id" value="${p.id||''}" disabled /></div>
-        <div><label>Status</label><select id="pf_status">
-          <option value="draft" ${p.status==='draft'?'selected':''}>Draft</option>
-          <option value="reviewed" ${p.status==='reviewed'?'selected':''}>Reviewed</option>
-          <option value="signed" ${p.status==='signed'?'selected':''}>Signed</option>
-        </select></div>
-        <div><label>Author</label><input type="text" value="${p.author_name||p.author_nid||''}" disabled /></div>
-      </div>
+    const isReadonly = p.author_nid !== myNid && !canViewAll;
+    const editable = !isReadonly && p.status !== 'signed';
+    const dis = editable ? '' : 'disabled';
 
-      <h2>Patient</h2>
-      <div class="pc-grid">
-        <div><label>Age</label><input type="number" id="pf_patient_age" value="${p.patient_age||''}" /></div>
-        <div><label>Gender</label><select id="pf_patient_gender">
-          <option value="">—</option>
-          <option value="male" ${p.patient_gender==='male'?'selected':''}>Male</option>
-          <option value="female" ${p.patient_gender==='female'?'selected':''}>Female</option>
-        </select></div>
-        <div><label>Nationality</label><input type="text" id="pf_patient_nationality" value="${p.patient_nationality||''}" /></div>
-      </div>
+    const html =
+      '<div class="pc-section">' +
+        '<div class="pc-section-head">' +
+          '<h3>Identification</h3>' +
+          '<span class="hint">' + (p.id || '') + (isReadonly ? ' · READ-ONLY' : '') + '</span>' +
+        '</div>' +
+        '<div class="pc-grid">' +
+          field('Incident ID', 'pf_incident_id', 'text', p.incident_id, true) +
+          field('Author', 'pf_author', 'text', (p.author_name || p.author_nid || ''), true) +
+          fieldSelect('Status', 'pf_status', p.status || 'draft', [['draft','Draft'],['reviewed','Reviewed'],['signed','Signed']], dis) +
+        '</div>' +
+      '</div>' +
 
-      <h2>Chief Complaint & History</h2>
-      <div class="pc-grid">
-        <div class="pc-full"><label>Chief complaint <button type="button" data-voice-target="pf_chief_complaint" style="margin-left:8px; background:rgba(168,85,247,0.16); color:#d8b4fe; border:1px solid rgba(168,85,247,0.35); padding:2px 8px; border-radius:5px; font-size:10px; cursor:pointer;">🎤</button></label><textarea id="pf_chief_complaint">${p.chief_complaint||''}</textarea></div>
-        <div class="pc-full"><label>History <button type="button" data-voice-target="pf_history" style="margin-left:8px; background:rgba(168,85,247,0.16); color:#d8b4fe; border:1px solid rgba(168,85,247,0.35); padding:2px 8px; border-radius:5px; font-size:10px; cursor:pointer;">🎤</button></label><textarea id="pf_history">${p.history||''}</textarea></div>
-        <div><label>Allergies</label><input type="text" id="pf_allergies" value="${p.allergies||''}" /></div>
-        <div><label>Medications</label><input type="text" id="pf_medications" value="${p.medications||''}" /></div>
-      </div>
+      '<div class="pc-section">' +
+        '<div class="pc-section-head"><h3>Patient</h3></div>' +
+        '<div class="pc-grid">' +
+          field('Age', 'pf_patient_age', 'number', p.patient_age, dis) +
+          fieldSelect('Gender', 'pf_patient_gender', p.patient_gender || '', [['','—'],['male','Male'],['female','Female']], dis) +
+          field('Nationality', 'pf_patient_nationality', 'text', p.patient_nationality, dis) +
+        '</div>' +
+      '</div>' +
 
-      <h2>Vitals & Assessment</h2>
-      <div class="pc-grid">
-        <div class="pc-full"><label>Initial vitals (BP, HR, RR, SpO2, T, BGL)</label><input type="text" id="pf_vitals_initial" value="${p.vitals_initial||''}" placeholder="120/80, 88, 16, 98%, 36.8°C, 5.2" /></div>
-        <div class="pc-full"><label>Final vitals</label><input type="text" id="pf_vitals_final" value="${p.vitals_final||''}" /></div>
-        <div><label>GCS - Eye</label><input type="number" min="1" max="4" id="pf_gcs_e" value="${p.gcs_e||''}" /></div>
-        <div><label>GCS - Verbal</label><input type="number" min="1" max="5" id="pf_gcs_v" value="${p.gcs_v||''}" /></div>
-        <div><label>GCS - Motor</label><input type="number" min="1" max="6" id="pf_gcs_m" value="${p.gcs_m||''}" /></div>
-        <div class="pc-full"><label>Assessment <button type="button" data-voice-target="pf_assessment" style="margin-left:8px; background:rgba(168,85,247,0.16); color:#d8b4fe; border:1px solid rgba(168,85,247,0.35); padding:2px 8px; border-radius:5px; font-size:10px; cursor:pointer;">🎤</button></label><textarea id="pf_assessment">${p.assessment||''}</textarea></div>
-      </div>
+      '<div class="pc-section">' +
+        '<div class="pc-section-head"><h3>Chief Complaint &amp; History</h3></div>' +
+        '<div class="pc-grid">' +
+          fieldTextarea('Chief complaint', 'pf_chief_complaint', p.chief_complaint, dis, true) +
+          fieldTextarea('History (HPI/SAMPLE)', 'pf_history', p.history, dis, true) +
+          field('Allergies', 'pf_allergies', 'text', p.allergies, dis) +
+          field('Home medications', 'pf_medications', 'text', p.medications, dis) +
+        '</div>' +
+      '</div>' +
 
-      <h2>Interventions & Disposition</h2>
-      <div class="pc-grid">
-        <div class="pc-full"><label>Interventions <button type="button" data-voice-target="pf_interventions" style="margin-left:8px; background:rgba(168,85,247,0.16); color:#d8b4fe; border:1px solid rgba(168,85,247,0.35); padding:2px 8px; border-radius:5px; font-size:10px; cursor:pointer;">🎤</button></label><textarea id="pf_interventions">${p.interventions||''}</textarea></div>
-        <div class="pc-full"><label>Response to treatment</label><textarea id="pf_response_to_treatment">${p.response_to_treatment||''}</textarea></div>
-        <div><label>Disposition</label><select id="pf_disposition">
-          <option value="">—</option>
-          <option value="treated_released" ${p.disposition==='treated_released'?'selected':''}>Treated and released</option>
-          <option value="transported" ${p.disposition==='transported'?'selected':''}>Transported to hospital</option>
-          <option value="refused" ${p.disposition==='refused'?'selected':''}>Refused care</option>
-          <option value="dnr" ${p.disposition==='dnr'?'selected':''}>DNR / deceased on scene</option>
-          <option value="referred" ${p.disposition==='referred'?'selected':''}>Referred to clinic</option>
-        </select></div>
-        <div><label>Transport to</label><input type="text" id="pf_transport_to" value="${p.transport_to||''}" /></div>
-        <div><label>Transport unit</label><input type="text" id="pf_transport_unit" value="${p.transport_unit||''}" /></div>
-        <div><label>Handoff to</label><input type="text" id="pf_handoff_to" value="${p.handoff_to||''}" /></div>
-      </div>
+      '<div class="pc-section">' +
+        '<div class="pc-section-head"><h3>Vitals &amp; Assessment</h3></div>' +
+        '<div class="pc-grid">' +
+          field('Initial vitals (BP HR RR SpO2 T)', 'pf_vitals_initial', 'text', p.vitals_initial, dis) +
+          field('Final vitals (BP HR RR SpO2 T)', 'pf_vitals_final', 'text', p.vitals_final, dis) +
+          field('Glucose initial (mmol/L)', 'pf_glucose_initial', 'number', p.glucose_initial, dis, { step: '0.1' }) +
+          field('Glucose final (mmol/L)', 'pf_glucose_final', 'number', p.glucose_final, dis, { step: '0.1' }) +
+          field('GCS - Eye (1-4)', 'pf_gcs_e', 'number', p.gcs_e, dis, { min: 1, max: 4 }) +
+          field('GCS - Verbal (1-5)', 'pf_gcs_v', 'number', p.gcs_v, dis, { min: 1, max: 5 }) +
+          field('GCS - Motor (1-6)', 'pf_gcs_m', 'number', p.gcs_m, dis, { min: 1, max: 6 }) +
+          fieldTextarea('Assessment', 'pf_assessment', p.assessment, dis, true) +
+        '</div>' +
+      '</div>' +
 
-      <div style="margin-top:20px; padding-top:16px; border-top:1px solid rgba(99,179,237,0.15); display:flex; gap:10px;">
-        <button class="pc-btn" id="pcSave">Save</button>
-        <button class="pc-btn" id="pcSign">Mark as signed</button>
-        <button class="pc-btn ghost" onclick="window.print()">🖨️ Print</button>
-      </div>
-    </div>`;
+      '<div class="pc-section cardiac">' +
+        '<div class="pc-section-head">' +
+          '<h3>⚡ Cardiac Arrest (fill if applicable)</h3>' +
+          '<span class="hint">Leave blank if not a cardiac arrest case</span>' +
+        '</div>' +
+        '<div class="pc-arrest-hint">Document cardiac arrest events with timestamps. Use the "Now" button next to each time field for the current moment.</div>' +
+        '<div class="pc-grid">' +
+          fieldTime('Arrest start time', 'pf_arrest_start_ts', p.arrest_start_ts, dis) +
+          fieldTime('First shock time', 'pf_first_shock_ts', p.first_shock_ts, dis) +
+          field('Total CPR cycles', 'pf_cpr_cycles', 'number', p.cpr_cycles, dis, { min: 0 }) +
+          fieldSelect('ROSC status', 'pf_rosc_status', p.rosc_status || '', [['','—'],['achieved','Achieved'],['not_achieved','Not achieved'],['transient','Transient (lost)']], dis) +
+          fieldTime('ROSC time (if achieved)', 'pf_rosc_ts', p.rosc_ts, dis) +
+        '</div>' +
+      '</div>' +
 
-    // Auto-save on blur
-    const fields = ['patient_age','patient_gender','patient_nationality','chief_complaint','history','allergies','medications','vitals_initial','vitals_final','gcs_e','gcs_v','gcs_m','assessment','interventions','response_to_treatment','disposition','transport_to','transport_unit','handoff_to','status'];
-    fields.forEach(f => {
-      const el = document.getElementById('pf_' + f);
-      if (el) el.addEventListener('blur', queueSave);
-    });
-    document.getElementById('pcSave').addEventListener('click', save);
-    document.getElementById('pcSign').addEventListener('click', () => {
-      document.getElementById('pf_status').value = 'signed';
-      save();
-    });
+      '<div class="pc-section">' +
+        '<div class="pc-section-head"><h3>Medications Administered (on-scene/transport)</h3></div>' +
+        '<div id="pcMedsList" class="pc-meds-list"></div>' +
+        (editable ? '<button class="pc-add-med" id="pcAddMed">+ Add medication</button>' : '') +
+      '</div>' +
+
+      '<div class="pc-section">' +
+        '<div class="pc-section-head"><h3>Interventions &amp; Response</h3></div>' +
+        '<div class="pc-grid">' +
+          fieldTextarea('Interventions performed', 'pf_interventions', p.interventions, dis, true) +
+          fieldTextarea('Response to treatment', 'pf_response_to_treatment', p.response_to_treatment, dis, true) +
+        '</div>' +
+      '</div>' +
+
+      '<div class="pc-section">' +
+        '<div class="pc-section-head"><h3>Disposition</h3></div>' +
+        '<div class="pc-grid">' +
+          fieldSelect('Disposition', 'pf_disposition', p.disposition || '', [['','—'],['treated_released','Treated and released'],['transported','Transported to hospital'],['transferred_clinic','Transferred to clinic'],['refused','Refused care'],['dnr','DNR / deceased on scene'],['referred','Referred to clinic']], dis) +
+          field('Transport to', 'pf_transport_to', 'text', p.transport_to, dis) +
+          field('Transport unit', 'pf_transport_unit', 'text', p.transport_unit, dis) +
+          field('Handoff to (clinician)', 'pf_handoff_to', 'text', p.handoff_to, dis) +
+          fieldTime('On-scene time', 'pf_on_scene_ts', p.on_scene_ts, dis) +
+          fieldTime('Departed time', 'pf_departed_ts', p.departed_ts, dis) +
+          fieldTime('Arrived at receiving facility', 'pf_arrived_ts', p.arrived_ts, dis) +
+        '</div>' +
+      '</div>' +
+
+      '<div class="pc-section" id="pcTransferSection">' +
+        '<div class="pc-section-head">' +
+          '<h3>Transfer to Clinic — Medications Given</h3>' +
+          '<span class="hint">Fill if disposition is "transferred to clinic"</span>' +
+        '</div>' +
+        '<div id="pcTransferMedsList" class="pc-meds-list"></div>' +
+        (editable ? '<button class="pc-add-med" id="pcAddTransferMed">+ Add transfer medication</button>' : '') +
+      '</div>' +
+
+      '<div class="pc-actions-bar">' +
+        '<div class="meta" id="pcSaveStatus">Auto-save: idle</div>' +
+        (editable ? '<button class="pc-btn ghost" id="pcManualSave">Save now</button>' : '') +
+        (editable ? '<button class="pc-btn" id="pcMarkSigned">Mark as signed</button>' : '') +
+        '<button class="pc-btn ghost" onclick="window.print()">🖨️ Print</button>' +
+      '</div>';
+
+    document.getElementById('pcEditorBody').innerHTML = html;
+
+    // Render meds lists
+    renderMedsList('pcMedsList', medsList, 'med', editable);
+    renderMedsList('pcTransferMedsList', transferMeds, 'transferMed', editable);
+
+    if (editable) {
+      // Bind auto-save on every field
+      document.querySelectorAll('[id^="pf_"]').forEach(el => {
+        if (el.disabled) return;
+        el.addEventListener('input', queueSave);
+        el.addEventListener('change', queueSave);
+      });
+
+      const addMed = document.getElementById('pcAddMed');
+      if (addMed) addMed.addEventListener('click', () => {
+        medsList.push({ name:'', dose:'', route:'IV', time:'' });
+        renderMedsList('pcMedsList', medsList, 'med', editable);
+        queueSave();
+      });
+      const addTr = document.getElementById('pcAddTransferMed');
+      if (addTr) addTr.addEventListener('click', () => {
+        transferMeds.push({ name:'', dose:'', route:'PO', time:'' });
+        renderMedsList('pcTransferMedsList', transferMeds, 'transferMed', editable);
+        queueSave();
+      });
+
+      const ms = document.getElementById('pcManualSave');
+      if (ms) ms.addEventListener('click', save);
+      const sg = document.getElementById('pcMarkSigned');
+      if (sg) sg.addEventListener('click', async () => {
+        if (!confirm('Mark this PCR as SIGNED? Once signed, no further edits allowed.')) return;
+        document.getElementById('pf_status').value = 'signed';
+        await save();
+        // Reload
+        const r = await HAJJ.authedCall('pcr_list_mine', {});
+        const fresh = (r && r.ok && r.drafts || []).find(d => d.id === currentPCR.id);
+        if (fresh) { currentPCR = fresh; parseMedsFromPCR(); renderEditor(); }
+      });
+    }
     if (window.CADVoice) window.CADVoice.scan();
   }
 
-  function queueSave() {
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(save, 800);
+  // === MEDS LIST RENDER ===
+  function renderMedsList(containerId, list, kind, editable) {
+    const wrap = document.getElementById(containerId);
+    if (!wrap) return;
+    if (!list.length) { wrap.innerHTML = '<div style="color:#6b7d9e; font-size:12px; padding:8px 12px;">No medications added.</div>'; return; }
+    wrap.innerHTML = list.map((m, i) => {
+      const dis = editable ? '' : 'disabled';
+      return '<div class="pc-med-row">' +
+        '<input type="text" placeholder="Name (e.g. Adrenaline)" value="' + escapeAttr(m.name) + '" data-kind="' + kind + '" data-idx="' + i + '" data-fld="name" ' + dis + ' />' +
+        '<input type="text" placeholder="Dose" value="' + escapeAttr(m.dose) + '" data-kind="' + kind + '" data-idx="' + i + '" data-fld="dose" ' + dis + ' />' +
+        '<select data-kind="' + kind + '" data-idx="' + i + '" data-fld="route" ' + dis + '>' +
+          ['IV','IM','SC','IO','PO','SL','PR','Neb','ETT','IN','Topical'].map(r =>
+            '<option value="' + r + '"' + (m.route === r ? ' selected' : '') + '>' + r + '</option>'
+          ).join('') +
+        '</select>' +
+        '<input type="time" value="' + (m.time || '') + '" data-kind="' + kind + '" data-idx="' + i + '" data-fld="time" ' + dis + ' />' +
+        (editable ? '<button class="remove-btn" data-kind="' + kind + '" data-idx="' + i + '" data-action="remove">✕</button>' : '<div></div>') +
+      '</div>';
+    }).join('');
+    // bind
+    wrap.querySelectorAll('input, select').forEach(el => {
+      el.addEventListener('input', (e) => {
+        const idx = parseInt(e.target.dataset.idx);
+        const fld = e.target.dataset.fld;
+        const arr = kind === 'med' ? medsList : transferMeds;
+        if (arr[idx]) arr[idx][fld] = e.target.value;
+        queueSave();
+      });
+    });
+    wrap.querySelectorAll('[data-action="remove"]').forEach(el => {
+      el.addEventListener('click', (e) => {
+        const idx = parseInt(e.target.dataset.idx);
+        if (kind === 'med') medsList.splice(idx, 1);
+        else transferMeds.splice(idx, 1);
+        renderMedsList(containerId, kind === 'med' ? medsList : transferMeds, kind, editable);
+        queueSave();
+      });
+    });
   }
 
+  // === SAVE LOGIC ===
+  function queueSave() {
+    if (saveTimer) clearTimeout(saveTimer);
+    document.getElementById('pcSaveStatus').textContent = 'Auto-save: pending...';
+    saveTimer = setTimeout(save, 600);
+  }
   async function save() {
-    if (!currentPCR) return;
-    const fields = ['patient_age','patient_gender','patient_nationality','chief_complaint','history','allergies','medications','vitals_initial','vitals_final','gcs_e','gcs_v','gcs_m','assessment','interventions','response_to_treatment','disposition','transport_to','transport_unit','handoff_to','status'];
+    if (!currentPCR || savePending) return;
+    savePending = true;
+    document.getElementById('pcSaveStatus').textContent = 'Auto-save: saving...';
+    const fields = ['patient_age','patient_gender','patient_nationality','chief_complaint','history','allergies','medications','vitals_initial','vitals_final','gcs_e','gcs_v','gcs_m','assessment','interventions','response_to_treatment','disposition','transport_to','transport_unit','handoff_to','status','arrest_start_ts','first_shock_ts','cpr_cycles','rosc_status','rosc_ts','glucose_initial','glucose_final','on_scene_ts','departed_ts','arrived_ts'];
     const data = { id: currentPCR.id };
     fields.forEach(f => {
       const el = document.getElementById('pf_' + f);
-      if (el && el.value !== '') data[f] = el.value;
+      if (!el) return;
+      let v = el.value;
+      // Convert time fields back to unix
+      if (f.endsWith('_ts') && v) {
+        // value is "HH:MM" or full datetime
+        const today = new Date();
+        const [hh, mm] = v.split(':');
+        if (hh != null && mm != null) {
+          const d = new Date(today.getFullYear(), today.getMonth(), today.getDate(), parseInt(hh), parseInt(mm));
+          v = Math.floor(d.getTime() / 1000);
+        }
+      }
+      if (v !== '' && v != null) data[f] = v;
     });
+    data.medications_administered = JSON.stringify(medsList);
+    data.transfer_clinic_meds = JSON.stringify(transferMeds);
     const r = await HAJJ.authedCall('pcr_save', data);
+    savePending = false;
     if (r && r.ok) {
-      const note = document.getElementById('pcSaved');
-      note.classList.add('visible');
-      setTimeout(() => note.classList.remove('visible'), 1500);
-      loadMine();
+      const t = document.getElementById('pcSaved');
+      t.classList.remove('error');
+      t.textContent = '✓ Saved';
+      t.classList.add('visible');
+      setTimeout(() => t.classList.remove('visible'), 1200);
+      document.getElementById('pcSaveStatus').textContent = 'Auto-save: saved ' + new Date().toLocaleTimeString();
     } else {
-      alert('Save failed: ' + ((r && r.error)||'unknown'));
+      const t = document.getElementById('pcSaved');
+      t.classList.add('error');
+      t.textContent = 'Save failed: ' + ((r && r.error)||'unknown');
+      t.classList.add('visible');
+      setTimeout(() => t.classList.remove('visible'), 3000);
+      document.getElementById('pcSaveStatus').textContent = 'Auto-save: FAILED';
     }
   }
+
+  // === HELPERS ===
+  function escapeAttr(s) { return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+  function escapeText(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+  function field(label, id, type, val, dis, extra) {
+    const attrs = extra ? Object.entries(extra).map(([k,v]) => k + '="' + v + '"').join(' ') : '';
+    return '<div class="pc-field"><label>' + label + '</label>' +
+      '<input type="' + type + '" id="' + id + '" value="' + escapeAttr(val || '') + '" ' + (dis||'') + ' ' + attrs + ' /></div>';
+  }
+  function fieldTextarea(label, id, val, dis, allowVoice) {
+    const voice = allowVoice ? '<button type="button" class="voice-btn" data-voice-target="' + id + '">🎤</button>' : '';
+    return '<div class="pc-field full"><label>' + label + ' ' + voice + '</label>' +
+      '<textarea id="' + id + '" ' + (dis||'') + '>' + escapeText(val || '') + '</textarea></div>';
+  }
+  function fieldSelect(label, id, val, opts, dis) {
+    return '<div class="pc-field"><label>' + label + '</label>' +
+      '<select id="' + id + '" ' + (dis||'') + '>' +
+        opts.map(o => '<option value="' + o[0] + '"' + (val === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') +
+      '</select></div>';
+  }
+  function fieldTime(label, id, val, dis) {
+    let timeStr = '';
+    if (val) {
+      const d = new Date(parseInt(val) * 1000);
+      timeStr = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+    }
+    return '<div class="pc-field"><label>' + label + ' <button type="button" class="now-btn" onclick="window.cadPcrNow(\'' + id + '\')">Now</button></label>' +
+      '<input type="time" id="' + id + '" value="' + timeStr + '" ' + (dis||'') + ' /></div>';
+  }
+  window.cadPcrNow = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const now = new Date();
+    el.value = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+    queueSave();
+  };
 
   loadMine();
 })();

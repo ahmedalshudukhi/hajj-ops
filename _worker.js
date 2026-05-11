@@ -392,6 +392,13 @@ const ROLE_GATE = {
   station_directory: null,
   escalation_matrix: null,
   shift_status: null,
+  scoreboard: ['cluster_supervisor','dispatcher','leadership','admin'],
+  replay: ['cluster_supervisor','dispatcher','leadership','admin'],
+  translator_phrases: null,
+  equipment_list: null,
+  equipment_status_set: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin'],
+  equipment_seed: ['admin'],
+  station_load_history: ['cluster_supervisor','dispatcher','leadership','admin'],
   sar_summary: ['sar','admin'],
   dispatch_list: ['cluster_supervisor','dispatcher','leadership','admin'],
   dashboard_active: ['cluster_supervisor','dispatcher','leadership','admin'],
@@ -2470,7 +2477,7 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
   async pcr_save(user, env, params) {
     const id = String(params.id || '');
     if (!id) return { ok: false, error: 'missing_id' };
-    const allowed = ['patient_age','patient_gender','patient_nationality','chief_complaint','history','allergies','medications','vitals_initial','vitals_final','gcs_e','gcs_v','gcs_m','assessment','interventions','response_to_treatment','disposition','transport_to','transport_unit','handoff_to','on_scene_ts','departed_ts','arrived_ts','status'];
+    const allowed = ['patient_age','patient_gender','patient_nationality','chief_complaint','history','allergies','medications','vitals_initial','vitals_final','gcs_e','gcs_v','gcs_m','assessment','interventions','response_to_treatment','disposition','transport_to','transport_unit','handoff_to','on_scene_ts','departed_ts','arrived_ts','status','arrest_start_ts','first_shock_ts','cpr_cycles','rosc_status','rosc_ts','glucose_initial','glucose_final','medications_administered','transfer_clinic_meds'];
     const updates = [];
     const binds = [];
     let i = 1;
@@ -2682,6 +2689,302 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
       nextChange = ksaHour >= 19 ? '07:00 KSA next day' : '07:00 KSA';
     }
     return { ok: true, shift, ksa_hour: ksaHour, next_change: nextChange };
+  },
+
+  // ==============================================================
+  // scoreboard — KPI scoreboard by station/unit/team
+  // ==============================================================
+  async scoreboard(user, env, params) {
+    const now = Math.floor(Date.now() / 1000);
+    const lookback_hours = Math.min(parseInt(params.lookback_hours || 24, 10), 168);
+    const winStart = now - lookback_hours * 3600;
+    const result = { ok: true, generated_at: now, window: { start: winStart, end: now, lookback_hours }, by_station: [], by_unit: [], by_cluster: [], overall: {} };
+    try {
+      // By station
+      const stR = await env.DB.prepare(
+        `SELECT station, COUNT(*) AS total,
+                SUM(CASE WHEN status IN ('complete','closed') THEN 1 ELSE 0 END) AS closed,
+                SUM(CASE WHEN triage = 'red' THEN 1 ELSE 0 END) AS reds,
+                SUM(CASE WHEN cardiac_arrest = 1 THEN 1 ELSE 0 END) AS cardiac
+         FROM dispatch_log
+         WHERE ts >= ?1 AND ts <= ?2 AND COALESCE(is_drill,0) = 0
+         GROUP BY station ORDER BY total DESC`
+      ).bind(winStart, now).all();
+      result.by_station = stR.results || [];
+
+      // By unit
+      const uR = await env.DB.prepare(
+        `SELECT unit_assigned AS unit, COUNT(*) AS total,
+                SUM(CASE WHEN status IN ('complete','closed') THEN 1 ELSE 0 END) AS closed,
+                SUM(CASE WHEN triage = 'red' THEN 1 ELSE 0 END) AS reds
+         FROM dispatch_log
+         WHERE ts >= ?1 AND ts <= ?2 AND COALESCE(is_drill,0) = 0
+           AND unit_assigned IS NOT NULL AND unit_assigned != ''
+         GROUP BY unit_assigned ORDER BY total DESC LIMIT 15`
+      ).bind(winStart, now).all();
+      result.by_unit = uR.results || [];
+
+      // Response time per station (median + p95)
+      const rtR = await env.DB.prepare(
+        `SELECT d.station, (e.ts - d.ts) AS delta
+         FROM dispatch_log d
+         INNER JOIN (
+           SELECT incident_id, MIN(ts) AS ts FROM incident_events
+           WHERE event_type = 'on_scene' GROUP BY incident_id
+         ) e ON e.incident_id = d.incident_id
+         WHERE d.ts >= ?1 AND d.ts <= ?2 AND COALESCE(d.is_drill,0) = 0
+           AND (e.ts - d.ts) BETWEEN 0 AND 86400
+         ORDER BY d.station, delta ASC`
+      ).bind(winStart, now).all();
+      const deltasByStation = {};
+      (rtR.results || []).forEach(r => {
+        if (!deltasByStation[r.station]) deltasByStation[r.station] = [];
+        deltasByStation[r.station].push(r.delta);
+      });
+      // Attach RT stats to by_station rows
+      result.by_station.forEach(row => {
+        const d = deltasByStation[row.station] || [];
+        if (d.length > 0) {
+          row.rt_median_sec = d[Math.floor(d.length / 2)];
+          row.rt_p95_sec = d[Math.floor(d.length * 0.95)];
+          row.rt_n = d.length;
+        } else { row.rt_median_sec = null; row.rt_p95_sec = null; row.rt_n = 0; }
+      });
+
+      // Aggregate clusters
+      const clusters = { Arafat: { total:0, closed:0, reds:0, cardiac:0 }, Muzdalifah: {total:0,closed:0,reds:0,cardiac:0}, Mina: {total:0,closed:0,reds:0,cardiac:0} };
+      const ARFAT = ['ARF1','ARF2','ARF3'], MUZ = ['MUZ1','MUZ2','MUZ3'], MIN = ['MIN1','MIN2','MIN3'];
+      result.by_station.forEach(r => {
+        let cl = null;
+        if (ARFAT.includes(r.station)) cl = 'Arafat';
+        else if (MUZ.includes(r.station)) cl = 'Muzdalifah';
+        else if (MIN.includes(r.station)) cl = 'Mina';
+        if (cl && clusters[cl]) {
+          clusters[cl].total += Number(r.total) || 0;
+          clusters[cl].closed += Number(r.closed) || 0;
+          clusters[cl].reds += Number(r.reds) || 0;
+          clusters[cl].cardiac += Number(r.cardiac) || 0;
+        }
+      });
+      result.by_cluster = Object.entries(clusters).map(([cluster, v]) => ({ cluster, ...v }));
+
+      // Overall
+      let total = 0, closed = 0, reds = 0, cardiac = 0;
+      result.by_station.forEach(r => { total += Number(r.total)||0; closed += Number(r.closed)||0; reds += Number(r.reds)||0; cardiac += Number(r.cardiac)||0; });
+      // Aggregate response time across all
+      const allDeltas = Object.values(deltasByStation).flat().sort((a,b) => a-b);
+      result.overall = {
+        total, closed, reds, cardiac,
+        close_pct: total > 0 ? Math.round(closed / total * 100) : 0,
+        rt_median_sec: allDeltas.length ? allDeltas[Math.floor(allDeltas.length / 2)] : null,
+        rt_p95_sec: allDeltas.length ? allDeltas[Math.floor(allDeltas.length * 0.95)] : null
+      };
+
+      return result;
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // replay — historical data for a specific time window
+  // ==============================================================
+  async replay(user, env, params) {
+    const from_ts = parseInt(params.from_ts || 0, 10);
+    const to_ts = parseInt(params.to_ts || 0, 10);
+    if (!from_ts || !to_ts) return { ok: false, error: 'missing_window' };
+    if (to_ts <= from_ts) return { ok: false, error: 'invalid_window' };
+    try {
+      // Get all incidents in window
+      const incR = await env.DB.prepare(
+        `SELECT incident_id, ts, station, sub_location, triage, status, complaint,
+                cardiac_arrest, unit_assigned, closed_at
+         FROM dispatch_log
+         WHERE ts >= ?1 AND ts <= ?2 AND COALESCE(is_drill,0) = 0
+         ORDER BY ts ASC`
+      ).bind(from_ts, to_ts).all();
+      const incidents = incR.results || [];
+      const ids = incidents.map(i => i.incident_id);
+      // Events
+      let eventsByInc = {};
+      if (ids.length > 0) {
+        const placeholders = ids.map((_, i) => '?' + (i + 1)).join(',');
+        try {
+          const evR = await env.DB.prepare(
+            `SELECT incident_id, event_type, ts FROM incident_events WHERE incident_id IN (${placeholders}) ORDER BY ts ASC`
+          ).bind(...ids).all();
+          (evR.results || []).forEach(e => {
+            if (!eventsByInc[e.incident_id]) eventsByInc[e.incident_id] = [];
+            eventsByInc[e.incident_id].push({ type: e.event_type, ts: e.ts });
+          });
+        } catch (_) {}
+      }
+      // Build event stream (chronological merge of dispatch + events + close)
+      const stream = [];
+      incidents.forEach(inc => {
+        stream.push({ ts: inc.ts, type: 'dispatch', incident_id: inc.incident_id, station: inc.station, triage: inc.triage, complaint: inc.complaint, cardiac: inc.cardiac_arrest });
+        (eventsByInc[inc.incident_id] || []).forEach(e => {
+          stream.push({ ts: e.ts, type: e.type, incident_id: inc.incident_id, station: inc.station, triage: inc.triage });
+        });
+        if (inc.closed_at) stream.push({ ts: inc.closed_at, type: 'close', incident_id: inc.incident_id, station: inc.station });
+      });
+      stream.sort((a, b) => a.ts - b.ts);
+
+      return {
+        ok: true,
+        from_ts, to_ts,
+        duration_sec: to_ts - from_ts,
+        incident_count: incidents.length,
+        event_count: stream.length,
+        events: stream.slice(0, 500),
+        incidents: incidents.slice(0, 200)
+      };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // translator_phrases — common medical phrases in pilgrim languages
+  // ==============================================================
+  async translator_phrases(user, env) {
+    // Curated list of essential medical phrases in major pilgrim languages
+    return { ok: true, phrases: [
+      { en: "Where does it hurt?", ar: "أين تشعر بالألم؟", id: "Di mana sakitnya?", ur: "درد کہاں ہے؟", tr: "Neresi ağrıyor?", fa: "کجا درد می کند؟", fr: "Où avez-vous mal?", category: "assessment" },
+      { en: "Can you breathe?", ar: "هل تستطيع التنفس؟", id: "Bisa bernapas?", ur: "آپ سانس لے سکتے ہیں؟", tr: "Nefes alabiliyor musun?", fa: "می توانید نفس بکشید؟", fr: "Pouvez-vous respirer?", category: "airway" },
+      { en: "Are you on any medication?", ar: "هل تتناول أي دواء؟", id: "Apakah Anda minum obat?", ur: "کیا آپ کوئی دوا لے رہے ہیں؟", tr: "İlaç alıyor musunuz?", fa: "آیا دارو می خورید؟", fr: "Prenez-vous des médicaments?", category: "history" },
+      { en: "Do you have allergies?", ar: "هل عندك حساسية؟", id: "Apakah Anda alergi?", ur: "کیا آپ کو الرجی ہے؟", tr: "Alerjiniz var mı?", fa: "آلرژی دارید؟", fr: "Avez-vous des allergies?", category: "history" },
+      { en: "How long have you felt this way?", ar: "منذ متى وأنت تشعر هكذا؟", id: "Sudah berapa lama merasa seperti ini?", ur: "آپ کب سے ایسا محسوس کر رہے ہیں؟", tr: "Bu şikayet ne zaman başladı?", fa: "از کی این طور احساس می کنید؟", fr: "Depuis quand ressentez-vous cela?", category: "history" },
+      { en: "We are taking you to hospital.", ar: "سنأخذك إلى المستشفى.", id: "Kami akan membawa Anda ke rumah sakit.", ur: "ہم آپ کو ہسپتال لے جا رہے ہیں۔", tr: "Sizi hastaneye götürüyoruz.", fa: "شما را به بیمارستان می بریم.", fr: "Nous vous emmenons à l'hôpital.", category: "treatment" },
+      { en: "Please stay calm.", ar: "ابق هادئاً من فضلك.", id: "Mohon tetap tenang.", ur: "براہ کرم پرسکون رہیں۔", tr: "Lütfen sakin olun.", fa: "لطفاً آرام باشید.", fr: "Restez calme s'il vous plaît.", category: "reassurance" },
+      { en: "I am a paramedic.", ar: "أنا مسعف.", id: "Saya paramedis.", ur: "میں پیرامیڈک ہوں۔", tr: "Ben sağlık görevlisiyim.", fa: "من امدادگر هستم.", fr: "Je suis ambulancier.", category: "intro" },
+      { en: "We need to give you an injection.", ar: "نحتاج أن نعطيك حقنة.", id: "Kami perlu memberi Anda suntikan.", ur: "ہمیں آپ کو انجیکشن دینا ہوگا۔", tr: "Size iğne yapmamız gerekiyor.", fa: "باید به شما تزریق کنیم.", fr: "Nous devons vous faire une injection.", category: "treatment" },
+      { en: "Open your eyes please.", ar: "افتح عينيك من فضلك.", id: "Buka mata Anda.", ur: "اپنی آنکھیں کھولیں۔", tr: "Lütfen gözünüzü açın.", fa: "لطفاً چشمانتان را باز کنید.", fr: "Ouvrez les yeux s'il vous plaît.", category: "assessment" },
+      { en: "Squeeze my hand.", ar: "اضغط على يدي.", id: "Genggam tangan saya.", ur: "میرا ہاتھ دبائیں۔", tr: "Elimi sıkın.", fa: "دستم را فشار دهید.", fr: "Serrez ma main.", category: "assessment" },
+      { en: "Do you have chest pain?", ar: "هل عندك ألم في الصدر؟", id: "Apakah dada sakit?", ur: "کیا آپ کو سینے میں درد ہے؟", tr: "Göğüs ağrınız var mı?", fa: "درد قفسه سینه دارید؟", fr: "Avez-vous mal à la poitrine?", category: "assessment" },
+      { en: "Are you pregnant?", ar: "هل أنت حامل؟", id: "Apakah Anda hamil?", ur: "کیا آپ حاملہ ہیں؟", tr: "Hamile misiniz?", fa: "باردار هستید؟", fr: "Êtes-vous enceinte?", category: "assessment" },
+      { en: "When did you last eat or drink?", ar: "متى آخر مرة أكلت أو شربت؟", id: "Kapan terakhir makan atau minum?", ur: "آپ نے آخری بار کب کھایا یا پیا؟", tr: "Son ne zaman yediniz veya içtiniz?", fa: "آخرین بار کی غذا یا نوشیدنی خوردید؟", fr: "Quand avez-vous mangé ou bu pour la dernière fois?", category: "history" },
+      { en: "Are you feeling dizzy?", ar: "هل تشعر بالدوار؟", id: "Apakah Anda merasa pusing?", ur: "کیا آپ کو چکر آرہا ہے؟", tr: "Baş dönmesi var mı?", fa: "گیج می شوید؟", fr: "Avez-vous des vertiges?", category: "assessment" },
+      { en: "Is anyone with you?", ar: "هل معك أحد؟", id: "Ada yang menemani Anda?", ur: "آپ کے ساتھ کوئی ہے؟", tr: "Yanınızda biri var mı?", fa: "کسی همراه شماست؟", fr: "Quelqu'un est-il avec vous?", category: "social" },
+      { en: "Drink this water.", ar: "اشرب هذا الماء.", id: "Minum air ini.", ur: "یہ پانی پیجئے۔", tr: "Bu suyu için.", fa: "این آب را بنوشید.", fr: "Buvez cette eau.", category: "treatment" },
+      { en: "Sit down please.", ar: "اجلس من فضلك.", id: "Silakan duduk.", ur: "براہ کرم بیٹھ جائیں۔", tr: "Lütfen oturun.", fa: "لطفاً بنشینید.", fr: "Asseyez-vous s'il vous plaît.", category: "guidance" },
+      { en: "Do you understand?", ar: "هل تفهم؟", id: "Anda mengerti?", ur: "کیا آپ سمجھ رہے ہیں؟", tr: "Anlıyor musunuz?", fa: "متوجه می شوید؟", fr: "Comprenez-vous?", category: "comms" },
+      { en: "What is your name?", ar: "ما اسمك؟", id: "Siapa nama Anda?", ur: "آپ کا نام کیا ہے؟", tr: "Adınız nedir?", fa: "اسم شما چیست؟", fr: "Quel est votre nom?", category: "ident" }
+    ]};
+  },
+
+  // ==============================================================
+  // equipment — track inventory of critical equipment per station
+  // ==============================================================
+  async _ensureEquipmentTable(env) {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS equipment (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      station TEXT,
+      unit_code TEXT,
+      label TEXT,
+      serial TEXT,
+      status TEXT DEFAULT 'ok',
+      last_check_ts INTEGER,
+      last_check_by TEXT,
+      note TEXT,
+      expires_at INTEGER,
+      created_at INTEGER,
+      updated_at INTEGER
+    )`).run();
+  },
+
+  async equipment_seed(user, env) {
+    await ACTIONS._ensureEquipmentTable(env);
+    const now = Math.floor(Date.now() / 1000);
+    const stations = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+    const types = [
+      { type: 'als_bag', label: 'ALS Bag', count_per_station: 2 },
+      { type: 'defibrillator', label: 'AED/Defib', count_per_station: 2 },
+      { type: 'o2_tank_main', label: 'O2 Tank (Main)', count_per_station: 1 },
+      { type: 'o2_tank_portable', label: 'O2 Tank (Portable)', count_per_station: 4 },
+      { type: 'suction_unit', label: 'Suction Unit', count_per_station: 2 },
+      { type: 'splints', label: 'Splint Set', count_per_station: 2 },
+      { type: 'cooling_kit', label: 'Heat Stroke Cooling Kit', count_per_station: 2 },
+      { type: 'iv_kit', label: 'IV Start Kit', count_per_station: 5 },
+      { type: 'spine_board', label: 'Spine Board', count_per_station: 1 },
+      { type: 'triage_tags', label: 'Triage Tag Set (MCI)', count_per_station: 1 }
+    ];
+    let n = 0;
+    for (const st of stations) {
+      for (const t of types) {
+        for (let i = 1; i <= t.count_per_station; i++) {
+          const id = `EQ-${st}-${t.type}-${i}`;
+          try {
+            await env.DB.prepare(
+              `INSERT OR IGNORE INTO equipment (id, type, station, label, status, created_at, updated_at)
+               VALUES (?1, ?2, ?3, ?4, 'ok', ?5, ?5)`
+            ).bind(id, t.type, st, t.label + ' #' + i, now).run();
+            n++;
+          } catch (_) {}
+        }
+      }
+    }
+    return { ok: true, seeded: n };
+  },
+
+  async equipment_list(user, env, params) {
+    try {
+      await ACTIONS._ensureEquipmentTable(env);
+      let where = '', binds = [];
+      if (params.station) { where = 'WHERE station = ?1'; binds = [String(params.station).toUpperCase()]; }
+      const r = await env.DB.prepare(
+        `SELECT * FROM equipment ${where} ORDER BY station, type`
+      ).bind(...binds).all();
+      // Tally
+      const tally = { total: 0, ok: 0, low: 0, defective: 0, expired: 0 };
+      (r.results || []).forEach(e => {
+        tally.total++;
+        if (e.status === 'ok') tally.ok++;
+        else if (e.status === 'low') tally.low++;
+        else if (e.status === 'defective') tally.defective++;
+        else if (e.status === 'expired') tally.expired++;
+      });
+      return { ok: true, equipment: r.results || [], tally };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  async equipment_status_set(user, env, params) {
+    const id = String(params.id || '');
+    const status = String(params.status || 'ok').toLowerCase();
+    const note = String(params.note || '').slice(0, 300);
+    if (!id) return { ok: false, error: 'missing_id' };
+    if (!['ok','low','defective','expired','restocked'].includes(status)) return { ok: false, error: 'invalid_status' };
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      await env.DB.prepare(
+        `UPDATE equipment SET status = ?1, note = ?2, last_check_ts = ?3, last_check_by = ?4, updated_at = ?3 WHERE id = ?5`
+      ).bind(status, note, now, user.name || user.nid, id).run();
+      await env.DB.prepare(
+        `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details) VALUES (?1, 'equipment_status', 'equipment', ?2, ?3)`
+      ).bind(user.nid, id, JSON.stringify({ status, note })).run();
+      return { ok: true, ts: now };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // station_load_history — hourly load per station for past N hours
+  // ==============================================================
+  async station_load_history(user, env, params) {
+    const hours = Math.min(parseInt(params.hours || 24, 10), 168);
+    const now = Math.floor(Date.now() / 1000);
+    const winStart = now - hours * 3600;
+    try {
+      const r = await env.DB.prepare(
+        `SELECT station, CAST((ts - ?1) / 3600 AS INTEGER) AS hour_offset, COUNT(*) AS n
+         FROM dispatch_log
+         WHERE ts >= ?1 AND ts <= ?2 AND COALESCE(is_drill,0) = 0
+         GROUP BY station, hour_offset
+         ORDER BY station, hour_offset`
+      ).bind(winStart, now).all();
+      const grid = {};
+      (r.results || []).forEach(row => {
+        if (!grid[row.station]) grid[row.station] = new Array(hours).fill(0);
+        if (row.hour_offset >= 0 && row.hour_offset < hours) grid[row.station][row.hour_offset] = row.n;
+      });
+      return { ok: true, win_start: winStart, hours, grid };
+    } catch (e) { return { ok: false, error: e.message }; }
   },
 
   // ==============================================================

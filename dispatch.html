@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Dispatch · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.34">
+<link rel="stylesheet" href="assets/style.css?v=0.2.35">
 
 <style>
   body { background: var(--bg); }
@@ -309,14 +309,14 @@
   ⚠ <span id="repoBannerCount">0</span> reposition request<span id="repoBannerS">s</span> pending approval — click to review
 </div>
 
-<script src="assets/config.js?v=0.2.34"></script>
-<script src="assets/tempo.js?v=0.2.34"></script>
-<script src="assets/auth.js?v=0.2.34"></script>
-<script src="assets/shortcuts.js?v=0.2.34"></script>
-<script src="assets/voice.js?v=0.2.34"></script>
-<script src="assets/sublocations.js?v=0.2.34"></script>
-<script src="assets/topbar.js?v=0.2.34"></script>
-<script src="assets/dateBar.js?v=0.2.34"></script>
+<script src="assets/config.js?v=0.2.35"></script>
+<script src="assets/tempo.js?v=0.2.35"></script>
+<script src="assets/auth.js?v=0.2.35"></script>
+<script src="assets/shortcuts.js?v=0.2.35"></script>
+<script src="assets/voice.js?v=0.2.35"></script>
+<script src="assets/sublocations.js?v=0.2.35"></script>
+<script src="assets/topbar.js?v=0.2.35"></script>
+<script src="assets/dateBar.js?v=0.2.35"></script>
 <script>
 (function () {
 
@@ -812,7 +812,7 @@
       +     '</div>'
       +   '</div>'
       +   '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">'
-      +     '<div class="timer" data-start="' + startMs + '">⏱ 0:00</div>'
+      +     '<div class="timer" data-start="' + startMs + '"' + (inc.Closed_At ? ' data-end="' + new Date(inc.Closed_At).getTime() + '" data-frozen="1" style="opacity:0.65"' : '') + '>⏱ 0:00</div>'
       +     '<div style="display:flex; gap:4px;">'
       +       '<button class="btn-edit-card" data-incident-id="' + (inc.Incident_ID || '') + '" '
       +         'style="background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.3); color:#93c5fd; padding:2px 7px; border-radius:4px; cursor:pointer; font-size:10px;" '
@@ -1019,10 +1019,13 @@
     document.querySelectorAll('.timer[data-start]').forEach(el => {
       const start = parseInt(el.dataset.start, 10);
       if (!start) return;
-      const ms = Date.now() - start;
+      // If incident is closed, freeze at close_at — do not tick further
+      const end = el.dataset.end ? parseInt(el.dataset.end, 10) : Date.now();
+      const ms = Math.max(0, end - start);
       const m = Math.floor(ms / 60000);
       const s = Math.floor((ms % 60000) / 1000);
-      el.textContent = '⏱ ' + m + ':' + String(s).padStart(2,'0');
+      const prefix = el.dataset.frozen ? '⏹ ' : '⏱ ';
+      el.textContent = prefix + m + ':' + String(s).padStart(2,'0');
     });
   }, 1000);
 
@@ -1279,6 +1282,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.34"></script>
+<script src="assets/version.js?v=0.2.35"></script>
 </body>
 </html>
