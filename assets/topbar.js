@@ -90,6 +90,10 @@
     { href: 'replay.html',     label: 'Replay',     roles: ['cluster_supervisor','dispatcher','leadership','admin'] },
     { href: 'translator.html', label: 'Translator', roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'] },
     { href: 'equipment.html',  label: 'Equipment',  roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'] },
+    { href: 'transports.html', label: 'Transports', roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'] },
+    { href: 'mci.html',        label: 'MCI Cmd',    roles: ['cluster_supervisor','dispatcher','leadership','admin'] },
+    { href: 'triage.html',     label: 'Triage',     roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin'] },
+    { href: 'shifts.html',     label: 'Shifts',     roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'] },
     { href: 'me.html',       label: 'My schedule', roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin'] },
     { href: 'diagnostic.html', label: 'Diag',       roles: ['admin'] },
     { href: 'system.html',  label: 'System',    roles: ['admin','leadership'] }

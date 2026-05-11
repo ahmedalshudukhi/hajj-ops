@@ -399,6 +399,14 @@ const ROLE_GATE = {
   equipment_status_set: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin'],
   equipment_seed: ['admin'],
   station_load_history: ['cluster_supervisor','dispatcher','leadership','admin'],
+  transports_list: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'],
+  mci_command_summary: ['cluster_supervisor','dispatcher','leadership','admin'],
+  triage_tags_assign: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin'],
+  triage_tags_list: ['cluster_supervisor','dispatcher','leadership','admin','sar'],
+  shifts_today: null,
+  shifts_handoff_save: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin'],
+  shifts_handoff_list: ['cluster_supervisor','dispatcher','leadership','admin'],
+  alerts_recent: ['cluster_supervisor','dispatcher','leadership','admin'],
   sar_summary: ['sar','admin'],
   dispatch_list: ['cluster_supervisor','dispatcher','leadership','admin'],
   dashboard_active: ['cluster_supervisor','dispatcher','leadership','admin'],
@@ -2689,6 +2697,253 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
       nextChange = ksaHour >= 19 ? '07:00 KSA next day' : '07:00 KSA';
     }
     return { ok: true, shift, ksa_hour: ksaHour, next_change: nextChange };
+  },
+
+  // ==============================================================
+  // transports_list — currently active transports (post-on_scene, pre-arrived)
+  // ==============================================================
+  async transports_list(user, env, params) {
+    try {
+      const lookback = parseInt(params.lookback_hours || 24, 10);
+      const since = Math.floor(Date.now() / 1000) - lookback * 3600;
+      const r = await env.DB.prepare(
+        `SELECT d.incident_id, d.station, d.sub_location, d.triage, d.complaint,
+                d.cardiac_arrest, d.unit_assigned, d.status, d.ts AS dispatched_at,
+                d.closed_at,
+                (SELECT MIN(ts) FROM incident_events WHERE incident_id = d.incident_id AND event_type = 'on_scene') AS on_scene_at,
+                (SELECT MIN(ts) FROM incident_events WHERE incident_id = d.incident_id AND event_type = 'transporting') AS transporting_at,
+                (SELECT MIN(ts) FROM incident_events WHERE incident_id = d.incident_id AND event_type = 'transfer_start') AS transfer_start_at,
+                (SELECT MIN(ts) FROM incident_events WHERE incident_id = d.incident_id AND event_type = 'arrived_hospital') AS arrived_at
+         FROM dispatch_log d
+         WHERE d.ts >= ?1 AND COALESCE(d.is_drill,0) = 0
+         ORDER BY d.ts DESC LIMIT 200`
+      ).bind(since).all();
+      const all = r.results || [];
+      const active = all.filter(t => (t.transporting_at || t.transfer_start_at) && !t.arrived_at && !t.closed_at);
+      const completed = all.filter(t => t.arrived_at);
+      return { ok: true, active, completed: completed.slice(0, 50), total_window: all.length };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // mci_command_summary — MCI command center data
+  // ==============================================================
+  async mci_command_summary(user, env) {
+    try {
+      let mciActive = false, mciDeclaredAt = null, mciDeclaredBy = null, mciLocation = null;
+      try {
+        const ms = await env.DB.prepare(`SELECT v FROM sync_state WHERE k = 'mci_state' LIMIT 1`).first();
+        if (ms && ms.v) {
+          const state = JSON.parse(ms.v);
+          mciActive = state.active === true;
+          mciDeclaredAt = state.declared_at;
+          mciDeclaredBy = state.declared_by;
+          mciLocation = state.location;
+        }
+      } catch (_) {}
+
+      const since = Math.floor(Date.now() / 1000) - 6 * 3600;
+      const tR = await env.DB.prepare(
+        `SELECT triage, COUNT(*) AS n FROM dispatch_log WHERE ts >= ?1 AND COALESCE(is_drill,0) = 0 GROUP BY triage`
+      ).bind(since).all();
+      const triageCounts = { red: 0, yellow: 0, green: 0, black: 0 };
+      (tR.results || []).forEach(row => { if (triageCounts[row.triage] != null) triageCounts[row.triage] = row.n; });
+
+      let hospitals = [];
+      try {
+        const hR = await env.DB.prepare(
+          `SELECT id, name, name_ar, ed_status, ed_capacity_pct, last_updated FROM hospitals ORDER BY ed_capacity_pct DESC`
+        ).all();
+        hospitals = hR.results || [];
+      } catch (_) {}
+
+      let unitCounts = { available: 0, busy: 0, oos: 0 };
+      try {
+        const uR = await env.DB.prepare(`SELECT status, COUNT(*) AS n FROM units GROUP BY status`).all();
+        (uR.results || []).forEach(row => { if (unitCounts[row.status] != null) unitCounts[row.status] = row.n; });
+      } catch (_) {}
+
+      const stR = await env.DB.prepare(
+        `SELECT station, COUNT(*) AS n FROM dispatch_log WHERE status NOT IN ('complete','closed') AND COALESCE(is_drill,0) = 0 GROUP BY station ORDER BY n DESC`
+      ).all();
+      const openByStation = stR.results || [];
+
+      // Triage tags counts (if MCI mode)
+      let tagCounts = { red: 0, yellow: 0, green: 0, black: 0 };
+      try {
+        await ACTIONS._ensureTriageTagsTable(env);
+        const tgR = await env.DB.prepare(
+          `SELECT tag_color, COUNT(*) AS n FROM triage_tags WHERE assigned_at >= ?1 GROUP BY tag_color`
+        ).bind(since).all();
+        (tgR.results || []).forEach(row => { if (tagCounts[row.tag_color] != null) tagCounts[row.tag_color] = row.n; });
+      } catch (_) {}
+
+      return {
+        ok: true,
+        mci: { active: mciActive, declared_at: mciDeclaredAt, declared_by: mciDeclaredBy, location: mciLocation },
+        triage_counts: triageCounts,
+        tag_counts: tagCounts,
+        hospitals,
+        unit_counts: unitCounts,
+        open_by_station: openByStation,
+        total_open: openByStation.reduce((a, b) => a + (b.n || 0), 0)
+      };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // triage_tags — MCI patient triage tag tracking
+  // ==============================================================
+  async _ensureTriageTagsTable(env) {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS triage_tags (
+      id TEXT PRIMARY KEY,
+      incident_id TEXT,
+      tag_number TEXT,
+      tag_color TEXT,
+      patient_age TEXT,
+      patient_gender TEXT,
+      chief_complaint TEXT,
+      assigned_by_nid TEXT,
+      assigned_by_name TEXT,
+      assigned_at INTEGER,
+      station TEXT,
+      sublocation TEXT,
+      disposition TEXT,
+      transported_to TEXT,
+      notes TEXT
+    )`).run();
+  },
+
+  async triage_tags_assign(user, env, params) {
+    await ACTIONS._ensureTriageTagsTable(env);
+    const id = 'TT-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      await env.DB.prepare(
+        `INSERT INTO triage_tags (id, incident_id, tag_number, tag_color, patient_age, patient_gender, chief_complaint, assigned_by_nid, assigned_by_name, assigned_at, station, sublocation, notes)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)`
+      ).bind(
+        id, String(params.incident_id || ''), String(params.tag_number || ''),
+        String(params.tag_color || 'green').toLowerCase(),
+        String(params.patient_age || ''), String(params.patient_gender || ''),
+        String(params.chief_complaint || ''), user.nid, user.name || '',
+        now, String(params.station || ''), String(params.sublocation || ''),
+        String(params.notes || '')
+      ).run();
+      return { ok: true, id, ts: now };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  async triage_tags_list(user, env, params) {
+    await ACTIONS._ensureTriageTagsTable(env);
+    try {
+      let where = '', binds = [];
+      if (params.incident_id) { where = 'WHERE incident_id = ?1'; binds = [params.incident_id]; }
+      else { where = 'WHERE assigned_at >= ?1'; binds = [Math.floor(Date.now()/1000) - 86400]; }
+      const r = await env.DB.prepare(
+        `SELECT * FROM triage_tags ${where} ORDER BY assigned_at DESC LIMIT 500`
+      ).bind(...binds).all();
+      const tags = r.results || [];
+      const counts = { red: 0, yellow: 0, green: 0, black: 0 };
+      tags.forEach(t => { if (counts[t.tag_color] != null) counts[t.tag_color]++; });
+      return { ok: true, tags, counts, total: tags.length };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // shifts — today's schedule + handoff queue
+  // ==============================================================
+  async _ensureShiftsTables(env) {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS shift_handoffs (
+      id TEXT PRIMARY KEY,
+      shift_date TEXT,
+      shift_period TEXT,
+      station TEXT,
+      author_nid TEXT,
+      author_name TEXT,
+      content TEXT,
+      acknowledged_by_nid TEXT,
+      acknowledged_by_name TEXT,
+      acknowledged_at INTEGER,
+      created_at INTEGER
+    )`).run();
+  },
+
+  async shifts_today(user, env) {
+    await ACTIONS._ensureShiftsTables(env);
+    try {
+      const now = new Date();
+      const today = now.toISOString().slice(0, 10);
+      // KSA is UTC+3 — current shift in local
+      const ksaHour = (now.getUTCHours() + 3) % 24;
+      const currentShift = (ksaHour >= 7 && ksaHour < 19) ? 'day' : 'night';
+
+      let onShift = [];
+      try {
+        const r = await env.DB.prepare(
+          `SELECT DISTINCT nid, name FROM presence WHERE last_seen >= ?1 ORDER BY name`
+        ).bind(Math.floor(Date.now()/1000) - 3600).all();
+        onShift = r.results || [];
+      } catch (_) {}
+
+      const hoR = await env.DB.prepare(
+        `SELECT * FROM shift_handoffs WHERE shift_date = ?1 AND (acknowledged_at IS NULL OR acknowledged_at = 0)
+         ORDER BY created_at DESC LIMIT 50`
+      ).bind(today).all();
+
+      return {
+        ok: true,
+        date: today,
+        current_shift: currentShift,
+        on_shift_count: onShift.length,
+        on_shift: onShift.slice(0, 100),
+        pending_handoffs: hoR.results || []
+      };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  async shifts_handoff_save(user, env, params) {
+    await ACTIONS._ensureShiftsTables(env);
+    const id = 'HO-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+    const now = Math.floor(Date.now() / 1000);
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      await env.DB.prepare(
+        `INSERT INTO shift_handoffs (id, shift_date, shift_period, station, author_nid, author_name, content, created_at)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8)`
+      ).bind(id, String(params.shift_date || today), String(params.shift_period || 'day'),
+        String(params.station || ''), user.nid, user.name || '',
+        String(params.content || ''), now).run();
+      return { ok: true, id, ts: now };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  async shifts_handoff_list(user, env, params) {
+    await ACTIONS._ensureShiftsTables(env);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const r = await env.DB.prepare(
+        `SELECT * FROM shift_handoffs WHERE shift_date = ?1 ORDER BY created_at DESC LIMIT 100`
+      ).bind(params.date || today).all();
+      return { ok: true, handoffs: r.results || [] };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // alerts_recent — critical events for audio alert system
+  // ==============================================================
+  async alerts_recent(user, env, params) {
+    try {
+      const since = parseInt(params.since || (Math.floor(Date.now()/1000) - 600), 10);
+      const r = await env.DB.prepare(
+        `SELECT incident_id, ts, station, triage, complaint, cardiac_arrest
+         FROM dispatch_log
+         WHERE ts > ?1 AND COALESCE(is_drill,0) = 0
+           AND (triage = 'red' OR cardiac_arrest = 1)
+         ORDER BY ts DESC LIMIT 20`
+      ).bind(since).all();
+      return { ok: true, alerts: r.results || [], queried_at: Math.floor(Date.now()/1000) };
+    } catch (e) { return { ok: false, error: e.message }; }
   },
 
   // ==============================================================
