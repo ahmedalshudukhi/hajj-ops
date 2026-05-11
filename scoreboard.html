@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scoreboard</title>
+<link rel="stylesheet" href="assets/style.css?v=0.2.36">
+<style>
+body { background:#0a0e1a; color:#e7ecf7; font-family:Inter,system-ui,sans-serif; }
+.sc-shell { max-width:1280px; margin:0 auto; padding:20px; }
+.sc-tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin:14px 0; }
+.sc-tile { background:rgba(20,28,50,0.5); border:1px solid rgba(99,179,237,0.18); border-radius:12px; padding:14px 18px; }
+.sc-tile .l { font-size:10px; color:#93a4cd; letter-spacing:0.13em; text-transform:uppercase; }
+.sc-tile .v { font-size:30px; font-weight:800; color:#e8f1ff; line-height:1; margin-top:5px; font-variant-numeric:tabular-nums; }
+.sc-tile.good .v { color:#6ee7b7; } .sc-tile.warn .v { color:#fcd34d; } .sc-tile.crit .v { color:#fca5a5; } .sc-tile.info .v { color:#67e8f9; }
+.sc-board { background:rgba(20,28,50,0.5); border:1px solid rgba(99,179,237,0.18); border-radius:12px; padding:18px 20px; margin-top:14px; }
+.sc-board h2 { margin:0 0 12px; font-size:14px; color:#cdf1ff; letter-spacing:0.06em; text-transform:uppercase; }
+.sc-row { display:grid; grid-template-columns:50px 1fr 80px 110px 70px 80px 100px; gap:10px; padding:10px 14px; align-items:center; font-size:13px; border-bottom:1px solid rgba(99,179,237,0.05); }
+.sc-row.head { background:rgba(99,179,237,0.10); font-weight:700; color:#cdf1ff; font-size:10px; text-transform:uppercase; }
+.sc-row .rank { color:#67e8f9; font-weight:700; text-align:center; }
+.sc-row .name { color:#e8f1ff; font-weight:600; }
+.sc-row .num { color:#cbd5e1; font-variant-numeric:tabular-nums; }
+.sc-row .pct { color:#86efac; font-weight:600; }
+.sc-row .rt { color:#fcd34d; font-variant-numeric:tabular-nums; }
+.sc-ctrl { display:flex; gap:10px; align-items:end; margin-bottom:8px; }
+.sc-ctrl select { padding:8px 12px; border-radius:7px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.25); font-size:13px; }
+</style></head><body>
+<div id="topbar"></div>
+<div class="sc-shell">
+  <h1 style="font-size:28px; margin:16px 0 4px;">Scoreboard</h1>
+  <p style="color:#93a4cd; margin:0 0 4px;">Performance metrics by station, cluster, and unit.</p>
+  <div class="sc-ctrl"><select id="scWindow"><option value="6">Last 6 hours</option><option value="24" selected>Last 24 hours</option><option value="72">Last 3 days</option><option value="168">Last 7 days</option></select><span id="scMeta" style="color:#93a4cd; font-size:12px;"></span></div>
+  <div class="sc-tiles" id="scOverall"></div>
+  <div class="sc-board"><h2>By Station</h2><div class="sc-row head"><div>Rank</div><div>Station</div><div>Total</div><div>Closed (%)</div><div>Red</div><div>Cardiac</div><div>RT median</div></div><div id="scStations"><div style="color:#6b7d9e; padding:20px;">Loading...</div></div></div>
+  <div class="sc-board"><h2>By Cluster</h2><div class="sc-row head"><div>Rank</div><div>Cluster</div><div>Total</div><div>Closed (%)</div><div>Red</div><div>Cardiac</div><div>—</div></div><div id="scClusters"></div></div>
+  <div class="sc-board"><h2>Top Units</h2><div class="sc-row head"><div>Rank</div><div>Unit</div><div>Total</div><div>Closed (%)</div><div>Red</div><div>—</div><div>—</div></div><div id="scUnits"></div></div>
+</div>
+<script src="assets/auth.js?v=0.2.36"></script>
+<script src="assets/shortcuts.js?v=0.2.36"></script>
+<script src="assets/topbar.js?v=0.2.36"></script>
+<script src="assets/version.js?v=0.2.36"></script>
+<script>
+(async function() {
+  if (!await HAJJ.requireRole(['cluster_supervisor','dispatcher','leadership','admin'])) return;
+  CADTopbar.render({ title: "Scoreboard" });
+  function fmt(s){if(s==null)return '—';if(s<60)return s+'s';if(s<3600)return Math.round(s/60)+'m';return (s/3600).toFixed(1)+'h';}
+  function medal(r){if(r===1)return '🥇';if(r===2)return '🥈';if(r===3)return '🥉';return '';}
+  async function refresh() {
+    const lookback = parseInt(document.getElementById('scWindow').value);
+    const r = await HAJJ.authedCall('scoreboard', { lookback_hours: lookback });
+    if (!r || !r.ok) { document.getElementById('scOverall').innerHTML = '<div style="color:#fca5a5; padding:20px;">Error</div>'; return; }
+    document.getElementById('scMeta').textContent = 'Window: ' + lookback + 'h';
+    const o = r.overall;
+    document.getElementById('scOverall').innerHTML =
+      '<div class="sc-tile info"><div class="l">Total</div><div class="v">'+(o.total||0)+'</div></div>'+
+      '<div class="sc-tile good"><div class="l">Closed</div><div class="v">'+(o.closed||0)+'</div></div>'+
+      '<div class="sc-tile crit"><div class="l">Red triage</div><div class="v">'+(o.reds||0)+'</div></div>'+
+      '<div class="sc-tile crit"><div class="l">Cardiac arrests</div><div class="v">'+(o.cardiac||0)+'</div></div>'+
+      '<div class="sc-tile warn"><div class="l">Median RT</div><div class="v" style="font-size:22px;">'+fmt(o.rt_median_sec)+'</div></div>'+
+      '<div class="sc-tile warn"><div class="l">P95 RT</div><div class="v" style="font-size:22px;">'+fmt(o.rt_p95_sec)+'</div></div>';
+    document.getElementById('scStations').innerHTML = (r.by_station||[]).map(function(s,i) {
+      return '<div class="sc-row"><div class="rank">'+(i+1)+' '+medal(i+1)+'</div><div class="name">'+s.station+'</div>'+
+        '<div class="num">'+s.total+'</div><div class="pct">'+s.closed+' ('+Math.round((s.closed/s.total)*100)+'%)</div>'+
+        '<div class="num" style="color:#fca5a5;">'+(s.reds||0)+'</div><div class="num" style="color:#fca5a5;">'+(s.cardiac||0)+'</div>'+
+        '<div class="rt">'+fmt(s.rt_median_sec)+'</div></div>';
+    }).join('');
+    document.getElementById('scClusters').innerHTML = (r.by_cluster||[]).sort(function(a,b){return b.total-a.total;}).map(function(c,i){
+      return '<div class="sc-row"><div class="rank">'+(i+1)+' '+medal(i+1)+'</div><div class="name">'+c.cluster+'</div>'+
+        '<div class="num">'+c.total+'</div><div class="pct">'+c.closed+' ('+(c.total>0?Math.round((c.closed/c.total)*100):0)+'%)</div>'+
+        '<div class="num" style="color:#fca5a5;">'+(c.reds||0)+'</div><div class="num" style="color:#fca5a5;">'+(c.cardiac||0)+'</div><div>—</div></div>';
+    }).join('');
+    document.getElementById('scUnits').innerHTML = (r.by_unit||[]).slice(0,15).map(function(u,i){
+      return '<div class="sc-row"><div class="rank">'+(i+1)+' '+medal(i+1)+'</div><div class="name">'+u.unit+'</div>'+
+        '<div class="num">'+u.total+'</div><div class="pct">'+u.closed+' ('+(u.total>0?Math.round((u.closed/u.total)*100):0)+'%)</div>'+
+        '<div class="num" style="color:#fca5a5;">'+(u.reds||0)+'</div><div>—</div><div>—</div></div>';
+    }).join('');
+  }
+  document.getElementById('scWindow').addEventListener('change', refresh);
+  refresh();
+  setInterval(refresh, 30000);
+})();
+</script></body></html>

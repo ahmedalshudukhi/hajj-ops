@@ -85,6 +85,11 @@
     { href: 'announcements.html', label: 'Announce', roles: ['leadership','admin','dispatcher','cluster_supervisor'] },
     { href: 'checklists.html', label: 'Checklists', roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'] },
     { href: 'escalation.html', label: 'Escalation', roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'] },
+    { href: 'map.html',        label: 'Map',        roles: ['cluster_supervisor','dispatcher','leadership','admin','sar'] },
+    { href: 'scoreboard.html', label: 'Scoreboard', roles: ['cluster_supervisor','dispatcher','leadership','admin'] },
+    { href: 'replay.html',     label: 'Replay',     roles: ['cluster_supervisor','dispatcher','leadership','admin'] },
+    { href: 'translator.html', label: 'Translator', roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'] },
+    { href: 'equipment.html',  label: 'Equipment',  roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'] },
     { href: 'me.html',       label: 'My schedule', roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin'] },
     { href: 'diagnostic.html', label: 'Diag',       roles: ['admin'] },
     { href: 'system.html',  label: 'System',    roles: ['admin','leadership'] }
