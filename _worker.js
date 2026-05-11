@@ -407,6 +407,10 @@ const ROLE_GATE = {
   shifts_handoff_save: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin'],
   shifts_handoff_list: ['cluster_supervisor','dispatcher','leadership','admin'],
   alerts_recent: ['cluster_supervisor','dispatcher','leadership','admin'],
+  code_blue_event: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin'],
+  code_blue_list: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'],
+  heat_watch: null,
+  me_summary: null,
   sar_summary: ['sar','admin'],
   dispatch_list: ['cluster_supervisor','dispatcher','leadership','admin'],
   dashboard_active: ['cluster_supervisor','dispatcher','leadership','admin'],
@@ -2943,6 +2947,168 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
          ORDER BY ts DESC LIMIT 20`
       ).bind(since).all();
       return { ok: true, alerts: r.results || [], queried_at: Math.floor(Date.now()/1000) };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // code_blue — capture timed events during a cardiac arrest run
+  // ==============================================================
+  async _ensureCodeBlueTable(env) {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS code_blue_events (
+      id TEXT PRIMARY KEY,
+      incident_id TEXT,
+      ts INTEGER,
+      event_type TEXT,
+      detail TEXT,
+      by_nid TEXT,
+      by_name TEXT,
+      station TEXT
+    )`).run();
+  },
+
+  async code_blue_event(user, env, params) {
+    await ACTIONS._ensureCodeBlueTable(env);
+    const id = 'CB-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+    const ts = parseInt(params.ts || Math.floor(Date.now()/1000), 10);
+    try {
+      await env.DB.prepare(
+        `INSERT INTO code_blue_events (id, incident_id, ts, event_type, detail, by_nid, by_name, station)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8)`
+      ).bind(
+        id, String(params.incident_id || ''), ts,
+        String(params.event_type || ''), String(params.detail || ''),
+        user.nid, user.name || '', String(params.station || '')
+      ).run();
+      return { ok: true, id, ts };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  async code_blue_list(user, env, params) {
+    await ACTIONS._ensureCodeBlueTable(env);
+    try {
+      let where, binds;
+      if (params.incident_id) { where = 'WHERE incident_id = ?1'; binds = [params.incident_id]; }
+      else { where = 'WHERE ts >= ?1'; binds = [Math.floor(Date.now()/1000) - 86400]; }
+      const r = await env.DB.prepare(
+        `SELECT * FROM code_blue_events ${where} ORDER BY ts ASC LIMIT 500`
+      ).bind(...binds).all();
+      return { ok: true, events: r.results || [] };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // heat_watch — compute heat-related risk + currently active red incidents
+  // ==============================================================
+  async heat_watch(user, env) {
+    try {
+      // Try to fetch latest Mecca weather (cached or via heat_index)
+      let weather = null;
+      try {
+        const w = await ACTIONS.heat_index(user, env);
+        if (w && w.ok) weather = w;
+      } catch (_) {}
+
+      // Count heat-related complaints in last 6h
+      const since = Math.floor(Date.now()/1000) - 6 * 3600;
+      const heatKeywords = ['heat', 'stroke', 'exhaust', 'dehydra', 'cramp', 'syncope', 'collapse'];
+      // crude SQL OR
+      const likeClauses = heatKeywords.map((_, i) => `LOWER(complaint) LIKE ?${i + 2}`).join(' OR ');
+      const r = await env.DB.prepare(
+        `SELECT incident_id, ts, station, triage, complaint, cardiac_arrest
+         FROM dispatch_log
+         WHERE ts >= ?1 AND COALESCE(is_drill,0) = 0
+           AND (${likeClauses})
+         ORDER BY ts DESC LIMIT 50`
+      ).bind(since, ...heatKeywords.map(k => '%' + k + '%')).all();
+      const heatIncidents = r.results || [];
+
+      // By station
+      const byStation = {};
+      heatIncidents.forEach(h => {
+        byStation[h.station] = (byStation[h.station] || 0) + 1;
+      });
+
+      // Risk level
+      let riskLevel = 'low';
+      let recommendation = 'Normal vigilance. Standard cooling stations.';
+      const temp = weather && weather.temperature ? weather.temperature : null;
+      const heatIdx = weather && weather.heat_index ? weather.heat_index : null;
+
+      if (heatIdx && heatIdx >= 54) { riskLevel = 'extreme'; recommendation = 'EXTREME HEAT — activate full cooling kit deployment, increase IV fluids, mandate paramedic hydration breaks every 15min.'; }
+      else if (heatIdx && heatIdx >= 41) { riskLevel = 'high'; recommendation = 'High risk — pre-position cooling kits, increase IV fluid stock, paramedic breaks every 30min.'; }
+      else if (heatIdx && heatIdx >= 32) { riskLevel = 'moderate'; recommendation = 'Moderate risk — verify cooling kit availability, watch for vulnerable pilgrims.'; }
+      if (heatIncidents.length >= 10) { riskLevel = 'high'; recommendation += ' (Surge: ' + heatIncidents.length + ' heat-related cases in last 6h)'; }
+
+      return {
+        ok: true,
+        weather,
+        risk_level: riskLevel,
+        recommendation,
+        heat_incidents_6h: heatIncidents.length,
+        by_station: byStation,
+        recent: heatIncidents.slice(0, 20)
+      };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // me_summary — personal page data (your shift, your stats)
+  // ==============================================================
+  async me_summary(user, env) {
+    try {
+      const now = Math.floor(Date.now() / 1000);
+      const today = new Date().toISOString().slice(0, 10);
+      const dayStart = Math.floor(new Date(today + 'T00:00:00Z').getTime() / 1000) - 3 * 3600;  // KSA midnight
+
+      // Recent activity (dispatches I created, PCRs I drafted)
+      let myDispatches = [];
+      try {
+        const r = await env.DB.prepare(
+          `SELECT incident_id, ts, station, triage, complaint, status FROM dispatch_log
+           WHERE created_by_nid = ?1 AND ts >= ?2 ORDER BY ts DESC LIMIT 20`
+        ).bind(user.nid, dayStart).all();
+        myDispatches = r.results || [];
+      } catch (_) {}
+
+      let myPcrs = [];
+      try {
+        const r = await env.DB.prepare(
+          `SELECT id, incident_id, status, chief_complaint, updated_at FROM pcr_drafts
+           WHERE author_nid = ?1 ORDER BY updated_at DESC LIMIT 10`
+        ).bind(user.nid).all();
+        myPcrs = r.results || [];
+      } catch (_) {}
+
+      // Unread messages count
+      let unreadMessages = 0;
+      try {
+        const r = await env.DB.prepare(
+          `SELECT COUNT(*) AS n FROM messages WHERE recipient_nid = ?1 AND read_at IS NULL`
+        ).bind(user.nid).first();
+        unreadMessages = r ? (r.n || 0) : 0;
+      } catch (_) {}
+
+      // Last presence ping
+      let lastPresence = null;
+      try {
+        const r = await env.DB.prepare(
+          `SELECT last_seen FROM presence WHERE nid = ?1`
+        ).bind(user.nid).first();
+        lastPresence = r ? r.last_seen : null;
+      } catch (_) {}
+
+      return {
+        ok: true,
+        user: { nid: user.nid, name: user.name, role: user.role },
+        today,
+        my_dispatches_today: myDispatches,
+        my_dispatches_count: myDispatches.length,
+        my_pcrs: myPcrs,
+        my_pcrs_count: myPcrs.length,
+        unread_messages: unreadMessages,
+        last_presence: lastPresence,
+        server_now: now
+      };
     } catch (e) { return { ok: false, error: e.message }; }
   },
 
