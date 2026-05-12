@@ -102,6 +102,10 @@
     { href: 'pulse.html',      label: 'Pulse',      roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'] },
     { href: 'handover.html',   label: 'Handover',   roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'] },
     { href: 'supplies.html',   label: 'Supplies',   roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'] },
+    { href: 'intake.html',     label: 'Intake',     roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'] },
+    { href: 'wellness.html',   label: 'Wellness',   roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'] },
+    { href: 'sla.html',        label: 'SLA',        roles: ['cluster_supervisor','dispatcher','leadership','admin','sar'] },
+    { href: 'training.html',   label: 'Training',   roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'] },
     { href: 'diagnostic.html', label: 'Diag',       roles: ['admin'] },
     { href: 'system.html',  label: 'System',    roles: ['admin','leadership'] }
   ];
@@ -346,4 +350,94 @@
   };
 
 
+})();
+
+
+// === Global Floating Action Button (Wave 7) ===
+// Appears bottom-left on every page (bottom-right reserved for sound alerts).
+// Role-aware quick actions.
+(function() {
+  // Wait for HAJJ.whoami to be available
+  function injectFab() {
+    if (window.cadFabInjected) return;
+    if (!window.HAJJ || !window.HAJJ.whoami) { setTimeout(injectFab, 300); return; }
+    window.cadFabInjected = true;
+    const fabRoot = document.createElement('div');
+    fabRoot.id = 'cadFabRoot';
+    fabRoot.innerHTML = `
+      <style>
+        #cadFabRoot { position:fixed; bottom:20px; left:20px; z-index:9985; }
+        #cadFabBtn { width:54px; height:54px; border-radius:50%; background:linear-gradient(135deg,#3b82f6,#a855f7); border:none; cursor:pointer; box-shadow:0 6px 20px rgba(59,130,246,0.45); transition:all 0.2s; position:relative; }
+        #cadFabBtn:hover { transform:scale(1.06); }
+        #cadFabBtn::before { content:'+'; position:absolute; inset:0; display:grid; place-items:center; color:#fff; font-size:28px; font-weight:300; transition:transform 0.3s; }
+        #cadFabBtn.open::before { transform:rotate(135deg); }
+        #cadFabMenu { display:none; flex-direction:column; gap:6px; margin-bottom:10px; background:rgba(20,28,50,0.95); backdrop-filter:blur(14px); border:1px solid rgba(99,179,237,0.3); border-radius:14px; padding:10px; min-width:200px; box-shadow:0 12px 40px rgba(0,0,0,0.5); }
+        #cadFabMenu.open { display:flex; }
+        #cadFabMenu a { padding:10px 14px; color:#cdf1ff; text-decoration:none; border-radius:8px; font-size:13px; font-weight:600; display:flex; align-items:center; gap:10px; transition:background 0.12s; }
+        #cadFabMenu a:hover { background:rgba(99,179,237,0.14); }
+        #cadFabMenu a .ico { font-size:18px; }
+        #cadFabMenu a.danger { color:#fca5a5; }
+        #cadFabMenu a.warn { color:#fcd34d; }
+        #cadFabMenu a.good { color:#86efac; }
+        #cadFabMenu .div { height:1px; background:rgba(99,179,237,0.12); margin:4px 0; }
+        @media (max-width:600px) {
+          #cadFabRoot { bottom:14px; left:14px; }
+          #cadFabBtn { width:50px; height:50px; }
+        }
+      </style>
+      <div id="cadFabMenu"></div>
+      <button id="cadFabBtn" title="Quick actions"></button>
+    `;
+    document.body.appendChild(fabRoot);
+
+    // Populate menu based on role (best-effort: try to get user role)
+    async function populate() {
+      let role = 'paramedic';
+      try { const w = await window.HAJJ.whoami(); if (w && w.user && w.user.role) role = w.user.role; } catch (_) {}
+      const items = [];
+      // Operational actions (most roles)
+      if (['dispatcher','leadership','admin','cluster_supervisor'].includes(role)) {
+        items.push({ href: '/dispatch', label: 'New Dispatch', ico: '+', cls: 'warn' });
+      }
+      if (['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'].includes(role)) {
+        items.push({ href: '/code', label: 'Code Blue', ico: 'CB', cls: 'danger' });
+        items.push({ href: '/intake', label: 'Quick Intake', ico: 'IN', cls: '' });
+        items.push({ href: '/triage', label: 'Triage Tag', ico: 'TT', cls: 'warn' });
+      }
+      items.push({ href: '/pcr', label: 'PCR', ico: 'PC', cls: '' });
+      items.push({ divider: true });
+      items.push({ href: '/board', label: 'Operations Board', ico: 'BD', cls: '' });
+      items.push({ href: '/pulse', label: 'Live Pulse', ico: 'PL', cls: '' });
+      items.push({ href: '/heat', label: 'Heat Watch', ico: 'HW', cls: 'good' });
+      if (['cluster_supervisor','leadership','admin','dispatcher'].includes(role)) {
+        items.push({ href: '/mci', label: 'MCI Command', ico: 'MC', cls: 'danger' });
+      }
+      items.push({ divider: true });
+      items.push({ href: '/runbook', label: 'Runbook', ico: 'RB', cls: '' });
+      items.push({ href: '/protocols', label: 'Protocols', ico: 'PR', cls: '' });
+      items.push({ href: '/me', label: 'My Page', ico: 'ME', cls: '' });
+
+      const menu = document.getElementById('cadFabMenu');
+      menu.innerHTML = items.map(function(it) {
+        if (it.divider) return '<div class="div"></div>';
+        return '<a href="' + it.href + '" class="' + it.cls + '"><span class="ico">' + it.ico + '</span><span>' + it.label + '</span></a>';
+      }).join('');
+    }
+    populate();
+
+    document.getElementById('cadFabBtn').addEventListener('click', function() {
+      const btn = this;
+      const menu = document.getElementById('cadFabMenu');
+      menu.classList.toggle('open');
+      btn.classList.toggle('open');
+    });
+    document.addEventListener('click', function(e) {
+      if (!fabRoot.contains(e.target)) {
+        document.getElementById('cadFabMenu').classList.remove('open');
+        document.getElementById('cadFabBtn').classList.remove('open');
+      }
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectFab);
+  else injectFab();
 })();

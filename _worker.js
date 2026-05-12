@@ -417,6 +417,14 @@ const ROLE_GATE = {
   supplies_request: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin'],
   supplies_list: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'],
   supplies_set_status: ['cluster_supervisor','leadership','admin'],
+  intake_save: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'],
+  intake_list: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'],
+  wellness_save: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'],
+  wellness_list: ['cluster_supervisor','leadership','admin'],
+  wellness_my_recent: null,
+  sla_summary: ['cluster_supervisor','dispatcher','leadership','admin','sar'],
+  training_scenarios: null,
+  training_start_drill: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'],
   sar_summary: ['sar','admin'],
   dispatch_list: ['cluster_supervisor','dispatcher','leadership','admin'],
   dashboard_active: ['cluster_supervisor','dispatcher','leadership','admin'],
@@ -3366,6 +3374,322 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
          WHERE id = ?6`
       ).bind(status, notes, user.nid, user.name || '', now, id).run();
       return { ok: true, ts: now };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // INTAKE — quick patient intake (less than full PCR, just essentials)
+  // ==============================================================
+  async _ensureIntakeTable(env) {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS intake_records (
+      id TEXT PRIMARY KEY,
+      incident_id TEXT,
+      author_nid TEXT,
+      author_name TEXT,
+      patient_age TEXT,
+      patient_gender TEXT,
+      patient_nationality TEXT,
+      patient_mrn TEXT,
+      chief_complaint TEXT,
+      bp TEXT,
+      hr TEXT,
+      rr TEXT,
+      spo2 TEXT,
+      temp TEXT,
+      gcs TEXT,
+      pain_0_10 TEXT,
+      allergies TEXT,
+      medications TEXT,
+      notes TEXT,
+      station TEXT,
+      created_at INTEGER,
+      converted_to_pcr_id TEXT
+    )`).run();
+  },
+
+  async intake_save(user, env, params) {
+    await ACTIONS._ensureIntakeTable(env);
+    const id = 'INT-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+    const now = Math.floor(Date.now()/1000);
+    try {
+      await env.DB.prepare(
+        `INSERT INTO intake_records (id, incident_id, author_nid, author_name, patient_age, patient_gender,
+         patient_nationality, patient_mrn, chief_complaint, bp, hr, rr, spo2, temp, gcs, pain_0_10,
+         allergies, medications, notes, station, created_at)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21)`
+      ).bind(
+        id, String(params.incident_id || ''), user.nid, user.name || '',
+        String(params.patient_age || ''), String(params.patient_gender || ''),
+        String(params.patient_nationality || ''), String(params.patient_mrn || ''),
+        String(params.chief_complaint || ''),
+        String(params.bp || ''), String(params.hr || ''), String(params.rr || ''),
+        String(params.spo2 || ''), String(params.temp || ''), String(params.gcs || ''),
+        String(params.pain_0_10 || ''),
+        String(params.allergies || ''), String(params.medications || ''),
+        String(params.notes || ''), String(params.station || ''), now
+      ).run();
+      return { ok: true, id, ts: now };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  async intake_list(user, env, params) {
+    await ACTIONS._ensureIntakeTable(env);
+    try {
+      let where, binds;
+      if (params.incident_id) { where = 'WHERE incident_id = ?1'; binds = [params.incident_id]; }
+      else if (params.mine) { where = 'WHERE author_nid = ?1 AND created_at >= ?2'; binds = [user.nid, Math.floor(Date.now()/1000) - 86400]; }
+      else { where = 'WHERE created_at >= ?1'; binds = [Math.floor(Date.now()/1000) - 86400]; }
+      const r = await env.DB.prepare(
+        `SELECT * FROM intake_records ${where} ORDER BY created_at DESC LIMIT 200`
+      ).bind(...binds).all();
+      return { ok: true, intakes: r.results || [] };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // WELLNESS — paramedic wellness check-in (hydration, fatigue, breaks)
+  // ==============================================================
+  async _ensureWellnessTable(env) {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS wellness_checkins (
+      id TEXT PRIMARY KEY,
+      author_nid TEXT,
+      author_name TEXT,
+      station TEXT,
+      cups_water TEXT,
+      hours_since_break TEXT,
+      fatigue_1_10 INTEGER,
+      mood_1_10 INTEGER,
+      heat_exposure TEXT,
+      concerns TEXT,
+      created_at INTEGER
+    )`).run();
+  },
+
+  async wellness_save(user, env, params) {
+    await ACTIONS._ensureWellnessTable(env);
+    const id = 'WL-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+    const now = Math.floor(Date.now()/1000);
+    try {
+      await env.DB.prepare(
+        `INSERT INTO wellness_checkins (id, author_nid, author_name, station, cups_water, hours_since_break,
+         fatigue_1_10, mood_1_10, heat_exposure, concerns, created_at)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)`
+      ).bind(
+        id, user.nid, user.name || '', String(params.station || ''),
+        String(params.cups_water || ''), String(params.hours_since_break || ''),
+        parseInt(params.fatigue_1_10 || 5, 10), parseInt(params.mood_1_10 || 5, 10),
+        String(params.heat_exposure || ''), String(params.concerns || ''), now
+      ).run();
+      return { ok: true, id, ts: now };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  async wellness_list(user, env, params) {
+    await ACTIONS._ensureWellnessTable(env);
+    try {
+      let where, binds;
+      const window = params.station ? '?1' : '?1';
+      if (params.station) {
+        where = 'WHERE station = ?1 AND created_at >= ?2';
+        binds = [params.station, Math.floor(Date.now()/1000) - 24 * 3600];
+      } else {
+        where = 'WHERE created_at >= ?1';
+        binds = [Math.floor(Date.now()/1000) - 24 * 3600];
+      }
+      const r = await env.DB.prepare(
+        `SELECT * FROM wellness_checkins ${where} ORDER BY created_at DESC LIMIT 200`
+      ).bind(...binds).all();
+      const records = r.results || [];
+      // Aggregate: avg fatigue, avg mood, count by station
+      const byStation = {};
+      let totFatigue = 0, totMood = 0, totN = 0;
+      records.forEach(rec => {
+        if (!byStation[rec.station]) byStation[rec.station] = { count: 0, fatigue: 0, mood: 0 };
+        byStation[rec.station].count++;
+        byStation[rec.station].fatigue += rec.fatigue_1_10 || 0;
+        byStation[rec.station].mood += rec.mood_1_10 || 0;
+        totFatigue += rec.fatigue_1_10 || 0;
+        totMood += rec.mood_1_10 || 0;
+        totN++;
+      });
+      Object.keys(byStation).forEach(s => {
+        const bs = byStation[s];
+        bs.avg_fatigue = bs.count > 0 ? (bs.fatigue / bs.count).toFixed(1) : '0';
+        bs.avg_mood = bs.count > 0 ? (bs.mood / bs.count).toFixed(1) : '0';
+      });
+      return {
+        ok: true, records,
+        summary: {
+          n: totN,
+          avg_fatigue: totN > 0 ? (totFatigue / totN).toFixed(1) : '0',
+          avg_mood: totN > 0 ? (totMood / totN).toFixed(1) : '0',
+          by_station: byStation
+        }
+      };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  async wellness_my_recent(user, env) {
+    await ACTIONS._ensureWellnessTable(env);
+    try {
+      const r = await env.DB.prepare(
+        `SELECT * FROM wellness_checkins WHERE author_nid = ?1 ORDER BY created_at DESC LIMIT 5`
+      ).bind(user.nid).all();
+      return { ok: true, records: r.results || [] };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // SLA — service level agreement metrics from dispatch + events
+  // ==============================================================
+  async sla_summary(user, env, params) {
+    try {
+      const lookback = parseInt(params.lookback_hours || 24, 10);
+      const since = Math.floor(Date.now()/1000) - lookback * 3600;
+      // Targets (seconds)
+      const TARGETS = {
+        dispatch_to_enroute: 60,       // 1 min
+        dispatch_to_on_scene: 8 * 60,  // 8 min
+        on_scene_time: 20 * 60,        // 20 min standard
+        dispatch_to_close: 60 * 60     // 1 hour
+      };
+      // Pull dispatches in window
+      const dR = await env.DB.prepare(
+        `SELECT d.incident_id, d.ts AS dispatched_at, d.station, d.triage, d.closed_at,
+                (SELECT MIN(ts) FROM incident_events WHERE incident_id = d.incident_id AND event_type = 'en_route') AS en_route_at,
+                (SELECT MIN(ts) FROM incident_events WHERE incident_id = d.incident_id AND event_type = 'on_scene') AS on_scene_at,
+                (SELECT MIN(ts) FROM incident_events WHERE incident_id = d.incident_id AND event_type = 'transporting') AS transporting_at
+         FROM dispatch_log d
+         WHERE d.ts >= ?1 AND COALESCE(d.is_drill,0) = 0
+         ORDER BY d.ts DESC LIMIT 500`
+      ).bind(since).all();
+      const incs = dR.results || [];
+      // Compute metrics
+      const metrics = {
+        dispatch_to_enroute: { values: [], breaches: 0 },
+        dispatch_to_on_scene: { values: [], breaches: 0 },
+        on_scene_time: { values: [], breaches: 0 },
+        dispatch_to_close: { values: [], breaches: 0 }
+      };
+      const byStation = {};
+      incs.forEach(i => {
+        if (!byStation[i.station]) byStation[i.station] = { n: 0, breach: 0 };
+        byStation[i.station].n++;
+        if (i.en_route_at) {
+          const d = i.en_route_at - i.dispatched_at;
+          if (d >= 0) { metrics.dispatch_to_enroute.values.push(d); if (d > TARGETS.dispatch_to_enroute) { metrics.dispatch_to_enroute.breaches++; byStation[i.station].breach++; } }
+        }
+        if (i.on_scene_at) {
+          const d = i.on_scene_at - i.dispatched_at;
+          if (d >= 0) { metrics.dispatch_to_on_scene.values.push(d); if (d > TARGETS.dispatch_to_on_scene) { metrics.dispatch_to_on_scene.breaches++; byStation[i.station].breach++; } }
+        }
+        if (i.on_scene_at && i.transporting_at) {
+          const d = i.transporting_at - i.on_scene_at;
+          if (d >= 0) { metrics.on_scene_time.values.push(d); if (d > TARGETS.on_scene_time) metrics.on_scene_time.breaches++; }
+        }
+        if (i.closed_at) {
+          const d = i.closed_at - i.dispatched_at;
+          if (d >= 0) { metrics.dispatch_to_close.values.push(d); if (d > TARGETS.dispatch_to_close) metrics.dispatch_to_close.breaches++; }
+        }
+      });
+      // Aggregate stats per metric
+      Object.keys(metrics).forEach(k => {
+        const m = metrics[k];
+        if (m.values.length === 0) { m.avg = null; m.median = null; m.p90 = null; m.compliance = null; return; }
+        const sorted = m.values.slice().sort((a,b)=>a-b);
+        m.avg = Math.round(sorted.reduce((a,b)=>a+b,0) / sorted.length);
+        m.median = sorted[Math.floor(sorted.length / 2)];
+        m.p90 = sorted[Math.floor(sorted.length * 0.9)];
+        m.n = sorted.length;
+        m.compliance = (((m.n - m.breaches) / m.n) * 100).toFixed(1);
+        m.target = TARGETS[k];
+        delete m.values;
+      });
+      return {
+        ok: true, lookback_hours: lookback,
+        total_incidents: incs.length,
+        metrics, by_station: byStation,
+        targets: TARGETS
+      };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+
+  // ==============================================================
+  // TRAINING — drill scenario library + drill creation
+  // ==============================================================
+  async training_scenarios(user, env) {
+    const scenarios = [
+      { id: 'card1', title: 'Cardiac Arrest at Station Platform', category: 'cardiac',
+        description: '52y/o M collapses on platform during boarding. Bystander CPR initiated. No AED visible nearby.',
+        targets: { dispatch_to_on_scene: 6 * 60, rosc_attempt: 25 * 60 },
+        expected_actions: ['Activate Code Blue', 'Verify arrest', 'CPR 30:2', 'Apply pads', 'IV/IO access', 'Epi 1mg q3-5min', 'Search Hs&Ts', 'Pre-alert hospital'] },
+      { id: 'card2', title: 'Cardiac Arrest with Bystander AED', category: 'cardiac',
+        description: '65y/o F collapses near cooling tent in Arafat. AED applied by bystander before EMS arrival. Pulse absent.',
+        targets: { dispatch_to_on_scene: 6 * 60 },
+        expected_actions: ['Verify AED', 'Resume CPR', 'IV access', 'Epi q3-5min', 'Rhythm check q2min', 'Hospital pre-alert'] },
+      { id: 'mci1', title: 'MCI — Crush Event on Walkway', category: 'mci',
+        description: '15+ casualties from compression injury on Jamarat walkway. Triage required, mutual aid needed.',
+        targets: { mci_declaration: 3 * 60 },
+        expected_actions: ['Declare MCI', 'Establish IC + Triage', 'START triage', 'Apply triage tags', 'Notify hospitals', 'Request mutual aid SRCA/MoH'] },
+      { id: 'mci2', title: 'MCI — Bus Incident with Multiple Casualties', category: 'mci',
+        description: 'Bus collision with 25 passengers, mixed severity. Closer to MIN3 station.',
+        targets: { mci_declaration: 3 * 60 },
+        expected_actions: ['Declare MCI', 'Triage Officer assignment', 'Treatment + Transport Officers', 'Stage units', 'Hospital distribution'] },
+      { id: 'heat1', title: 'Heat Stroke — Severe', category: 'heat',
+        description: '45y/o M altered mental status, temp 41.2°C, found near MUZ1 station midday. Family states he was walking for 3+ hours in sun.',
+        targets: { dispatch_to_on_scene: 5 * 60, cool_to_39: 30 * 60 },
+        expected_actions: ['Recognize heat stroke vs exhaustion', 'Strip + rapid cooling', 'IV fluids', 'Cooling kit deployment', 'Monitor core temp', 'Stop cooling at 39°C', 'Transport'] },
+      { id: 'heat2', title: 'Heat Exhaustion Surge', category: 'heat',
+        description: '6 pilgrims at ARF2 with combinations of dizziness, cramping, nausea, sweating. Temp 38-39°C range.',
+        targets: { triage_complete: 5 * 60 },
+        expected_actions: ['Triage by severity', 'Oral rehydration if alert', 'IV NS for severe', 'Cooling chairs', 'Watch for stroke conversion'] },
+      { id: 'anaphylaxis', title: 'Anaphylaxis at Cooling Tent', category: 'allergic',
+        description: '28y/o F reaction after taking unknown medication. Lip swelling, wheeze, hypotension at MIN1.',
+        targets: { epi_within: 60 },
+        expected_actions: ['Recognize anaphylaxis', 'Epi 0.5mg IM thigh FIRST', 'O2 + airway prep', 'IV access + fluids', 'Adjunct meds after epi', 'Transport'] },
+      { id: 'stroke', title: 'Suspected Stroke', category: 'stroke',
+        description: '70y/o M sudden right-sided weakness + slurred speech 30 min ago. Last known well documented.',
+        targets: { dispatch_to_on_scene: 6 * 60 },
+        expected_actions: ['FAST/Cincinnati screen', 'Time last known well', 'BGL check', 'Avoid aggressive BP lowering', 'Pre-notify stroke center', 'Rapid transport'] },
+      { id: 'trauma1', title: 'Major Trauma — Fall', category: 'trauma',
+        description: '38y/o M fell from elevated walkway, unconscious, multi-system trauma signs.',
+        targets: { dispatch_to_on_scene: 5 * 60, transport_decision: 10 * 60 },
+        expected_actions: ['XABCDE primary', 'Airway + C-spine', 'Needle decompression if tension PTX', 'TXA within 3h', 'Permissive hypotension', 'Pre-alert trauma center'] },
+      { id: 'pediatric', title: 'Pediatric Seizure', category: 'pediatric',
+        description: '6y/o child with febrile seizure ongoing for 8 minutes at family camp.',
+        targets: { sedation_within: 5 * 60 },
+        expected_actions: ['Protect airway', 'Check BGL', 'Midazolam IM/IN', 'Cooling for fever', 'Reassess + transport'] }
+    ];
+    return { ok: true, scenarios, categories: ['cardiac','mci','heat','allergic','stroke','trauma','pediatric'] };
+  },
+
+  async training_start_drill(user, env, params) {
+    try {
+      const scenarioId = String(params.scenario_id || '');
+      const station = String(params.station || '');
+      if (!scenarioId) return { ok: false, error: 'missing_scenario_id' };
+      const incidentId = 'DRILL-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5).toUpperCase();
+      const now = Math.floor(Date.now()/1000);
+      // Look up scenario for context
+      const all = await ACTIONS.training_scenarios(user, env);
+      const sc = (all.scenarios || []).find(s => s.id === scenarioId);
+      if (!sc) return { ok: false, error: 'scenario_not_found' };
+      // Insert as drill incident
+      try {
+        await env.DB.prepare(
+          `INSERT INTO dispatch_log (incident_id, ts, station, sub_location, triage, complaint, cardiac_arrest,
+           status, is_drill, created_by_nid)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'new', 1, ?8)`
+        ).bind(
+          incidentId, now, station || 'OCC',
+          'DRILL — ' + (sc.title || ''), 'yellow',
+          'DRILL: ' + (sc.description || sc.title), sc.category === 'cardiac' ? 1 : 0,
+          user.nid
+        ).run();
+      } catch (e) {
+        return { ok: false, error: 'dispatch_insert_failed: ' + e.message };
+      }
+      return { ok: true, incident_id: incidentId, scenario: sc, started_at: now };
     } catch (e) { return { ok: false, error: e.message }; }
   },
 

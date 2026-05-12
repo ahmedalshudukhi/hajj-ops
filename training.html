@@ -1,0 +1,69 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Training Drills</title><link rel="stylesheet" href="assets/style.css?v=0.2.40"><style>body { background:#0a0e1a; color:#e7ecf7; font-family:Inter,system-ui,sans-serif; }.tr-shell { max-width:1280px; margin:0 auto; padding:20px; }.tr-banner { background:linear-gradient(135deg,rgba(168,85,247,0.15),rgba(56,189,248,0.10)); border:1px solid rgba(168,85,247,0.30); border-radius:12px; padding:18px 22px; margin:14px 0 18px; }.tr-banner h2 { margin:0; font-size:18px; color:#d8b4fe; }.tr-banner .sub { color:#cbd5e1; font-size:13px; margin-top:6px; line-height:1.5; }.tr-filters { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }.tr-filter { padding:7px 14px; background:rgba(15,23,42,0.5); color:#93a4cd; border:1px solid rgba(99,179,237,0.18); border-radius:7px; cursor:pointer; font-size:12px; font-weight:600; }.tr-filter.active { background:rgba(168,85,247,0.18); color:#d8b4fe; border-color:rgba(168,85,247,0.45); }.tr-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(330px,1fr)); gap:14px; }.tr-card { background:rgba(20,28,50,0.5); border:1px solid rgba(99,179,237,0.18); border-radius:12px; padding:18px 22px; border-left:4px solid #67e8f9; }.tr-card.cardiac { border-left-color:#ef4444; }.tr-card.mci { border-left-color:#dc2626; }.tr-card.heat { border-left-color:#f59e0b; }.tr-card.allergic { border-left-color:#a855f7; }.tr-card.stroke { border-left-color:#0ea5e9; }.tr-card.trauma { border-left-color:#ec4899; }.tr-card.pediatric { border-left-color:#22c55e; }.tr-card h3 { margin:0 0 4px; font-size:16px; color:#cdf1ff; }.tr-card .cat { display:inline-block; padding:2px 10px; border-radius:5px; font-size:10px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; }.tr-card.cardiac .cat { background:rgba(239,68,68,0.18); color:#fca5a5; }.tr-card.mci .cat { background:rgba(220,38,38,0.20); color:#fca5a5; }.tr-card.heat .cat { background:rgba(245,158,11,0.18); color:#fcd34d; }.tr-card.allergic .cat { background:rgba(168,85,247,0.18); color:#d8b4fe; }.tr-card.stroke .cat { background:rgba(14,165,233,0.18); color:#7dd3fc; }.tr-card.trauma .cat { background:rgba(236,72,153,0.18); color:#f9a8d4; }.tr-card.pediatric .cat { background:rgba(34,197,94,0.18); color:#86efac; }.tr-card .desc { color:#cbd5e1; font-size:13px; line-height:1.5; margin:10px 0 12px; }.tr-card .section-title { font-size:10px; color:#93a4cd; letter-spacing:0.13em; text-transform:uppercase; margin-bottom:6px; margin-top:10px; }.tr-card .target { font-size:11px; color:#fcd34d; padding:6px 10px; background:rgba(245,158,11,0.07); border-radius:5px; margin-bottom:4px; font-family:ui-monospace,Menlo,monospace; }.tr-card .actions ul { margin:0; padding-left:18px; font-size:12px; color:#e7ecf7; line-height:1.7; }.tr-card button { width:100%; margin-top:14px; padding:11px 18px; background:rgba(168,85,247,0.20); color:#d8b4fe; border:1px solid rgba(168,85,247,0.45); border-radius:7px; cursor:pointer; font-weight:700; font-size:13px; }.tr-card button:hover { background:rgba(168,85,247,0.32); }</style></head><body><div id="topbar"></div><div class="tr-shell"><h1 style="font-size:28px; margin:16px 0 4px;">Training Drills</h1><p style="color:#93a4cd; margin:0 0 4px;">Pre-built scenarios for quick drill activation. Drills create flagged dispatches that don't affect live metrics.</p><div class="tr-banner"><h2>How drills work</h2><div class="sub">Click "Start Drill" on any scenario to create a flagged training incident (is_drill=1). It appears in /dispatch and /active like a real call so paramedics can practice the workflow — but stays out of /command, /surge, and /sla. Use after the drill to debrief on time targets and expected actions.</div></div><div class="tr-filters" id="trFilters"></div><div id="trList" class="tr-grid"><div style="color:#6b7d9e; padding:14px;">Loading...</div></div></div><script src="assets/auth.js?v=0.2.40"></script><script src="assets/shortcuts.js?v=0.2.40"></script><script src="assets/topbar.js?v=0.2.40"></script><script src="assets/version.js?v=0.2.40"></script><script>
+(async function() {
+  if (!await HAJJ.requireRole(['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'])) return;
+  CADTopbar.render({ title: "Training" });
+  function fmt(sec) {
+    if (sec == null) return '--';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return m > 0 ? m + 'm ' + (s ? s + 's' : '') : s + 's';
+  }
+  let allScenarios = [];
+  let categories = [];
+  let activeFilter = 'all';
+  async function load() {
+    const r = await HAJJ.authedCall('training_scenarios', {});
+    if (!r || !r.ok) { document.getElementById('trList').innerHTML = '<div style="color:#fca5a5;">Error</div>'; return; }
+    allScenarios = r.scenarios;
+    categories = r.categories;
+    document.getElementById('trFilters').innerHTML =
+      '<button class="tr-filter active" data-cat="all">All (' + allScenarios.length + ')</button>' +
+      categories.map(function(c) {
+        const n = allScenarios.filter(function(s){return s.category === c;}).length;
+        return '<button class="tr-filter" data-cat="' + c + '">' + c.charAt(0).toUpperCase() + c.slice(1) + ' (' + n + ')</button>';
+      }).join('');
+    document.querySelectorAll('.tr-filter').forEach(function(b) {
+      b.addEventListener('click', function() {
+        document.querySelectorAll('.tr-filter').forEach(function(x){ x.classList.remove('active'); });
+        b.classList.add('active');
+        activeFilter = b.dataset.cat;
+        render();
+      });
+    });
+    render();
+  }
+  function render() {
+    const filtered = activeFilter === 'all' ? allScenarios : allScenarios.filter(function(s){return s.category === activeFilter;});
+    if (filtered.length === 0) {
+      document.getElementById('trList').innerHTML = '<div style="color:#6b7d9e; padding:14px;">No scenarios in this category</div>';
+      return;
+    }
+    document.getElementById('trList').innerHTML = filtered.map(function(s) {
+      const targets = s.targets ? Object.keys(s.targets).map(function(k) {
+        return '<div class="target">' + k.replace(/_/g,' ') + ': ≤ ' + fmt(s.targets[k]) + '</div>';
+      }).join('') : '';
+      return '<div class="tr-card ' + s.category + '">' +
+        '<span class="cat">' + s.category + '</span>' +
+        '<h3 style="margin-top:6px;">' + s.title + '</h3>' +
+        '<div class="desc">' + s.description + '</div>' +
+        (targets ? '<div class="section-title">Time targets</div>' + targets : '') +
+        '<div class="section-title">Expected actions</div>' +
+        '<div class="actions"><ul>' + s.expected_actions.map(function(a){return '<li>' + a + '</li>';}).join('') + '</ul></div>' +
+        '<button data-id="' + s.id + '">Start Drill</button>' +
+      '</div>';
+    }).join('');
+    document.querySelectorAll('[data-id]').forEach(function(b) {
+      b.addEventListener('click', async function() {
+        const station = prompt('Which station? (e.g. ARF1, MUZ2)');
+        if (!station) return;
+        const r = await HAJJ.authedCall('training_start_drill', { scenario_id: b.dataset.id, station: station.toUpperCase() });
+        if (r && r.ok) {
+          alert('Drill started: ' + r.incident_id + '\nIt\'s now visible in /dispatch as a drill incident.');
+          window.open('/dispatch', '_blank');
+        } else alert('Failed: ' + ((r && r.error) || 'unknown'));
+      });
+    });
+  }
+  load();
+})();
+</script></body></html>
