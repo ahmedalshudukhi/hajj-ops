@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0a0e1a">
 <title>Field Protocols · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.41">
+<link rel="stylesheet" href="assets/style.css?v=0.2.40">
 <style>
   body { background: #0a0e1a; color: #e7ecf7; font-family: 'Inter', system-ui, sans-serif; }
   .ph-shell { max-width: 1200px; margin: 0 auto; padding: 20px; }
@@ -113,9 +113,6 @@
   </div>
 
   <!-- TRIAGE TAB -->
-<!-- Editable live notes — leadership/admin can edit -->
-<div id="docOverlay" data-slug="protocols" data-title="Field Protocols — Live Notes" style="background:linear-gradient(135deg,rgba(245,158,11,0.07),rgba(56,189,248,0.04));border:1px dashed rgba(245,158,11,0.30);border-radius:11px;margin:14px 0 18px;min-height:8px;"></div>
-
   <div class="ph-pane active" data-pane="triage">
     <div class="triage-grid">
       <div class="triage-card red">
@@ -439,7 +436,7 @@
         <ul>
           <li>Pilgrims in ihram cannot wear sewn clothing — work around for IV access</li>
           <li>Hair-cutting prohibited — shaving for surgical access only with permission</li>
-          <li>If pilgrim becomes unable to complete rituals, document clearly</li>
+          <li>If pilgrim becomes unable to complete rituals, document for religious authority</li>
         </ul>
       </div>
       <div class="proto">
@@ -457,10 +454,10 @@
 
 </div>
 
-<script src="assets/auth.js?v=0.2.41"></script><script src="assets/docs-editor.js?v=0.2.41"></script>
-<script src="assets/shortcuts.js?v=0.2.41"></script>
-<script src="assets/topbar.js?v=0.2.41"></script>
-<script src="assets/version.js?v=0.2.41"></script>
+<script src="assets/auth.js?v=0.2.40"></script>
+<script src="assets/shortcuts.js?v=0.2.40"></script>
+<script src="assets/topbar.js?v=0.2.40"></script>
+<script src="assets/version.js?v=0.2.40"></script>
 <script>
 (async function() {
   if (!await HAJJ.requireRole(['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'])) return;

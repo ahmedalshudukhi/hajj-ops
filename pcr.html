@@ -1,572 +1,61 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#0a0e1a"><title>PCR · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.40">
+<meta name="theme-color" content="#0a0e1a"><title>PCR Library · Hajj 2026</title>
+<link rel="stylesheet" href="assets/style.css?v=0.2.41">
 <style>
-body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-serif; }
-.pc-shell { max-width:1200px; margin:0 auto; padding:20px; }
-.pc-tabs { display:flex; gap:6px; margin:14px 0 18px; border-bottom:1px solid rgba(99,179,237,0.18); }
-.pc-tabs button { background:transparent; border:none; color:#93a4cd; padding:11px 18px; cursor:pointer; font-size:13px; font-weight:600; border-bottom:3px solid transparent; transition:all 0.15s; }
-.pc-tabs button:hover { color:#cdf1ff; }
-.pc-tabs button.active { color:#67e8f9; border-bottom-color:#67e8f9; }
-.pc-tab-content { display:none; }
-.pc-tab-content.visible { display:block; }
-
-/* === DRAFTS LIST (My PCRs / All PCRs) === */
-.pc-drafts-toolbar { display:flex; gap:10px; align-items:end; flex-wrap:wrap; margin-bottom:14px; }
-.pc-drafts-toolbar input { padding:10px 14px; border-radius:7px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.25); font-size:14px; min-width:180px; }
-.pc-drafts-toolbar select { padding:10px 14px; border-radius:7px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.25); font-size:13px; }
-.pc-btn { padding:10px 18px; background:rgba(56,189,248,0.2); color:#cdf1ff; border:1px solid rgba(56,189,248,0.4); border-radius:7px; cursor:pointer; font-weight:600; font-size:13px; }
-.pc-btn:hover { background:rgba(56,189,248,0.3); }
-.pc-btn.ghost { background:transparent; color:#94a3b8; border-color:rgba(99,179,237,0.2); }
-.pc-btn.danger { background:rgba(239,68,68,0.18); color:#fca5a5; border-color:rgba(239,68,68,0.4); }
-
-.pc-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:12px; }
-.pc-card { background:rgba(20,28,50,0.5); border:1px solid rgba(99,179,237,0.18); border-radius:12px; padding:14px 18px; cursor:pointer; transition:transform 0.15s, border-color 0.15s; }
-.pc-card:hover { transform:translateY(-2px); border-color:rgba(56,189,248,0.4); }
-.pc-card.signed { border-left:4px solid #22c55e; }
-.pc-card.draft { border-left:4px solid #f59e0b; }
-.pc-card .top { display:flex; justify-content:space-between; align-items:start; }
-.pc-card .id { font-family:ui-monospace,Menlo,monospace; color:#cdf1ff; font-size:12px; font-weight:600; }
-.pc-card .status-pill { font-size:10px; padding:2px 8px; border-radius:4px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; }
-.pc-card .status-pill.draft { background:rgba(245,158,11,0.18); color:#fcd34d; }
-.pc-card .status-pill.signed { background:rgba(34,197,94,0.18); color:#86efac; }
-.pc-card .meta { font-size:12px; color:#cbd5e1; margin-top:6px; line-height:1.5; }
-.pc-card .meta .lbl { color:#93a4cd; }
-.pc-card .complaint { font-size:13px; color:#e7ecf7; margin:8px 0 6px; font-weight:500; }
-.pc-card .when { font-size:11px; color:#6b7d9e; margin-top:5px; }
-
-/* === EDITOR === */
-.pc-empty { text-align:center; padding:50px; color:#6b7d9e; }
-.pc-editor-back { display:flex; gap:8px; margin-bottom:14px; align-items:center; }
-
-.pc-section { background:rgba(20,28,50,0.4); border:1px solid rgba(99,179,237,0.15); border-radius:12px; padding:18px 22px; margin-bottom:14px; }
-.pc-section-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid rgba(99,179,237,0.12); }
-.pc-section-head h3 { margin:0; font-size:13px; color:#67e8f9; letter-spacing:0.08em; text-transform:uppercase; font-weight:700; }
-.pc-section-head .hint { font-size:11px; color:#6b7d9e; }
-.pc-section.cardiac { border:1px solid rgba(239,68,68,0.3); background:rgba(239,68,68,0.06); }
-.pc-section.cardiac .pc-section-head h3 { color:#fca5a5; }
-
-.pc-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
-.pc-grid .full { grid-column:1/-1; }
-.pc-field label { display:block; font-size:11px; color:#93a4cd; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:5px; font-weight:600; }
-.pc-field input, .pc-field select, .pc-field textarea { width:100%; padding:10px 13px; border-radius:7px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.25); font-size:14px; font-family:inherit; transition:border-color 0.15s; }
-.pc-field input:focus, .pc-field select:focus, .pc-field textarea:focus { outline:none; border-color:rgba(56,189,248,0.5); }
-.pc-field textarea { min-height:80px; resize:vertical; }
-.pc-field .voice-btn { background:rgba(168,85,247,0.16); color:#d8b4fe; border:1px solid rgba(168,85,247,0.35); padding:3px 9px; border-radius:5px; font-size:10px; cursor:pointer; margin-left:8px; vertical-align:middle; }
-.pc-field .now-btn { background:rgba(34,197,94,0.16); color:#86efac; border:1px solid rgba(34,197,94,0.35); padding:3px 9px; border-radius:5px; font-size:10px; cursor:pointer; margin-left:6px; vertical-align:middle; }
-
-.pc-saved-toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:rgba(34,197,94,0.20); color:#86efac; padding:10px 22px; border-radius:10px; border:1px solid rgba(34,197,94,0.4); font-size:13px; font-weight:600; opacity:0; transition:opacity 0.25s, transform 0.25s; pointer-events:none; z-index:9999; }
-.pc-saved-toast.visible { opacity:1; transform:translateX(-50%) translateY(-4px); }
-.pc-saved-toast.error { background:rgba(239,68,68,0.20); color:#fca5a5; border-color:rgba(239,68,68,0.4); }
-
-.pc-meds-list { display:flex; flex-direction:column; gap:6px; margin-top:6px; }
-.pc-med-row { display:grid; grid-template-columns:1fr 80px 100px 100px 36px; gap:8px; align-items:center; padding:7px 10px; background:rgba(15,23,42,0.5); border-radius:7px; }
-.pc-med-row input, .pc-med-row select { padding:7px 10px; font-size:12px; border-radius:5px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.2); }
-.pc-med-row .remove-btn { background:rgba(239,68,68,0.18); color:#fca5a5; border:1px solid rgba(239,68,68,0.35); padding:4px 6px; border-radius:4px; cursor:pointer; font-size:11px; }
-.pc-add-med { background:rgba(99,179,237,0.13); color:#cdf1ff; border:1px solid rgba(99,179,237,0.3); padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; margin-top:8px; }
-
-.pc-actions-bar { position:sticky; bottom:0; background:rgba(8,14,28,0.95); backdrop-filter:blur(10px); border-top:1px solid rgba(99,179,237,0.2); padding:12px 18px; margin:14px -20px -20px -20px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
-.pc-actions-bar .meta { color:#93a4cd; font-size:11px; flex:1; align-self:center; }
-
-.pc-arrest-hint { background:rgba(239,68,68,0.10); border-left:3px solid #ef4444; padding:10px 14px; border-radius:6px; margin-bottom:14px; color:#fcaaaa; font-size:12px; line-height:1.5; }
-
-.pc-quick-tile { display:inline-block; padding:6px 12px; background:rgba(99,179,237,0.12); border:1px solid rgba(99,179,237,0.25); border-radius:6px; color:#cdf1ff; font-size:11px; cursor:pointer; margin:2px; transition:background 0.12s; }
-.pc-quick-tile:hover { background:rgba(99,179,237,0.22); }
-.pc-quick-tile.selected { background:rgba(34,197,94,0.18); border-color:rgba(34,197,94,0.4); color:#86efac; }
-
-@media (max-width:680px) {
-  .pc-med-row { grid-template-columns:1fr; }
-}
+body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-serif; margin:0; }
+.pcr-shell { max-width:1400px; margin:0 auto; padding:18px; }
+.pcr-hero { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:18px 22px; background:linear-gradient(135deg, rgba(20,30,55,0.85), rgba(15,20,40,0.85)); border:1px solid rgba(99,179,237,0.18); border-radius:14px; margin-bottom:14px; flex-wrap:wrap; }
+.pcr-hero h1 { margin:0; font-size:18px; font-weight:700; color:#cdf1ff; letter-spacing:0.02em; }
+.pcr-hero .sub { font-size:12px; color:#93a4cd; margin-top:3px; }
+.pcr-hero .actions { display:flex; gap:10px; flex-wrap:wrap; }
+.pcr-btn { padding:10px 18px; background:rgba(56,189,248,0.2); color:#cdf1ff; border:1px solid rgba(56,189,248,0.4); border-radius:8px; cursor:pointer; font-weight:600; font-size:13px; text-decoration:none; display:inline-flex; align-items:center; gap:8px; transition:background 0.15s; }
+.pcr-btn:hover { background:rgba(56,189,248,0.3); }
+.pcr-btn.primary { background:rgba(34,197,94,0.22); color:#86efac; border-color:rgba(34,197,94,0.45); }
+.pcr-btn.primary:hover { background:rgba(34,197,94,0.32); }
+.pcr-btn.ghost { background:transparent; color:#94a3b8; border-color:rgba(99,179,237,0.2); }
+.pcr-iframe-wrap { background:rgba(15,23,42,0.55); border:1px solid rgba(99,179,237,0.18); border-radius:14px; overflow:hidden; height:calc(100vh - 200px); min-height:540px; position:relative; }
+.pcr-iframe-wrap iframe { width:100%; height:100%; border:0; background:#fff; }
+.pcr-hint { background:rgba(245,158,11,0.10); border:1px solid rgba(245,158,11,0.35); border-radius:10px; padding:10px 16px; color:#fde68a; font-size:12px; margin-bottom:12px; line-height:1.5; }
+.pcr-loading { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#93a4cd; font-size:13px; pointer-events:none; }
 </style>
-</head><body>
-<div id="topbar"></div>
-<div class="pc-shell">
-  <div id="pcEmpty" class="pc-empty">Loading...</div>
+</head>
+<body>
+<script src="assets/version.js?v=0.2.41"></script>
+<script src="assets/config.js?v=0.2.41"></script>
+<script src="assets/auth.js?v=0.2.41"></script>
+<script src="assets/topbar.js?v=0.2.41"></script>
+<script>HAJJ.requireSession();</script>
 
-  <div id="pcMain" style="display:none;">
-    <div style="display:flex; justify-content:space-between; align-items:start; gap:14px; flex-wrap:wrap;">
-      <div>
-        <h1 style="font-size:28px; margin:16px 0 4px;">Patient Care Reports</h1>
-        <p style="color:#93a4cd; margin:0 0 4px;">Drafts auto-save as you type. Click any card below to edit. All your PCRs are listed under "My PCRs".</p>
-      </div>
-      <div style="display:flex; gap:10px; align-items:center; margin-top:16px;">
-        <input type="text" id="pcNewIncident" placeholder="Incident ID (e.g. DSP-...)" style="padding:10px 14px; border-radius:7px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.25); font-size:14px; min-width:200px;" />
-        <button class="pc-btn" id="pcStartNew">+ New PCR</button>
-      </div>
+<div class="pcr-shell">
+  <div class="pcr-hero">
+    <div>
+      <h1>📋 PCR Library</h1>
+      <div class="sub">Patient Care Reports — auto-filed in Google Drive · folder “PCR”</div>
     </div>
-
-    <div class="pc-tabs" id="pcTabs">
-      <button data-tab="mine" class="active">My PCRs</button>
-      <button data-tab="all" id="pcAllTab" style="display:none;">All PCRs (review)</button>
-    </div>
-
-    <div class="pc-tab-content visible" data-tab="mine">
-      <div class="pc-drafts-toolbar">
-        <input type="text" id="pcSearchMine" placeholder="Search incident ID or complaint" />
-        <select id="pcStatusMine">
-          <option value="">All status</option>
-          <option value="draft">Draft only</option>
-          <option value="reviewed">Reviewed</option>
-          <option value="signed">Signed</option>
-        </select>
-        <span id="pcMineCount" style="color:#93a4cd; font-size:12px; align-self:center;"></span>
-      </div>
-      <div id="pcMineCards" class="pc-cards"><div class="pc-empty">Loading drafts...</div></div>
-    </div>
-
-    <div class="pc-tab-content" data-tab="all">
-      <div class="pc-drafts-toolbar">
-        <input type="text" id="pcSearchAll" placeholder="Search incident, author, or complaint" />
-        <select id="pcStatusAll">
-          <option value="">All status</option>
-          <option value="draft">Draft only</option>
-          <option value="reviewed">Reviewed</option>
-          <option value="signed">Signed</option>
-        </select>
-        <span id="pcAllCount" style="color:#93a4cd; font-size:12px; align-self:center;"></span>
-      </div>
-      <div id="pcAllCards" class="pc-cards"><div class="pc-empty">Loading...</div></div>
+    <div class="actions">
+      <a class="pcr-btn primary" href="https://drive.google.com/drive/folders/16-cXs3XdvSbAnb3osRPQ9hfYvcPt0dgv" target="_blank" rel="noopener">
+        ↗ Open in Drive
+      </a>
+      <a class="pcr-btn" href="dispatch.html">+ New PCR (from Dispatch)</a>
+      <a class="pcr-btn ghost" href="hub.html">← Hub</a>
     </div>
   </div>
 
-  <div id="pcEditor" style="display:none;">
-    <div class="pc-editor-back">
-      <button class="pc-btn ghost" id="pcBackBtn">← Back to PCRs</button>
-      <span style="color:#93a4cd; font-size:12px;">Auto-saving every change</span>
-    </div>
-    <div id="pcEditorBody"></div>
+  <div class="pcr-hint">
+    Every PCR submitted via Q‑PCR (from the Dispatch page) automatically files here as a PDF in the <b>PCR</b> Drive folder. Search, sort, and share use Drive's native tools.
+  </div>
+
+  <div class="pcr-iframe-wrap">
+    <div class="pcr-loading">Loading Drive folder…</div>
+    <iframe
+      src="https://drive.google.com/embeddedfolderview?id=16-cXs3XdvSbAnb3osRPQ9hfYvcPt0dgv#grid"
+      allow="autoplay"
+      sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-popups-to-escape-sandbox"
+      onload="this.previousElementSibling && (this.previousElementSibling.style.display='none')">
+    </iframe>
   </div>
 </div>
 
-<div class="pc-saved-toast" id="pcSaved">✓ Saved</div>
-
-<script src="assets/auth.js?v=0.2.40"></script>
-<script src="assets/shortcuts.js?v=0.2.40"></script>
-<script src="assets/voice.js?v=0.2.40"></script>
-<script src="assets/topbar.js?v=0.2.40"></script>
-<script src="assets/version.js?v=0.2.40"></script>
-<script>
-(async function() {
-  if (!await HAJJ.requireRole(['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'])) return;
-  CADTopbar.render({ title: "PCR" });
-
-  const me = await HAJJ.whoami();
-  const myNid = me && me.user && me.user.nid;
-  const myRole = me && me.user && me.user.role;
-  const canViewAll = ['leadership','admin'].includes(myRole);
-  if (canViewAll) document.getElementById('pcAllTab').style.display = '';
-
-  document.getElementById('pcEmpty').style.display = 'none';
-  document.getElementById('pcMain').style.display = 'block';
-
-  let currentPCR = null;
-  let saveTimer = null;
-  let medsList = []; // array of {name, dose, route, time}
-  let transferMeds = []; // same shape but for transfer-clinic specific
-  let savePending = false;
-
-  // === TAB SWITCHING ===
-  document.querySelectorAll('.pc-tabs button').forEach(b => {
-    b.addEventListener('click', () => {
-      document.querySelectorAll('.pc-tabs button').forEach(x => x.classList.remove('active'));
-      b.classList.add('active');
-      document.querySelectorAll('.pc-tab-content').forEach(c => c.classList.remove('visible'));
-      document.querySelector('.pc-tab-content[data-tab="' + b.dataset.tab + '"]').classList.add('visible');
-      if (b.dataset.tab === 'mine') loadMine();
-      else if (b.dataset.tab === 'all') loadAll();
-    });
-  });
-
-  // === START NEW PCR ===
-  document.getElementById('pcStartNew').addEventListener('click', async () => {
-    const incident_id = document.getElementById('pcNewIncident').value.trim();
-    if (!incident_id) return alert('Enter an incident ID');
-    const r = await HAJJ.authedCall('pcr_draft', { incident_id });
-    if (!r || !r.ok) return alert('Error: ' + ((r && r.error)||'unknown'));
-    currentPCR = r.pcr;
-    parseMedsFromPCR();
-    showEditor();
-    document.getElementById('pcNewIncident').value = '';
-  });
-
-  function parseMedsFromPCR() {
-    try { medsList = JSON.parse(currentPCR.medications_administered || '[]'); }
-    catch (_) { medsList = []; }
-    try { transferMeds = JSON.parse(currentPCR.transfer_clinic_meds || '[]'); }
-    catch (_) { transferMeds = []; }
-  }
-
-  // === LOAD MY PCRs ===
-  async function loadMine() {
-    const r = await HAJJ.authedCall('pcr_list_mine', {});
-    const wrap = document.getElementById('pcMineCards');
-    const q = (document.getElementById('pcSearchMine').value || '').toLowerCase().trim();
-    const sf = document.getElementById('pcStatusMine').value;
-    if (!r || !r.ok) { wrap.innerHTML = '<div class="pc-empty">Error loading: ' + ((r && r.error)||'unknown') + '</div>'; return; }
-    let drafts = r.drafts || [];
-    if (q) drafts = drafts.filter(d => (d.incident_id||'').toLowerCase().includes(q) || (d.chief_complaint||'').toLowerCase().includes(q));
-    if (sf) drafts = drafts.filter(d => (d.status||'draft') === sf);
-    document.getElementById('pcMineCount').textContent = drafts.length + ' PCR' + (drafts.length === 1 ? '' : 's');
-    if (!drafts.length) { wrap.innerHTML = '<div class="pc-empty">No PCRs match. Start a new one above.</div>'; return; }
-    wrap.innerHTML = drafts.map(d => renderCard(d)).join('');
-    bindCardClicks(wrap);
-  }
-
-  async function loadAll() {
-    const r = await HAJJ.authedCall('pcr_list_all', {});
-    const wrap = document.getElementById('pcAllCards');
-    const q = (document.getElementById('pcSearchAll').value || '').toLowerCase().trim();
-    const sf = document.getElementById('pcStatusAll').value;
-    if (!r || !r.ok) { wrap.innerHTML = '<div class="pc-empty">Error</div>'; return; }
-    let drafts = r.drafts || [];
-    if (q) drafts = drafts.filter(d => (d.incident_id||'').toLowerCase().includes(q) || (d.chief_complaint||'').toLowerCase().includes(q) || (d.author_name||'').toLowerCase().includes(q));
-    if (sf) drafts = drafts.filter(d => (d.status||'draft') === sf);
-    document.getElementById('pcAllCount').textContent = drafts.length + ' PCRs (all authors)';
-    if (!drafts.length) { wrap.innerHTML = '<div class="pc-empty">No PCRs match</div>'; return; }
-    wrap.innerHTML = drafts.map(d => renderCard(d, true)).join('');
-    bindCardClicks(wrap);
-  }
-
-  function renderCard(d, showAuthor) {
-    const status = d.status || 'draft';
-    const updated = d.updated_at ? new Date(d.updated_at * 1000).toLocaleString() : '—';
-    const isArrest = (d.arrest_start_ts || d.rosc_status || d.cpr_cycles);
-    return '<div class="pc-card ' + status + '" data-pcr-id="' + d.id + '">' +
-      '<div class="top">' +
-        '<span class="id">' + d.incident_id + (isArrest ? ' <span title="Cardiac arrest" style="color:#fca5a5;">⚡</span>' : '') + '</span>' +
-        '<span class="status-pill ' + status + '">' + status + '</span>' +
-      '</div>' +
-      '<div class="complaint">' + (d.chief_complaint ? d.chief_complaint.slice(0, 80) : '<i style="color:#6b7d9e;">no complaint yet</i>') + '</div>' +
-      '<div class="meta">' +
-        '<span class="lbl">Patient:</span> ' + (d.patient_age || '?') + ' / ' + (d.patient_gender || '?') + (d.patient_nationality ? ' · ' + d.patient_nationality : '') +
-      '</div>' +
-      (showAuthor ? '<div class="meta"><span class="lbl">Author:</span> ' + (d.author_name || d.author_nid || '—') + '</div>' : '') +
-      (d.disposition ? '<div class="meta"><span class="lbl">Disposition:</span> ' + d.disposition.replace(/_/g, ' ') + '</div>' : '') +
-      '<div class="when">Updated: ' + updated + '</div>' +
-    '</div>';
-  }
-
-  function bindCardClicks(wrap) {
-    wrap.querySelectorAll('.pc-card').forEach(c => {
-      c.addEventListener('click', async () => {
-        const id = c.dataset.pcrId;
-        const r = await HAJJ.authedCall('pcr_list_mine', {});  // re-fetch fresh
-        const found = (r && r.ok && r.drafts || []).find(d => d.id === id);
-        if (found) {
-          currentPCR = found;
-          parseMedsFromPCR();
-          showEditor();
-          return;
-        }
-        // If not in mine, try all
-        if (canViewAll) {
-          const ra = await HAJJ.authedCall('pcr_list_all', {});
-          const foundAll = (ra && ra.ok && ra.drafts || []).find(d => d.id === id);
-          if (foundAll) { currentPCR = foundAll; parseMedsFromPCR(); showEditor(); return; }
-        }
-        alert('Could not load PCR');
-      });
-    });
-  }
-
-  ['pcSearchMine','pcStatusMine'].forEach(id => document.getElementById(id).addEventListener('input', loadMine));
-  ['pcSearchAll','pcStatusAll'].forEach(id => document.getElementById(id).addEventListener('input', loadAll));
-
-  // === EDITOR ===
-  function showEditor() {
-    document.getElementById('pcMain').style.display = 'none';
-    document.getElementById('pcEditor').style.display = 'block';
-    renderEditor();
-    window.scrollTo(0, 0);
-  }
-  function hideEditor() {
-    document.getElementById('pcEditor').style.display = 'none';
-    document.getElementById('pcMain').style.display = 'block';
-    loadMine();
-  }
-  document.getElementById('pcBackBtn').addEventListener('click', hideEditor);
-
-  function renderEditor() {
-    const p = currentPCR;
-    const isReadonly = p.author_nid !== myNid && !canViewAll;
-    const editable = !isReadonly && p.status !== 'signed';
-    const dis = editable ? '' : 'disabled';
-
-    const html =
-      '<div class="pc-section">' +
-        '<div class="pc-section-head">' +
-          '<h3>Identification</h3>' +
-          '<span class="hint">' + (p.id || '') + (isReadonly ? ' · READ-ONLY' : '') + '</span>' +
-        '</div>' +
-        '<div class="pc-grid">' +
-          field('Incident ID', 'pf_incident_id', 'text', p.incident_id, true) +
-          field('Author', 'pf_author', 'text', (p.author_name || p.author_nid || ''), true) +
-          fieldSelect('Status', 'pf_status', p.status || 'draft', [['draft','Draft'],['reviewed','Reviewed'],['signed','Signed']], dis) +
-        '</div>' +
-      '</div>' +
-
-      '<div class="pc-section">' +
-        '<div class="pc-section-head"><h3>Patient</h3></div>' +
-        '<div class="pc-grid">' +
-          field('Age', 'pf_patient_age', 'number', p.patient_age, dis) +
-          fieldSelect('Gender', 'pf_patient_gender', p.patient_gender || '', [['','—'],['male','Male'],['female','Female']], dis) +
-          field('Nationality', 'pf_patient_nationality', 'text', p.patient_nationality, dis) +
-        '</div>' +
-      '</div>' +
-
-      '<div class="pc-section">' +
-        '<div class="pc-section-head"><h3>Chief Complaint &amp; History</h3></div>' +
-        '<div class="pc-grid">' +
-          fieldTextarea('Chief complaint', 'pf_chief_complaint', p.chief_complaint, dis, true) +
-          fieldTextarea('History (HPI/SAMPLE)', 'pf_history', p.history, dis, true) +
-          field('Allergies', 'pf_allergies', 'text', p.allergies, dis) +
-          field('Home medications', 'pf_medications', 'text', p.medications, dis) +
-        '</div>' +
-      '</div>' +
-
-      '<div class="pc-section">' +
-        '<div class="pc-section-head"><h3>Vitals &amp; Assessment</h3></div>' +
-        '<div class="pc-grid">' +
-          field('Initial vitals (BP HR RR SpO2 T)', 'pf_vitals_initial', 'text', p.vitals_initial, dis) +
-          field('Final vitals (BP HR RR SpO2 T)', 'pf_vitals_final', 'text', p.vitals_final, dis) +
-          field('Glucose initial (mmol/L)', 'pf_glucose_initial', 'number', p.glucose_initial, dis, { step: '0.1' }) +
-          field('Glucose final (mmol/L)', 'pf_glucose_final', 'number', p.glucose_final, dis, { step: '0.1' }) +
-          field('GCS - Eye (1-4)', 'pf_gcs_e', 'number', p.gcs_e, dis, { min: 1, max: 4 }) +
-          field('GCS - Verbal (1-5)', 'pf_gcs_v', 'number', p.gcs_v, dis, { min: 1, max: 5 }) +
-          field('GCS - Motor (1-6)', 'pf_gcs_m', 'number', p.gcs_m, dis, { min: 1, max: 6 }) +
-          fieldTextarea('Assessment', 'pf_assessment', p.assessment, dis, true) +
-        '</div>' +
-      '</div>' +
-
-      '<div class="pc-section cardiac">' +
-        '<div class="pc-section-head">' +
-          '<h3>⚡ Cardiac Arrest (fill if applicable)</h3>' +
-          '<span class="hint">Leave blank if not a cardiac arrest case</span>' +
-        '</div>' +
-        '<div class="pc-arrest-hint">Document cardiac arrest events with timestamps. Use the "Now" button next to each time field for the current moment.</div>' +
-        '<div class="pc-grid">' +
-          fieldTime('Arrest start time', 'pf_arrest_start_ts', p.arrest_start_ts, dis) +
-          fieldTime('First shock time', 'pf_first_shock_ts', p.first_shock_ts, dis) +
-          field('Total CPR cycles', 'pf_cpr_cycles', 'number', p.cpr_cycles, dis, { min: 0 }) +
-          fieldSelect('ROSC status', 'pf_rosc_status', p.rosc_status || '', [['','—'],['achieved','Achieved'],['not_achieved','Not achieved'],['transient','Transient (lost)']], dis) +
-          fieldTime('ROSC time (if achieved)', 'pf_rosc_ts', p.rosc_ts, dis) +
-        '</div>' +
-      '</div>' +
-
-      '<div class="pc-section">' +
-        '<div class="pc-section-head"><h3>Medications Administered (on-scene/transport)</h3></div>' +
-        '<div id="pcMedsList" class="pc-meds-list"></div>' +
-        (editable ? '<button class="pc-add-med" id="pcAddMed">+ Add medication</button>' : '') +
-      '</div>' +
-
-      '<div class="pc-section">' +
-        '<div class="pc-section-head"><h3>Interventions &amp; Response</h3></div>' +
-        '<div class="pc-grid">' +
-          fieldTextarea('Interventions performed', 'pf_interventions', p.interventions, dis, true) +
-          fieldTextarea('Response to treatment', 'pf_response_to_treatment', p.response_to_treatment, dis, true) +
-        '</div>' +
-      '</div>' +
-
-      '<div class="pc-section">' +
-        '<div class="pc-section-head"><h3>Disposition</h3></div>' +
-        '<div class="pc-grid">' +
-          fieldSelect('Disposition', 'pf_disposition', p.disposition || '', [['','—'],['treated_released','Treated and released'],['transported','Transported to hospital'],['transferred_clinic','Transferred to clinic'],['refused','Refused care'],['dnr','DNR / deceased on scene'],['referred','Referred to clinic']], dis) +
-          field('Transport to', 'pf_transport_to', 'text', p.transport_to, dis) +
-          field('Transport unit', 'pf_transport_unit', 'text', p.transport_unit, dis) +
-          field('Handoff to (clinician)', 'pf_handoff_to', 'text', p.handoff_to, dis) +
-          fieldTime('On-scene time', 'pf_on_scene_ts', p.on_scene_ts, dis) +
-          fieldTime('Departed time', 'pf_departed_ts', p.departed_ts, dis) +
-          fieldTime('Arrived at receiving facility', 'pf_arrived_ts', p.arrived_ts, dis) +
-        '</div>' +
-      '</div>' +
-
-      '<div class="pc-section" id="pcTransferSection">' +
-        '<div class="pc-section-head">' +
-          '<h3>Transfer to Clinic — Medications Given</h3>' +
-          '<span class="hint">Fill if disposition is "transferred to clinic"</span>' +
-        '</div>' +
-        '<div id="pcTransferMedsList" class="pc-meds-list"></div>' +
-        (editable ? '<button class="pc-add-med" id="pcAddTransferMed">+ Add transfer medication</button>' : '') +
-      '</div>' +
-
-      '<div class="pc-actions-bar">' +
-        '<div class="meta" id="pcSaveStatus">Auto-save: idle</div>' +
-        (editable ? '<button class="pc-btn ghost" id="pcManualSave">Save now</button>' : '') +
-        (editable ? '<button class="pc-btn" id="pcMarkSigned">Mark as signed</button>' : '') +
-        '<button class="pc-btn ghost" onclick="window.print()">🖨️ Print</button>' +
-      '</div>';
-
-    document.getElementById('pcEditorBody').innerHTML = html;
-
-    // Render meds lists
-    renderMedsList('pcMedsList', medsList, 'med', editable);
-    renderMedsList('pcTransferMedsList', transferMeds, 'transferMed', editable);
-
-    if (editable) {
-      // Bind auto-save on every field
-      document.querySelectorAll('[id^="pf_"]').forEach(el => {
-        if (el.disabled) return;
-        el.addEventListener('input', queueSave);
-        el.addEventListener('change', queueSave);
-      });
-
-      const addMed = document.getElementById('pcAddMed');
-      if (addMed) addMed.addEventListener('click', () => {
-        medsList.push({ name:'', dose:'', route:'IV', time:'' });
-        renderMedsList('pcMedsList', medsList, 'med', editable);
-        queueSave();
-      });
-      const addTr = document.getElementById('pcAddTransferMed');
-      if (addTr) addTr.addEventListener('click', () => {
-        transferMeds.push({ name:'', dose:'', route:'PO', time:'' });
-        renderMedsList('pcTransferMedsList', transferMeds, 'transferMed', editable);
-        queueSave();
-      });
-
-      const ms = document.getElementById('pcManualSave');
-      if (ms) ms.addEventListener('click', save);
-      const sg = document.getElementById('pcMarkSigned');
-      if (sg) sg.addEventListener('click', async () => {
-        if (!confirm('Mark this PCR as SIGNED? Once signed, no further edits allowed.')) return;
-        document.getElementById('pf_status').value = 'signed';
-        await save();
-        // Reload
-        const r = await HAJJ.authedCall('pcr_list_mine', {});
-        const fresh = (r && r.ok && r.drafts || []).find(d => d.id === currentPCR.id);
-        if (fresh) { currentPCR = fresh; parseMedsFromPCR(); renderEditor(); }
-      });
-    }
-    if (window.CADVoice) window.CADVoice.scan();
-  }
-
-  // === MEDS LIST RENDER ===
-  function renderMedsList(containerId, list, kind, editable) {
-    const wrap = document.getElementById(containerId);
-    if (!wrap) return;
-    if (!list.length) { wrap.innerHTML = '<div style="color:#6b7d9e; font-size:12px; padding:8px 12px;">No medications added.</div>'; return; }
-    wrap.innerHTML = list.map((m, i) => {
-      const dis = editable ? '' : 'disabled';
-      return '<div class="pc-med-row">' +
-        '<input type="text" placeholder="Name (e.g. Adrenaline)" value="' + escapeAttr(m.name) + '" data-kind="' + kind + '" data-idx="' + i + '" data-fld="name" ' + dis + ' />' +
-        '<input type="text" placeholder="Dose" value="' + escapeAttr(m.dose) + '" data-kind="' + kind + '" data-idx="' + i + '" data-fld="dose" ' + dis + ' />' +
-        '<select data-kind="' + kind + '" data-idx="' + i + '" data-fld="route" ' + dis + '>' +
-          ['IV','IM','SC','IO','PO','SL','PR','Neb','ETT','IN','Topical'].map(r =>
-            '<option value="' + r + '"' + (m.route === r ? ' selected' : '') + '>' + r + '</option>'
-          ).join('') +
-        '</select>' +
-        '<input type="time" value="' + (m.time || '') + '" data-kind="' + kind + '" data-idx="' + i + '" data-fld="time" ' + dis + ' />' +
-        (editable ? '<button class="remove-btn" data-kind="' + kind + '" data-idx="' + i + '" data-action="remove">✕</button>' : '<div></div>') +
-      '</div>';
-    }).join('');
-    // bind
-    wrap.querySelectorAll('input, select').forEach(el => {
-      el.addEventListener('input', (e) => {
-        const idx = parseInt(e.target.dataset.idx);
-        const fld = e.target.dataset.fld;
-        const arr = kind === 'med' ? medsList : transferMeds;
-        if (arr[idx]) arr[idx][fld] = e.target.value;
-        queueSave();
-      });
-    });
-    wrap.querySelectorAll('[data-action="remove"]').forEach(el => {
-      el.addEventListener('click', (e) => {
-        const idx = parseInt(e.target.dataset.idx);
-        if (kind === 'med') medsList.splice(idx, 1);
-        else transferMeds.splice(idx, 1);
-        renderMedsList(containerId, kind === 'med' ? medsList : transferMeds, kind, editable);
-        queueSave();
-      });
-    });
-  }
-
-  // === SAVE LOGIC ===
-  function queueSave() {
-    if (saveTimer) clearTimeout(saveTimer);
-    document.getElementById('pcSaveStatus').textContent = 'Auto-save: pending...';
-    saveTimer = setTimeout(save, 600);
-  }
-  async function save() {
-    if (!currentPCR || savePending) return;
-    savePending = true;
-    document.getElementById('pcSaveStatus').textContent = 'Auto-save: saving...';
-    const fields = ['patient_age','patient_gender','patient_nationality','chief_complaint','history','allergies','medications','vitals_initial','vitals_final','gcs_e','gcs_v','gcs_m','assessment','interventions','response_to_treatment','disposition','transport_to','transport_unit','handoff_to','status','arrest_start_ts','first_shock_ts','cpr_cycles','rosc_status','rosc_ts','glucose_initial','glucose_final','on_scene_ts','departed_ts','arrived_ts'];
-    const data = { id: currentPCR.id };
-    fields.forEach(f => {
-      const el = document.getElementById('pf_' + f);
-      if (!el) return;
-      let v = el.value;
-      // Convert time fields back to unix
-      if (f.endsWith('_ts') && v) {
-        // value is "HH:MM" or full datetime
-        const today = new Date();
-        const [hh, mm] = v.split(':');
-        if (hh != null && mm != null) {
-          const d = new Date(today.getFullYear(), today.getMonth(), today.getDate(), parseInt(hh), parseInt(mm));
-          v = Math.floor(d.getTime() / 1000);
-        }
-      }
-      if (v !== '' && v != null) data[f] = v;
-    });
-    data.medications_administered = JSON.stringify(medsList);
-    data.transfer_clinic_meds = JSON.stringify(transferMeds);
-    const r = await HAJJ.authedCall('pcr_save', data);
-    savePending = false;
-    if (r && r.ok) {
-      const t = document.getElementById('pcSaved');
-      t.classList.remove('error');
-      t.textContent = '✓ Saved';
-      t.classList.add('visible');
-      setTimeout(() => t.classList.remove('visible'), 1200);
-      document.getElementById('pcSaveStatus').textContent = 'Auto-save: saved ' + new Date().toLocaleTimeString();
-    } else {
-      const t = document.getElementById('pcSaved');
-      t.classList.add('error');
-      t.textContent = 'Save failed: ' + ((r && r.error)||'unknown');
-      t.classList.add('visible');
-      setTimeout(() => t.classList.remove('visible'), 3000);
-      document.getElementById('pcSaveStatus').textContent = 'Auto-save: FAILED';
-    }
-  }
-
-  // === HELPERS ===
-  function escapeAttr(s) { return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
-  function escapeText(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
-  function field(label, id, type, val, dis, extra) {
-    const attrs = extra ? Object.entries(extra).map(([k,v]) => k + '="' + v + '"').join(' ') : '';
-    return '<div class="pc-field"><label>' + label + '</label>' +
-      '<input type="' + type + '" id="' + id + '" value="' + escapeAttr(val || '') + '" ' + (dis||'') + ' ' + attrs + ' /></div>';
-  }
-  function fieldTextarea(label, id, val, dis, allowVoice) {
-    const voice = allowVoice ? '<button type="button" class="voice-btn" data-voice-target="' + id + '">🎤</button>' : '';
-    return '<div class="pc-field full"><label>' + label + ' ' + voice + '</label>' +
-      '<textarea id="' + id + '" ' + (dis||'') + '>' + escapeText(val || '') + '</textarea></div>';
-  }
-  function fieldSelect(label, id, val, opts, dis) {
-    return '<div class="pc-field"><label>' + label + '</label>' +
-      '<select id="' + id + '" ' + (dis||'') + '>' +
-        opts.map(o => '<option value="' + o[0] + '"' + (val === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') +
-      '</select></div>';
-  }
-  function fieldTime(label, id, val, dis) {
-    let timeStr = '';
-    if (val) {
-      const d = new Date(parseInt(val) * 1000);
-      timeStr = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
-    }
-    return '<div class="pc-field"><label>' + label + ' <button type="button" class="now-btn" onclick="window.cadPcrNow(\'' + id + '\')">Now</button></label>' +
-      '<input type="time" id="' + id + '" value="' + timeStr + '" ' + (dis||'') + ' /></div>';
-  }
-  window.cadPcrNow = (id) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const now = new Date();
-    el.value = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-    queueSave();
-  };
-
-  loadMine();
-})();
-</script>
 </body></html>

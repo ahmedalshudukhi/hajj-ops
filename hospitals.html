@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Hospitals · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.40">
+<link rel="stylesheet" href="assets/style.css?v=0.2.41">
 <style>
 body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-serif; }
 .hp-shell { max-width:1280px; margin:0 auto; padding:20px; }
@@ -68,18 +68,18 @@ body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-ser
   </div>
 </div>
 
-<script src="assets/auth.js?v=0.2.40"></script>
-<script src="assets/shortcuts.js?v=0.2.40"></script>
-<script src="assets/topbar.js?v=0.2.40"></script>
-<script src="assets/version.js?v=0.2.40"></script>
+<script src="assets/auth.js?v=0.2.41"></script>
+<script src="assets/shortcuts.js?v=0.2.41"></script>
+<script src="assets/topbar.js?v=0.2.41"></script>
+<script src="assets/version.js?v=0.2.41"></script>
 <script>
 (async function() {
   if (!await HAJJ.requireRole(['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'])) return;
   CADTopbar.render({ title: "Hospitals" });
 
   // Permission to set status (subset of roles)
-  const me = await HAJJ.whoami();
-  const canSet = me && me.user && ['leadership','admin','dispatcher'].includes(me.user.role);
+  const me = HAJJ.getUser();
+  const canSet = me && ['leadership','admin','dispatcher'].includes(me.role);
 
   async function refresh() {
     const r = await HAJJ.authedCall('hospitals_list', {});

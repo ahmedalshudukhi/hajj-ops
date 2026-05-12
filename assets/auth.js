@@ -213,7 +213,9 @@
   const MIGRATED_ACTIONS = {
     // Auth (uses dedicated path, fastest)
     whoami:                 { method: 'GET', path: '/api/auth/whoami' },
-    // All others go through unified /api/v2/exec router
+
+    // === All other actions go through unified /api/v2/exec D1 router ===
+    // Reads
     roster:                 { method: 'GET', exec: true },
     admin_allowlist_view:   { method: 'GET', exec: true },
     admin_sessions_view:    { method: 'GET', exec: true },
@@ -225,6 +227,7 @@
     augmentations:          { method: 'GET', exec: true },
     roster_fill:            { method: 'GET', exec: true },
     unit_positions:         { method: 'GET', exec: true },
+    unit_positions_set:     { method: 'GET', exec: true },
     mobilization_plan:      { method: 'GET', exec: true },
     sar_summary:            { method: 'GET', exec: true },
     active_summary:         { method: 'GET', exec: true },
@@ -232,6 +235,100 @@
     dashboard_active:       { method: 'GET', exec: true },
     dashboard_dispatch:     { method: 'GET', exec: true },
     dashboard_sv:           { method: 'GET', exec: true },
+
+    // Command / MCI / broadcasts / suggestions
+    command_summary:        { method: 'GET', exec: true },
+    mci_status:             { method: 'GET', exec: true },
+    mci_set:                { method: 'GET', exec: true },
+    mci_command_summary:    { method: 'GET', exec: true },
+    broadcast_send:         { method: 'GET', exec: true },
+    broadcast_list:         { method: 'GET', exec: true },
+    broadcast_ack:          { method: 'GET', exec: true },
+    unit_suggest:           { method: 'GET', exec: true },
+    activity_feed:          { method: 'GET', exec: true },
+    surge_forecast:         { method: 'GET', exec: true },
+    drill_status:           { method: 'GET', exec: true },
+    drill_set:              { method: 'GET', exec: true },
+    presence_ping:          { method: 'GET', exec: true },
+    presence_list:          { method: 'GET', exec: true },
+    handoff_script:         { method: 'GET', exec: true },
+    system_health:          { method: 'GET', exec: true },
+    heat_index:             { method: 'GET', exec: true },
+    heat_watch:             { method: 'GET', exec: true },
+    timeline:               { method: 'GET', exec: true },
+    triage_suggest:         { method: 'GET', exec: true },
+
+    // Reports (Reports tab)
+    report_daily:           { method: 'GET', exec: true },
+    report_shift_handoff:   { method: 'GET', exec: true },
+    report_incident_detail: { method: 'GET', exec: true },
+    audit_search:           { method: 'GET', exec: true },
+
+    // Hospital / units / messages / incidents
+    hospitals_list:         { method: 'GET', exec: true },
+    hospital_set_status:    { method: 'GET', exec: true },
+    hospital_seed:          { method: 'GET', exec: true },
+    unit_checkin:           { method: 'GET', exec: true },
+    units_status_grid:      { method: 'GET', exec: true },
+    messages_send:          { method: 'GET', exec: true },
+    messages_list:          { method: 'GET', exec: true },
+    messages_threads:       { method: 'GET', exec: true },
+    incidents_search:       { method: 'GET', exec: true },
+
+    // PCR / checklists / announcements / directory / escalation
+    pcr_draft:              { method: 'GET', exec: true },
+    pcr_save:               { method: 'GET', exec: true },
+    pcr_list_mine:          { method: 'GET', exec: true },
+    pcr_list_all:           { method: 'GET', exec: true },
+    checklist_list:         { method: 'GET', exec: true },
+    checklist_run:          { method: 'GET', exec: true },
+    checklist_save:         { method: 'GET', exec: true },
+    announcement_templates: { method: 'GET', exec: true },
+    station_directory:      { method: 'GET', exec: true },
+    escalation_matrix:      { method: 'GET', exec: true },
+    shift_status:           { method: 'GET', exec: true },
+    scoreboard:             { method: 'GET', exec: true },
+    replay:                 { method: 'GET', exec: true },
+    translator_phrases:     { method: 'GET', exec: true },
+    equipment_list:         { method: 'GET', exec: true },
+    equipment_status_set:   { method: 'GET', exec: true },
+    equipment_seed:         { method: 'GET', exec: true },
+    station_load_history:   { method: 'GET', exec: true },
+
+    // Wave 4+ — transports, MCI, triage tags, shifts, alerts, code blue
+    transports_list:        { method: 'GET', exec: true },
+    triage_tags_assign:     { method: 'GET', exec: true },
+    triage_tags_list:       { method: 'GET', exec: true },
+    shifts_today:           { method: 'GET', exec: true },
+    shifts_handoff_save:    { method: 'GET', exec: true },
+    shifts_handoff_list:    { method: 'GET', exec: true },
+    alerts_recent:          { method: 'GET', exec: true },
+    code_blue_event:        { method: 'GET', exec: true },
+    code_blue_list:         { method: 'GET', exec: true },
+    me_summary:             { method: 'GET', exec: true },
+
+    // Wave 6+ — board, pulse, handover, supplies
+    board_summary:          { method: 'GET', exec: true },
+    pulse_feed:             { method: 'GET', exec: true },
+    handover_compose:       { method: 'GET', exec: true },
+    supplies_request:       { method: 'GET', exec: true },
+    supplies_list:          { method: 'GET', exec: true },
+    supplies_set_status:    { method: 'GET', exec: true },
+
+    // Wave 7 — intake, wellness, sla, training
+    intake_save:            { method: 'GET', exec: true },
+    intake_list:            { method: 'GET', exec: true },
+    wellness_save:          { method: 'GET', exec: true },
+    wellness_list:          { method: 'GET', exec: true },
+    wellness_my_recent:     { method: 'GET', exec: true },
+    sla_summary:            { method: 'GET', exec: true },
+    training_scenarios:     { method: 'GET', exec: true },
+    training_start_drill:   { method: 'GET', exec: true },
+
+    // Wave 8 (new this release) — protocols/runbook/training editable
+    docs_get:               { method: 'GET', exec: true },
+    docs_save:              { method: 'GET', exec: true },
+
     // Writes (still GET via query params for now, consistent with reads)
     dispatch_create:        { method: 'GET', exec: true },
     dispatch_event:         { method: 'GET', exec: true },

@@ -343,6 +343,7 @@ const ROLE_GATE = {
   unit_availability: ['cluster_supervisor','dispatcher','leadership','admin'],
   units_list: null,
   unit_positions: ['cluster_supervisor','dispatcher','leadership','admin','sar'],
+  unit_positions_set: ['leadership','admin'],   // Chief/DCH (chief paramedic/deputy = admin role)
   station_status_list: ['cluster_supervisor','dispatcher','leadership','admin','sar'],
   reposition_list: ['cluster_supervisor','dispatcher','leadership','admin'],
   admin_allowlist_view: ['admin'],
@@ -441,13 +442,17 @@ const ROLE_GATE = {
   reposition_request: ['cluster_supervisor','dispatcher','leadership','admin'],
   reposition_approve: ['cluster_supervisor','leadership','admin'],
   reposition_reject: ['cluster_supervisor','leadership','admin'],
+  // Editable docs (protocols/runbook/training)
+  docs_get: null,                                       // anyone signed in can read
+  docs_save: ['leadership','admin'],                    // only leadership+ can edit
 };
 
 // Actions that need data.json loaded (cached in module scope after first call)
 const NEEDS_JSON = new Set([
   'augmentations','mobilization_plan','roster_fill','unit_availability',
   'units_list','unit_positions','active_summary','dashboard_active',
-  'dashboard_dispatch','dashboard_sv','sar_summary','roster','station_status_list'
+  'dashboard_dispatch','dashboard_sv','sar_summary','roster','station_status_list',
+  'unit_suggest','units_status_grid'
 ]);
 
 const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
@@ -816,6 +821,66 @@ const ACTIONS = {
       });
     } catch (_) {}
     return { ok: true, positions: Object.values(positions) };
+  },
+
+  // ==============================================================
+  // unit_positions_set — Chief/DCH set initial unit positions.
+  // Inserts a status='approved' reposition row so the existing
+  // unit_positions handler picks it up.
+  // ==============================================================
+  async unit_positions_set(user, env, params, dj) {
+    const unit_code = String(params.unit_code || params.unit || '').trim();
+    const to_station = String(params.station || params.to_station || '').toUpperCase().trim();
+    const note = String(params.note || 'Initial position by ' + (user.name || user.nid)).slice(0, 200);
+    if (!unit_code) return { ok: false, error: 'missing_unit_code' };
+    if (!STATIONS.includes(to_station)) return { ok: false, error: 'invalid_station', station: to_station };
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      // Ensure reposition_log exists
+      await env.DB.prepare(`CREATE TABLE IF NOT EXISTS reposition_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        unit_code TEXT NOT NULL,
+        from_station TEXT,
+        to_station TEXT NOT NULL,
+        reason TEXT,
+        status TEXT NOT NULL DEFAULT 'requested',
+        requested_at INTEGER NOT NULL,
+        requested_by_nid TEXT,
+        approved_at INTEGER,
+        approved_by_nid TEXT,
+        completed_at INTEGER
+      )`).run();
+      // Mark prior approved for this unit as completed
+      await env.DB.prepare(
+        `UPDATE reposition_log SET status='completed', completed_at=?1
+         WHERE unit_code=?2 AND status IN ('approved','active')`
+      ).bind(now, unit_code).run();
+      // Look up unit's current/home station for from_station (required NOT NULL)
+      let fromStation = 'UNKNOWN';
+      try {
+        const detail = (dj && dj.units_detail) || [];
+        const u = detail.find(x => x.id === unit_code);
+        if (u && u.home) fromStation = u.home;
+        // Also check most recent reposition
+        const last = await env.DB.prepare(
+          `SELECT to_station FROM reposition_log WHERE unit_code = ?1 AND status='completed' ORDER BY completed_at DESC LIMIT 1`
+        ).bind(unit_code).first();
+        if (last && last.to_station) fromStation = last.to_station;
+      } catch (_) {}
+      // Insert new approved position
+      await env.DB.prepare(
+        `INSERT INTO reposition_log
+           (unit_code, from_station, to_station, reason, status, requested_at, requested_by_nid, approved_at, approved_by_nid)
+         VALUES (?1, ?2, ?3, ?4, 'approved', ?5, ?6, ?5, ?6)`
+      ).bind(unit_code, fromStation, to_station, note, now, user.nid).run();
+      try {
+        await env.DB.prepare(
+          `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
+           VALUES (?1, 'unit_position_set', 'unit', ?2, ?3)`
+        ).bind(user.nid, unit_code, JSON.stringify({ to_station, note })).run();
+      } catch (_) {}
+      return { ok: true, unit_code, to_station, ts: now };
+    } catch (e) { return { ok: false, error: 'set_failed', detail: e.message }; }
   },
 
   async unit_availability(user, env, params, dj) {
@@ -1214,7 +1279,7 @@ const ACTIONS = {
       // MCI mode
       mci: { active: false, level: null, declared_at: null, declared_by: null, reason: null },
       // Hajj day
-      hajj_day: this._hajjDay(now)
+      hajj_day: ACTIONS._hajjDay(now)
     };
 
     // === LIVE — currently open incidents (no date filter) ===
@@ -1651,7 +1716,7 @@ const ACTIONS = {
     // KSA (UTC+3) hour
     const ksaNow = new Date((now + 3*3600) * 1000);
     const startKsaHour = ksaNow.getUTCHours();
-    const dh = this._hajjDay(now);
+    const dh = ACTIONS._hajjDay(now);
 
     // Rule library: returns risk score (0-100) for each cluster per window
     // For each hour in next N, compute risk by cluster
@@ -1717,7 +1782,7 @@ const ACTIONS = {
     for (let h = 0; h < lookahead_hours; h++) {
       const ksaHour = (startKsaHour + h) % 24;
       const ts = now + h * 3600;
-      const dhAt = this._hajjDay(ts);
+      const dhAt = ACTIONS._hajjDay(ts);
       const cluster_risks = {};
       [ARFAT, MUZ, MIN].forEach(cl => {
         const base = dhBaseline(dhAt, ksaHour, cl);
@@ -2409,7 +2474,7 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
     const where = [];
     const binds = [];
     if (q) {
-      where.push(`(incident_id LIKE ?${binds.length + 1} OR complaint LIKE ?${binds.length + 1} OR sub_location LIKE ?${binds.length + 1})`);
+      where.push(`(incident_id LIKE ?${binds.length + 1} OR complaint LIKE ?${binds.length + 1} OR sub_location LIKE ?${binds.length + 1} OR srca_case_number LIKE ?${binds.length + 1})`);
       binds.push('%' + q + '%');
     }
     if (station) { where.push(`station = ?${binds.length + 1}`); binds.push(station); }
@@ -2425,7 +2490,7 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
       const r = await env.DB.prepare(
         `SELECT incident_id, ts, station, sub_location, triage, status, complaint,
                 cardiac_arrest, unit_assigned, closed_at, COALESCE(is_drill,0) AS is_drill,
-                age, gender, patient_count
+                age, gender, patient_count, srca_case_number
          FROM dispatch_log ${wsql}
          ORDER BY ts DESC LIMIT ${limit}`
       ).bind(...binds).all();
@@ -4017,7 +4082,7 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
     const out = {
       ok: true,
       date: dateLabel,
-      hajj_day: this._hajjDay((dayStart + dayEnd) / 2),
+      hajj_day: ACTIONS._hajjDay((dayStart + dayEnd) / 2),
       window: { start_ts: dayStart, end_ts: dayEnd },
       generated_at: Math.floor(Date.now() / 1000),
       generated_by: { name: user.name, role: user.role },
@@ -4149,7 +4214,7 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
       generated_at: now,
       generated_by: { name: user.name, role: user.role },
       shift_window: { from_ts: now - lookback, to_ts: now, hours: lookback/3600 },
-      hajj_day: this._hajjDay(now),
+      hajj_day: ACTIONS._hajjDay(now),
       open_incidents: [],
       open_count_by_triage: {},
       open_count_by_station: {},
@@ -4422,8 +4487,9 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
       await env.DB.prepare(
         `INSERT INTO dispatch_log
          (incident_id, ts, station, sub_location, source, complaint, triage,
-          cardiac_arrest, unit_assigned, status, patient_count, notes, created_by_nid)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`
+          cardiac_arrest, unit_assigned, status, patient_count, notes, created_by_nid,
+          age, gender, srca_case_number)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)`
       ).bind(
         incidentId, now, station,
         subLocation,
@@ -4435,7 +4501,10 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
         status,
         patientCount,
         params.notes || '',
-        user.nid
+        user.nid,
+        params.age ? parseInt(params.age, 10) : null,
+        params.gender || null,
+        (params.srca_case_number || params.srca_case || params.srcaCase || '').trim() || null
       ).run();
       // Audit
       await env.DB.prepare(
@@ -4824,6 +4893,63 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
     } catch (e) {
       return { ok: false, error: 'fetch_failed', detail: e.message };
     }
+  },
+
+  // ==============================================================
+  // docs_get / docs_save — editable in-app docs (protocols, runbook, training)
+  // Stored in editable_docs table; markdown content, versioned.
+  // ==============================================================
+  async _ensureDocsTable(env) {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS editable_docs (
+      slug TEXT PRIMARY KEY,
+      title TEXT,
+      content TEXT NOT NULL DEFAULT '',
+      version INTEGER NOT NULL DEFAULT 1,
+      updated_by_nid TEXT,
+      updated_by_name TEXT,
+      updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    )`).run();
+  },
+
+  async docs_get(user, env, params) {
+    await ACTIONS._ensureDocsTable(env);
+    const slug = String(params.slug || '').trim().toLowerCase();
+    if (!slug) return { ok: false, error: 'missing_slug' };
+    try {
+      const r = await env.DB.prepare(
+        `SELECT slug, title, content, version, updated_by_nid, updated_by_name, updated_at
+         FROM editable_docs WHERE slug = ?1`
+      ).bind(slug).first();
+      if (!r) return { ok: true, slug, content: '', version: 0, exists: false };
+      return { ok: true, ...r, exists: true };
+    } catch (e) { return { ok: false, error: 'fetch_failed', detail: e.message }; }
+  },
+
+  async docs_save(user, env, params) {
+    await ACTIONS._ensureDocsTable(env);
+    const slug = String(params.slug || '').trim().toLowerCase();
+    const title = String(params.title || '').trim();
+    const content = String(params.content || '');
+    if (!slug) return { ok: false, error: 'missing_slug' };
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      // Upsert with version increment
+      await env.DB.prepare(
+        `INSERT INTO editable_docs (slug, title, content, version, updated_by_nid, updated_by_name, updated_at)
+         VALUES (?1, ?2, ?3, 1, ?4, ?5, ?6)
+         ON CONFLICT(slug) DO UPDATE SET
+           title = COALESCE(NULLIF(?2, ''), title),
+           content = ?3,
+           version = version + 1,
+           updated_by_nid = ?4,
+           updated_by_name = ?5,
+           updated_at = ?6`
+      ).bind(slug, title, content, user.nid, user.name || '', now).run();
+      const r = await env.DB.prepare(
+        `SELECT version, updated_at FROM editable_docs WHERE slug = ?1`
+      ).bind(slug).first();
+      return { ok: true, slug, version: r?.version || 1, updated_at: r?.updated_at || now };
+    } catch (e) { return { ok: false, error: 'save_failed', detail: e.message }; }
   },
 
 };

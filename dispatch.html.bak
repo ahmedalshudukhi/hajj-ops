@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Dispatch · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.41">
+<link rel="stylesheet" href="assets/style.css?v=0.2.40">
 
 <style>
   body { background: var(--bg); }
@@ -205,7 +205,7 @@
     </select>
     <select class="select" id="source">
       <option value="">Source</option>
-      <option value="SRCA_911">911 SRCA</option>
+      <option value="Phone">Phone (911 / hotline)</option>
       <option value="Walk-in">Walk-in</option>
       <option value="Radio">Radio</option>
       <option value="Internal">Internal request</option>
@@ -214,7 +214,6 @@
       <option value="Ambulance">Ambulance handoff</option>
       <option value="Other">Other</option>
     </select>
-    <input class="select" id="srcaCase" type="text" placeholder="SRCA Case #" autocomplete="off" maxlength="40" style="display:none;">
     <select class="select" id="subLocation"><option value="">Sub-location (pick station first)</option></select>
     <select class="select" id="caseField">
       <option value="">Chief complaint</option>
@@ -310,14 +309,14 @@
   ⚠ <span id="repoBannerCount">0</span> reposition request<span id="repoBannerS">s</span> pending approval — click to review
 </div>
 
-<script src="assets/config.js?v=0.2.41"></script>
-<script src="assets/tempo.js?v=0.2.41"></script>
-<script src="assets/auth.js?v=0.2.41"></script>
-<script src="assets/shortcuts.js?v=0.2.41"></script>
-<script src="assets/voice.js?v=0.2.41"></script>
-<script src="assets/sublocations.js?v=0.2.41"></script>
-<script src="assets/topbar.js?v=0.2.41"></script>
-<script src="assets/dateBar.js?v=0.2.41"></script>
+<script src="assets/config.js?v=0.2.40"></script>
+<script src="assets/tempo.js?v=0.2.40"></script>
+<script src="assets/auth.js?v=0.2.40"></script>
+<script src="assets/shortcuts.js?v=0.2.40"></script>
+<script src="assets/voice.js?v=0.2.40"></script>
+<script src="assets/sublocations.js?v=0.2.40"></script>
+<script src="assets/topbar.js?v=0.2.40"></script>
+<script src="assets/dateBar.js?v=0.2.40"></script>
 <script>
 (function () {
 
@@ -997,29 +996,9 @@
 
   function buildPcrButton(inc) {
     const params = new URLSearchParams();
-    // Identity & references
-    if (inc.Incident_ID)     params.set('incident_id', inc.Incident_ID);
-    if (inc.SRCA_Case)       params.set('srca_case', inc.SRCA_Case);
-    if (inc.Station)         params.set('prefill_station', inc.Station);
-    if (inc.Unit)            params.set('prefill_unit', inc.Unit);
-    if (inc.Region)          params.set('prefill_region', inc.Region);
-    if (inc.Sub_Location)    params.set('prefill_sub_location', inc.Sub_Location);
-    if (inc.Movement)        params.set('prefill_movement', inc.Movement);
-    // Clinical autofill
-    if (inc.Chief_Complaint) params.set('prefill_chief_complaint', inc.Chief_Complaint);
-    if (inc.Triage)          params.set('prefill_triage', inc.Triage);
-    if (inc.Source)          params.set('prefill_source', inc.Source);
-    // Staff identity for paramedic header
-    const me = (window.HAJJ && HAJJ.getUser) ? HAJJ.getUser() : null;
-    if (me) {
-      if (me.nid)  params.set('prefill_staff_nid', me.nid);
-      if (me.name) params.set('prefill_staff_name', me.name);
-      if (me.role) params.set('prefill_staff_role', me.role);
-    }
-    // Timing autofill (use dispatch + on-scene if available)
-    if (inc.Dispatch_Time)    params.set('prefill_dispatch_time', inc.Dispatch_Time);
-    if (inc.On_Scene)         params.set('prefill_on_scene', inc.On_Scene);
-    if (inc.Patient_Contact)  params.set('prefill_patient_contact', inc.Patient_Contact);
+    if (inc.Incident_ID) params.set('incident_id', inc.Incident_ID);
+    if (inc.Station)     params.set('prefill_station', inc.Station);
+    if (inc.Unit)        params.set('prefill_unit', inc.Unit);
     const url = window.PCR_URL + '?' + params.toString();
     const label = inc.Q_PCR_ID
       ? '📄 PCR filed (' + inc.Q_PCR_ID + ')'
@@ -1303,28 +1282,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.41"></script>
-
-<script>
-// SRCA 911 secondary case number handling
-(function(){
-  const sourceSel = document.getElementById('source');
-  const srcaInput = document.getElementById('srcaCase');
-  if (!sourceSel || !srcaInput) return;
-  function update() {
-    if (sourceSel.value === 'SRCA_911') {
-      srcaInput.style.display = '';
-      srcaInput.required = true;
-    } else {
-      srcaInput.style.display = 'none';
-      srcaInput.value = '';
-      srcaInput.required = false;
-    }
-  }
-  sourceSel.addEventListener('change', update);
-  update();
-})();
-</script>
-
+<script src="assets/version.js?v=0.2.40"></script>
 </body>
 </html>

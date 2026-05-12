@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Active Insights · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.41">
+<link rel="stylesheet" href="assets/style.css?v=0.2.40">
 
 <style>
   body { background: var(--bg); }
@@ -384,27 +384,18 @@
 
 </div>
 
-<script src="assets/config.js?v=0.2.41"></script>
-<script src="assets/tempo.js?v=0.2.41"></script>
-<script src="assets/auth.js?v=0.2.41"></script>
-<script src="assets/shortcuts.js?v=0.2.41"></script>
-<script src="assets/topbar.js?v=0.2.41"></script>
-<script src="assets/dateBar.js?v=0.2.41"></script>
+<script src="assets/config.js?v=0.2.40"></script>
+<script src="assets/tempo.js?v=0.2.40"></script>
+<script src="assets/auth.js?v=0.2.40"></script>
+<script src="assets/shortcuts.js?v=0.2.40"></script>
+<script src="assets/topbar.js?v=0.2.40"></script>
+<script src="assets/dateBar.js?v=0.2.40"></script>
 <script>
 (function () {
 
   if (!HAJJ.requireRole(['leadership', 'admin', 'cluster_supervisor'])) return;
   CADTopbar.render({ title: "Active", subtitle: "live operations" });
 
-  // Clear stale SWR cache to ensure initial paint always fetches fresh — this
-  // fixes the issue where numbers stayed blank until user clicked "Today".
-  try {
-    Object.keys(sessionStorage).forEach(k => {
-      if (k.indexOf('swr:active_summary') === 0 || k.indexOf('swr:unit_positions') === 0 || k.indexOf('swr:unit_availability') === 0) {
-        sessionStorage.removeItem(k);
-      }
-    });
-  } catch (_) {}
 
   // logoutBtn handled by topbar.js (cadSignOut)
 
@@ -920,8 +911,8 @@
 
   // ===== Filter strip =====
   let _allAugRows = [];
-  let _selectedDate = (new Date()).toISOString().slice(0,10);
-  let _endDate = _selectedDate;
+  let _selectedDate = '';
+  let _endDate = '';
   let _isRange = false;
   let _selectedMovement = '';
 
@@ -1128,6 +1119,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.41"></script>
+<script src="assets/version.js?v=0.2.40"></script>
 </body>
 </html>
