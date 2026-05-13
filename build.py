@@ -112,6 +112,28 @@ def num(v, default=0):
 
 def s(v): return str(v).strip() if v is not None else ""
 
+def compute_shift_duration(start_time, end_time):
+    """Calculate shift duration in hours from start/end time cells.
+    Handles midnight wrap (e.g. 19:00 → 07:00 = 12 h, 20:00 → 02:00 = 6 h).
+    Treats same start==end as 24h (full-day rotation, e.g. 24/7 shift).
+    Falls back to 0 for unparseable inputs.
+
+    Why this exists: the 'Duration (h)' cells in the Shifts sheet are
+    formatted as Excel time/date values (e.g. cells show as 12:00 but
+    serialize as datetime.datetime(1900,1,12,0,0)), so the previous
+    `num(r.get('Duration (h)'))` call returned 0 for nearly every shift.
+    Always compute from Start/End instead — single source of truth.
+    """
+    if not hasattr(start_time, 'hour') or not hasattr(end_time, 'hour'):
+        return 0.0
+    sh_ = start_time.hour + start_time.minute / 60
+    eh_ = end_time.hour + end_time.minute / 60
+    if sh_ == eh_:
+        return 24.0
+    if eh_ < sh_:
+        return (24 - sh_) + eh_
+    return eh_ - sh_
+
 def download_xlsx():
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx"); tmp.close()
     print(f"  Downloading from Google Drive (file: {FILE_ID})...")
@@ -365,7 +387,7 @@ def compute_status_counts(units_rows):
 
 def compute_schedule_grid(schedule_rows, units_rows, shifts_rows):
     """Per-station per-day-slot summary: how many units & paras on each shift."""
-    shift_dur = {s(r.get("Code")): num(r.get("Duration (h)"), 0) for r in shifts_rows if s(r.get("Code"))}
+    shift_dur = {s(r.get("Code")): compute_shift_duration(r.get("Start"), r.get("End")) for r in shifts_rows if s(r.get("Code"))}
     unit_size = {s(u.get("Unit ID")): int(num(u.get("Size", 1))) for u in units_rows}
     unit_home = {s(u.get("Unit ID")): s(u.get("Home Station")) for u in units_rows}
     unit_type = {s(u.get("Unit ID")): s(u.get("Unit Type")) for u in units_rows}
@@ -398,7 +420,7 @@ def compute_schedule_grid(schedule_rows, units_rows, shifts_rows):
 
 def compute_daily_view(schedule_rows, units_rows, shifts_rows):
     """One row per (DH day, slot) with totals. For day-by-day overview."""
-    shift_dur = {s(r.get("Code")): num(r.get("Duration (h)"), 0) for r in shifts_rows if s(r.get("Code"))}
+    shift_dur = {s(r.get("Code")): compute_shift_duration(r.get("Start"), r.get("End")) for r in shifts_rows if s(r.get("Code"))}
     shift_type = {s(r.get("Code")): s(r.get("Type")) for r in shifts_rows if s(r.get("Code"))}
     unit_size = {s(u.get("Unit ID")): int(num(u.get("Size", 1))) for u in units_rows}
     unit_home = {s(u.get("Unit ID")): s(u.get("Home Station")) for u in units_rows}
@@ -670,7 +692,7 @@ def compute_ambulance_dashboards(amb_rows, units_rows, schedule_rows, shifts_row
     """
     unit_home = {s(u.get("Unit ID")): s(u.get("Home Station")) for u in units_rows}
     schedule_by_uid = {s(r.get("Unit ID")): r for r in schedule_rows if s(r.get("Unit ID"))}
-    shift_dur = {s(r.get("Code")): num(r.get("Duration (h)"), 0) for r in shifts_rows if s(r.get("Code"))}
+    shift_dur = {s(r.get("Code")): compute_shift_duration(r.get("Start"), r.get("End")) for r in shifts_rows if s(r.get("Code"))}
     shift_type = {s(r.get("Code")): s(r.get("Type")) for r in shifts_rows if s(r.get("Code"))}
 
     DH_DAYS = list(range(4, 15))
