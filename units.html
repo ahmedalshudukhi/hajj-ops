@@ -1,162 +1,322 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Units · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.42">
+<meta name="theme-color" content="#0a0e1a"><title>Units · Hajj 2026</title>
+<link rel="stylesheet" href="assets/style.css?v=0.2.43">
 <style>
-body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-serif; }
-.un-shell { max-width:1280px; margin:0 auto; padding:20px; }
-.un-tally { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px; margin:14px 0 18px; }
-.un-tally .tile { background:rgba(20,28,50,0.5); border:1px solid rgba(99,179,237,0.15); border-radius:10px; padding:12px 16px; cursor:pointer; transition:transform 0.15s; }
-.un-tally .tile:hover { transform:translateY(-2px); }
-.un-tally .tile.active { border-color:rgba(56,189,248,0.5); background:rgba(56,189,248,0.13); }
-.un-tally .tile .l { font-size:10px; color:#93a4cd; letter-spacing:0.13em; text-transform:uppercase; }
-.un-tally .tile .v { font-size:26px; font-weight:800; color:#e8f1ff; line-height:1; margin-top:4px; }
-.un-tally .tile.avail .v { color:#6ee7b7; }
-.un-tally .tile.busy .v { color:#fcd34d; }
-.un-tally .tile.oos .v { color:#fca5a5; }
-.un-tally .tile.stale .v { color:#fca5a5; }
-.un-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; margin-top:14px; }
-.un-card { background:rgba(20,28,50,0.5); border:1px solid rgba(99,179,237,0.18); border-radius:10px; padding:12px 14px; }
-.un-card.available { border-left:3px solid #22c55e; }
-.un-card.busy, .un-card.dispatched { border-left:3px solid #f59e0b; }
-.un-card.oos, .un-card.maintenance { border-left:3px solid #ef4444; }
-.un-card.break { border-left:3px solid #94a3b8; }
-.un-card .code { font-size:14px; font-weight:700; color:#cdf1ff; }
-.un-card .type { font-size:11px; color:#93a4cd; }
-.un-card .row { display:flex; justify-content:space-between; margin-top:4px; font-size:11px; color:#cbd5e1; }
-.un-card .stale { color:#fca5a5; font-weight:600; }
-.un-card .actions { display:flex; gap:5px; margin-top:8px; }
-.un-card .actions button { flex:1; font-size:10px; padding:5px 8px; border-radius:5px; background:rgba(99,179,237,0.13); color:#cdf1ff; border:1px solid rgba(99,179,237,0.25); cursor:pointer; }
-.un-card .actions button:hover { background:rgba(99,179,237,0.22); }
-.un-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); backdrop-filter:blur(4px); z-index:9999; align-items:center; justify-content:center; padding:20px; }
-.un-modal.visible { display:flex; }
-.un-modal .box { background:linear-gradient(135deg,#0f1830,#06101e); border:1px solid rgba(99,179,237,0.25); border-radius:14px; padding:22px 26px; max-width:480px; width:100%; }
-.un-modal h2 { margin:0 0 4px; }
-.un-modal label { display:block; font-size:11px; color:#93a4cd; letter-spacing:0.06em; text-transform:uppercase; margin:14px 0 5px; }
-.un-modal select, .un-modal input { width:100%; padding:10px 12px; border-radius:7px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.25); font-size:14px; }
-.un-modal .btnrow { display:flex; gap:10px; margin-top:16px; }
-.un-modal .btnrow button { flex:1; padding:10px; border-radius:7px; cursor:pointer; font-weight:600; }
-.un-modal .save { background:rgba(56,189,248,0.2); color:#cdf1ff; border:1px solid rgba(56,189,248,0.4); }
-.un-modal .cancel { background:transparent; color:#94a3b8; border:1px solid rgba(99,179,237,0.2); }
+body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-serif; margin:0; }
+.u-shell { max-width:1500px; margin:0 auto; padding:18px; }
+.u-hero { background:linear-gradient(135deg, rgba(20,30,55,0.85), rgba(15,20,40,0.85)); border:1px solid rgba(99,179,237,0.18); border-radius:14px; padding:18px 22px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px; }
+.u-hero h1 { margin:0; font-size:20px; color:#cdf1ff; }
+.u-hero .sub { color:#93a4cd; font-size:12px; margin-top:4px; }
+.u-stats { display:flex; gap:8px; flex-wrap:wrap; }
+.u-stat { background:rgba(15,23,42,0.7); border:1px solid rgba(99,179,237,0.22); border-radius:8px; padding:8px 14px; min-width:90px; text-align:center; }
+.u-stat .v { font-size:20px; font-weight:700; color:#67e8f9; line-height:1; }
+.u-stat .l { font-size:10px; color:#93a4cd; text-transform:uppercase; letter-spacing:0.06em; margin-top:3px; }
+.u-toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; background:rgba(20,28,50,0.45); border:1px solid rgba(99,179,237,0.12); border-radius:11px; padding:10px 14px; }
+.u-tab { padding:7px 14px; background:rgba(15,23,42,0.7); color:#93a4cd; border:1px solid rgba(99,179,237,0.18); border-radius:7px; cursor:pointer; font-size:12px; font-weight:600; }
+.u-tab:hover { background:rgba(56,189,248,0.13); color:#cdf1ff; }
+.u-tab.active { background:rgba(56,189,248,0.28); color:#cdf1ff; border-color:rgba(56,189,248,0.5); }
+.u-tab .ct { color:#fcd34d; font-weight:700; margin-left:4px; }
+.u-toolbar select, .u-toolbar input { padding:7px 11px; border-radius:7px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.22); font-size:13px; }
+.u-toolbar input { min-width:200px; }
+.u-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:11px; }
+.u-card { background:rgba(20,28,50,0.55); border:1px solid rgba(99,179,237,0.18); border-radius:10px; padding:13px 15px; cursor:pointer; transition: transform 0.12s, border-color 0.12s; position:relative; }
+.u-card:hover { transform:translateY(-1px); border-color:rgba(56,189,248,0.45); }
+.u-card.t-Medical { border-left:4px solid #22c55e; }
+.u-card.t-Ambulance { border-left:4px solid #ef4444; }
+.u-card.t-Foot-Runner { border-left:4px solid #67e8f9; }
+.u-card.t-Supervisor { border-left:4px solid #fcd34d; }
+.u-card.t-Logistics { border-left:4px solid #a78bfa; }
+.u-card.t-Leadership { border-left:4px solid #f0abfc; }
+.u-card .code { font-size:14px; font-weight:700; color:#cdf1ff; }
+.u-card .type-pill { display:inline-block; font-size:9px; padding:1px 6px; border-radius:99px; background:rgba(99,179,237,0.14); color:#93a4cd; text-transform:uppercase; letter-spacing:0.06em; margin-left:5px; vertical-align:middle; }
+.u-card .station { font-size:11px; color:#fcd34d; margin-top:3px; font-weight:600; }
+.u-card .station.moved { color:#86efac; }
+.u-card .station.moved::before { content:"→ "; }
+.u-card .loc { font-size:11px; color:#94a3b8; margin-top:4px; font-style:italic; min-height:14px; }
+.u-card .members { font-size:11px; color:#93a4cd; margin-top:6px; }
+.u-card .members .filled { color:#86efac; font-weight:600; }
+.u-card .members .vacant { color:#fca5a5; font-weight:600; }
+.u-empty { color:#6b7d9e; padding:40px; text-align:center; font-size:14px; grid-column:1/-1; }
+.u-modal { position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:9000; display:none; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px); }
+.u-modal.visible { display:flex; }
+.u-modal-inner { background:#0e1530; border:1px solid rgba(99,179,237,0.25); border-radius:12px; padding:0; max-width:600px; width:100%; max-height:88vh; overflow:hidden; display:flex; flex-direction:column; }
+.u-modal h2 { margin:0; padding:16px 22px; border-bottom:1px solid rgba(99,179,237,0.16); color:#cdf1ff; font-size:16px; display:flex; justify-content:space-between; align-items:center; }
+.u-modal .close { background:none; border:0; color:#93a4cd; font-size:24px; cursor:pointer; line-height:1; padding:0 6px; }
+.u-modal-body { padding:18px 22px; overflow-y:auto; flex:1; }
+.u-modal-body label { font-size:11px; color:#93a4cd; letter-spacing:0.06em; text-transform:uppercase; display:block; margin:14px 0 5px; }
+.u-modal-body input, .u-modal-body select, .u-modal-body textarea { width:100%; padding:9px 11px; border-radius:7px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.22); font-size:13px; font-family:inherit; }
+.u-modal-body textarea { min-height:80px; resize:vertical; }
+.u-modal-body .members-list { max-height:200px; overflow-y:auto; margin-top:6px; }
+.u-modal-body .member { display:flex; justify-content:space-between; padding:6px 10px; background:rgba(15,23,42,0.5); border-radius:6px; margin-bottom:4px; font-size:12px; }
+.u-modal-body .member .name { color:#cdf1ff; }
+.u-modal-body .member .role { color:#94a3b8; font-size:10px; }
+.u-modal-body .member.vacant { background:rgba(239,68,68,0.10); color:#fca5a5; }
+.u-modal-actions { padding:12px 22px; border-top:1px solid rgba(99,179,237,0.16); display:flex; gap:8px; justify-content:flex-end; }
+.u-btn { padding:8px 16px; border-radius:7px; cursor:pointer; font-weight:600; font-size:13px; border:1px solid rgba(99,179,237,0.3); background:rgba(15,23,42,0.7); color:#cdf1ff; }
+.u-btn:hover { background:rgba(56,189,248,0.18); }
+.u-btn.primary { background:rgba(34,197,94,0.22); color:#86efac; border-color:rgba(34,197,94,0.4); }
+.u-btn.primary:hover { background:rgba(34,197,94,0.34); }
+.u-toast { position:fixed; top:14px; right:14px; padding:10px 16px; border-radius:8px; font-size:13px; font-weight:600; opacity:0; transition:opacity 0.3s; z-index:9500; background:rgba(34,197,94,0.22); color:#86efac; border:1px solid rgba(34,197,94,0.4); }
+.u-toast.visible { opacity:1; }
+.u-toast.error { background:rgba(239,68,68,0.22); color:#fca5a5; border-color:rgba(239,68,68,0.4); }
 </style>
-</head><body>
+</head>
+<body>
 <div id="topbar"></div>
-<div class="un-shell">
-  <h1 style="font-size:28px; margin:16px 0 4px;">Unit Roster</h1>
-  <p style="color:#93a4cd; margin:0 0 4px;">Live status for all 25+ units. Click a unit to update status.</p>
 
-  <div class="un-tally" id="unTally"></div>
-  <div id="unGrid" class="un-grid"></div>
-</div>
+<script src="assets/version.js?v=0.2.43"></script>
+<script src="assets/config.js?v=0.2.43"></script>
+<script src="assets/auth.js?v=0.2.43"></script>
+<script src="assets/topbar.js?v=0.2.43"></script>
+<script>HAJJ.requireSession();</script>
 
-<div class="un-modal" id="unModal">
-  <div class="box">
-    <h2 id="umTitle">Update unit</h2>
-    <label>Status</label>
-    <select id="umStatus">
-      <option value="available">Available</option>
-      <option value="busy">Busy</option>
-      <option value="dispatched">Dispatched</option>
-      <option value="oos">Out of Service</option>
-      <option value="maintenance">Maintenance</option>
-      <option value="break">Break / Rest</option>
-    </select>
-    <label>Current Station</label>
-    <select id="umStation">
-      <option value="">— same as home —</option>
+<div class="u-shell">
+  <div class="u-hero">
+    <div>
+      <h1>🚑 Units</h1>
+      <div class="sub">All operational units · split by type · click any card to view or edit</div>
+    </div>
+    <div class="u-stats">
+      <div class="u-stat"><div class="v" id="uTotalUnits">—</div><div class="l">Total Units</div></div>
+      <div class="u-stat"><div class="v" id="uTotalParas">—</div><div class="l">Paramedics</div></div>
+      <div class="u-stat"><div class="v" id="uFilledPct">—</div><div class="l">Filled %</div></div>
+      <div class="u-stat"><div class="v" id="uMoved">—</div><div class="l">Repositioned</div></div>
+    </div>
+  </div>
+
+  <div class="u-toolbar">
+    <div id="uTabs"></div>
+    <select id="uStation">
+      <option value="">All stations</option>
       <option>ARF1</option><option>ARF2</option><option>ARF3</option>
       <option>MUZ1</option><option>MUZ2</option><option>MUZ3</option>
       <option>MIN1</option><option>MIN2</option><option>MIN3</option>
+      <option>OCC</option>
     </select>
-    <label>Note (optional)</label>
-    <input type="text" id="umNote" placeholder="e.g. low O2, mechanical issue, return to home" />
-    <div class="btnrow">
-      <button class="cancel" onclick="document.getElementById('unModal').classList.remove('visible')">Cancel</button>
-      <button class="save" id="umSave">Save check-in</button>
+    <input id="uSearch" placeholder="Search unit code or member name…">
+    <span style="flex:1"></span>
+    <button class="u-btn" id="uRefresh">↻ Refresh</button>
+  </div>
+
+  <div class="u-grid" id="uGrid"></div>
+</div>
+
+<div class="u-modal" id="uModal">
+  <div class="u-modal-inner">
+    <h2 id="uModalTitle">Unit details <button class="close" id="uModalClose">×</button></h2>
+    <div class="u-modal-body" id="uModalBody"></div>
+    <div class="u-modal-actions">
+      <button class="u-btn" id="uModalCancel">Close</button>
+      <button class="u-btn primary" id="uModalSave">Save changes</button>
     </div>
   </div>
 </div>
 
-<script src="assets/auth.js?v=0.2.42"></script>
-<script src="assets/shortcuts.js?v=0.2.42"></script>
-<script src="assets/topbar.js?v=0.2.42"></script>
-<script src="assets/version.js?v=0.2.42"></script>
+<div id="uToast" class="u-toast"></div>
+
 <script>
 (async function() {
-  if (!await HAJJ.requireRole(['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'])) return;
-  CADTopbar.render({ title: "Units" });
+  if (!HAJJ.requireAuth()) return;
+  if (typeof CADTopbar !== 'undefined') CADTopbar.render({ title:"Units", subtitle:"split by type · editable" });
 
-  let activeFilter = null;
-  let lastUnits = [];
+  const user = HAJJ.getUser();
+  const canEdit = user && ['cluster_supervisor','dispatcher','leadership','admin'].includes(user.role);
 
-  async function refresh() {
-    const r = await HAJJ.authedCall('units_status_grid', {});
-    if (!r || !r.ok) { document.getElementById('unGrid').innerHTML = '<div style="color:#6b7d9e; padding:30px;">Error</div>'; return; }
-    lastUnits = r.units || [];
-    const tally = r.tally || {};
-    document.getElementById('unTally').innerHTML = `
-      <div class="tile" data-status=""><div class="l">Total</div><div class="v">${tally.total||0}</div></div>
-      <div class="tile avail" data-status="available"><div class="l">Available</div><div class="v">${tally.available||0}</div></div>
-      <div class="tile busy" data-status="busy"><div class="l">Busy/Disp</div><div class="v">${(tally.busy||0)+(tally.dispatched||0)}</div></div>
-      <div class="tile oos" data-status="oos"><div class="l">OOS/Maint</div><div class="v">${(tally.oos||0)+(tally.maintenance||0)}</div></div>
-      <div class="tile" data-status="break"><div class="l">Break</div><div class="v">${tally.break||0}</div></div>
-      <div class="tile stale" data-status="stale"><div class="l">Stale (&gt;30m)</div><div class="v">${tally.stale||0}</div></div>
-    `;
-    document.querySelectorAll('.un-tally .tile').forEach(t => {
-      t.classList.toggle('active', t.dataset.status === (activeFilter||''));
-      t.addEventListener('click', () => { activeFilter = (t.dataset.status === activeFilter) ? null : t.dataset.status; renderGrid(); refresh(); });
-    });
-    renderGrid();
+  let _units = [];      // full list
+  let _locations = {};  // unit_code -> location text
+  let _positions = {};  // unit_code -> current_station
+  let _types = [];      // distinct types in order
+  let _activeType = 'All';
+
+  function toast(msg, isErr) {
+    const el = document.getElementById('uToast');
+    el.textContent = msg;
+    el.classList.toggle('error', !!isErr);
+    el.classList.add('visible');
+    setTimeout(() => el.classList.remove('visible'), 2000);
   }
 
-  function renderGrid() {
-    let units = lastUnits;
-    if (activeFilter === 'stale') units = units.filter(u => u.stale);
-    else if (activeFilter === 'busy') units = units.filter(u => u.status === 'busy' || u.status === 'dispatched');
-    else if (activeFilter === 'oos') units = units.filter(u => u.status === 'oos' || u.status === 'maintenance');
-    else if (activeFilter) units = units.filter(u => u.status === activeFilter);
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
 
-    if (!units.length) { document.getElementById('unGrid').innerHTML = '<div style="color:#6b7d9e; padding:30px; text-align:center;">No units match</div>'; return; }
+  function visibleUnits() {
+    const stn = document.getElementById('uStation').value;
+    const q = (document.getElementById('uSearch').value || '').toLowerCase();
+    return _units.filter(u => {
+      if (_activeType !== 'All' && u.category !== _activeType && u.type !== _activeType) return false;
+      const cur = _positions[u.id] || u.home;
+      if (stn && cur !== stn) return false;
+      if (q) {
+        const hay = (u.id + ' ' + u.type + ' ' + (u.members || []).map(m => m.name || '').join(' ')).toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }
 
-    document.getElementById('unGrid').innerHTML = units.map(u => `
-      <div class="un-card ${u.status}">
-        <div style="display:flex; justify-content:space-between;">
-          <div><div class="code">${u.unit_code}</div><div class="type">${u.type||''}</div></div>
-          <div style="font-size:10px; padding:2px 7px; background:rgba(99,179,237,0.13); border-radius:4px; color:#cdf1ff;">${u.status.toUpperCase()}</div>
-        </div>
-        <div class="row"><span>Home</span><strong>${u.home_station||'?'}</strong></div>
-        <div class="row"><span>At</span><strong>${u.current_station||u.home_station||'?'}</strong></div>
-        <div class="row"><span>Last check</span><span class="${u.stale?'stale':''}">${u.minutes_since_check==null?'never':u.minutes_since_check+'m ago'}</span></div>
-        ${u.last_note ? '<div style="font-size:10px; color:#93a4cd; margin-top:4px;">"'+u.last_note+'"</div>' : ''}
-        <div class="actions">
-          <button onclick="window.cadOpenCheckin('${u.unit_code}')">Update</button>
+  function render() {
+    const list = visibleUnits();
+    const grid = document.getElementById('uGrid');
+    if (!list.length) { grid.innerHTML = '<div class="u-empty">No units match filters.</div>'; return; }
+    grid.innerHTML = list.map(u => {
+      const cur = _positions[u.id] || u.home;
+      const moved = cur !== u.home;
+      const filled = u.filled_count || 0;
+      const total = u.total_count || u.size || 0;
+      const cls = u.category || u.type || '';
+      const loc = _locations[u.id] || '';
+      return `
+        <div class="u-card t-${escapeHtml(cls).replace(/\s/g,'-')}" data-id="${escapeHtml(u.id)}">
+          <div class="code">${escapeHtml(u.id)} <span class="type-pill">${escapeHtml(u.type)}</span></div>
+          <div class="station ${moved ? 'moved' : ''}">${escapeHtml(cur)}${moved ? ' (home: '+escapeHtml(u.home)+')' : ''}</div>
+          ${loc ? '<div class="loc">📍 '+escapeHtml(loc)+'</div>' : '<div class="loc"></div>'}
+          <div class="members">
+            <span class="${filled === total && total > 0 ? 'filled' : 'vacant'}">${filled}/${total}</span> staffed${u.default_shift ? ' · '+escapeHtml(u.default_shift) : ''}
+          </div>
+        </div>`;
+    }).join('');
+    grid.querySelectorAll('.u-card').forEach(card => {
+      card.addEventListener('click', () => openModal(card.dataset.id));
+    });
+  }
+
+  function renderTabs() {
+    const cats = ['All'];
+    const seen = new Set();
+    _units.forEach(u => {
+      const c = u.category || u.type;
+      if (c && !seen.has(c)) { seen.add(c); cats.push(c); }
+    });
+    document.getElementById('uTabs').innerHTML = cats.map(c => {
+      const count = c === 'All' ? _units.length : _units.filter(u => (u.category || u.type) === c).length;
+      return `<button class="u-tab ${c === _activeType ? 'active' : ''}" data-c="${escapeHtml(c)}">${escapeHtml(c)}<span class="ct">${count}</span></button>`;
+    }).join('');
+    document.getElementById('uTabs').querySelectorAll('.u-tab').forEach(t => {
+      t.addEventListener('click', () => {
+        _activeType = t.dataset.c;
+        renderTabs();
+        render();
+      });
+    });
+  }
+
+  function openModal(id) {
+    const u = _units.find(x => x.id === id);
+    if (!u) return;
+    const cur = _positions[u.id] || u.home;
+    document.getElementById('uModalTitle').innerHTML = escapeHtml(u.id) + ' — ' + escapeHtml(u.type) +
+      ' <button class="close" id="uModalClose">×</button>';
+    const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3','OCC'];
+    const stationOpts = STATIONS.map(s => `<option value="${s}" ${s === cur ? 'selected' : ''}>${s}</option>`).join('');
+    const membersHtml = (u.members || []).map(m => `
+      <div class="member ${m.status === 'Filled' ? '' : 'vacant'}">
+        <div><div class="name">${escapeHtml(m.name || 'VACANT — slot ' + m.slot)}</div><div class="role">${escapeHtml(m.role || '')}</div></div>
+        <div style="text-align:right; font-size:10px; color:#94a3b8;">
+          ${m.phone ? '📞 ' + escapeHtml(m.phone) : ''}
+          ${m.call_sign ? '<br>📻 ' + escapeHtml(m.call_sign) : ''}
         </div>
       </div>
     `).join('');
+
+    document.getElementById('uModalBody').innerHTML = `
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:8px;">
+        <div><label>Current Station</label>
+          <select id="uMStation" ${canEdit ? '' : 'disabled'}>${stationOpts}</select>
+        </div>
+        <div><label>Home Station</label>
+          <input value="${escapeHtml(u.home)}" disabled style="opacity:0.7;">
+        </div>
+      </div>
+      <label>📍 Exact Current Location (free text)</label>
+      <input id="uMLocation" value="${escapeHtml(_locations[u.id] || '')}" placeholder="e.g. Gate 3, near checkpoint B, level 2" ${canEdit ? '' : 'disabled'}>
+      <label>Notes / Operational Status</label>
+      <textarea id="uMNotes" placeholder="anything relevant about this unit right now" ${canEdit ? '' : 'disabled'}></textarea>
+      <label>Members (${(u.members || []).filter(m => m.status === 'Filled').length}/${(u.members || []).length} filled)</label>
+      <div class="members-list">${membersHtml || '<div style="color:#6b7d9e; padding:10px;">No member data</div>'}</div>
+    `;
+    document.getElementById('uModal').classList.add('visible');
+    document.getElementById('uModal').dataset.unitId = u.id;
+    document.getElementById('uModalClose').addEventListener('click', closeModal);
   }
 
-  window.cadOpenCheckin = (code) => {
-    document.getElementById('umTitle').textContent = 'Check in ' + code;
-    document.getElementById('umStatus').value = 'available';
-    document.getElementById('umStation').value = '';
-    document.getElementById('umNote').value = '';
-    document.getElementById('umSave').dataset.unit = code;
-    document.getElementById('unModal').classList.add('visible');
-  };
+  function closeModal() { document.getElementById('uModal').classList.remove('visible'); }
 
-  document.getElementById('umSave').addEventListener('click', async () => {
-    const code = document.getElementById('umSave').dataset.unit;
-    const status = document.getElementById('umStatus').value;
-    const station = document.getElementById('umStation').value;
-    const note = document.getElementById('umNote').value;
-    const r = await HAJJ.authedCall('unit_checkin', { unit_code: code, status, station, note });
-    if (r && r.ok) { document.getElementById('unModal').classList.remove('visible'); refresh(); }
-    else alert('Save failed: ' + ((r && r.error)||'unknown'));
+  async function saveModal() {
+    const modal = document.getElementById('uModal');
+    const id = modal.dataset.unitId;
+    if (!id) return;
+    const newStation = document.getElementById('uMStation').value;
+    const newLoc = document.getElementById('uMLocation').value;
+    const u = _units.find(x => x.id === id);
+    if (!u) return;
+    const curStation = _positions[id] || u.home;
+    const changes = [];
+    if (newStation && newStation !== curStation) {
+      const r = await HAJJ.authedCall('unit_positions_set', { unit_code: id, station: newStation });
+      if (r && r.ok) { _positions[id] = newStation; changes.push('station→' + newStation); }
+      else { toast('Station save failed: ' + ((r && r.error) || '?'), true); return; }
+    }
+    if (newLoc !== (_locations[id] || '')) {
+      const r = await HAJJ.authedCall('unit_set_location', { unit_code: id, location: newLoc });
+      if (r && r.ok) { _locations[id] = newLoc; changes.push('location'); }
+      else { toast('Location save failed: ' + ((r && r.error) || '?'), true); return; }
+    }
+    toast(changes.length ? 'Saved: ' + changes.join(', ') : 'No changes');
+    closeModal();
+    render();
+  }
+
+  async function refresh() {
+    const [availR, posR, locR] = await Promise.all([
+      HAJJ.authedCall('unit_availability', {}),
+      HAJJ.authedCall('unit_positions', {}),
+      HAJJ.authedCall('unit_locations_list', {})
+    ]);
+    if (!availR || !availR.ok) { toast('Failed to load units', true); return; }
+    // unit_availability returns simplified shape; we want the richer detail
+    // → use unit_positions response which includes home & current station
+    _units = (availR.units || []).map(u => ({
+      id: u.code, type: u.type || '', category: u.category || u.type || '',
+      home: u.home_station || u.home || '', size: u.size || 0,
+      filled_count: u.filled_count || 0, total_count: u.size || 0,
+      default_shift: u.default_shift || '',
+      members: u.members || []
+    }));
+    if (posR && posR.ok) {
+      _positions = {};
+      (posR.positions || []).forEach(p => { _positions[p.unit] = p.station; });
+    }
+    if (locR && locR.ok) {
+      _locations = {};
+      (locR.locations || []).forEach(l => { _locations[l.unit_code] = l.location; });
+    }
+    // stats
+    document.getElementById('uTotalUnits').textContent = _units.length;
+    document.getElementById('uTotalParas').textContent = _units.reduce((s, u) => s + (u.size || 0), 0);
+    const filled = _units.reduce((s, u) => s + (u.filled_count || 0), 0);
+    const total = _units.reduce((s, u) => s + (u.total_count || u.size || 0), 0);
+    document.getElementById('uFilledPct').textContent = total ? Math.round(filled / total * 100) + '%' : '—';
+    document.getElementById('uMoved').textContent = _units.filter(u => _positions[u.id] && _positions[u.id] !== u.home).length;
+    renderTabs();
+    render();
+  }
+
+  document.getElementById('uStation').addEventListener('change', render);
+  document.getElementById('uSearch').addEventListener('input', render);
+  document.getElementById('uRefresh').addEventListener('click', refresh);
+  document.getElementById('uModalCancel').addEventListener('click', closeModal);
+  document.getElementById('uModalSave').addEventListener('click', saveModal);
+  document.getElementById('uModal').addEventListener('click', e => {
+    if (e.target.id === 'uModal') closeModal();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeModal();
   });
 
-  refresh();
-  setInterval(refresh, 30000);
+  await refresh();
 })();
 </script>
 </body></html>

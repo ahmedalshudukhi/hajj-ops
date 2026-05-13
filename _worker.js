@@ -344,6 +344,13 @@ const ROLE_GATE = {
   units_list: null,
   unit_positions: ['cluster_supervisor','dispatcher','leadership','admin','sar'],
   unit_positions_set: ['leadership','admin'],   // Chief/DCH (chief paramedic/deputy = admin role)
+  unit_set_location: ['cluster_supervisor','dispatcher','leadership','admin'],
+  unit_locations_list: null,                            // anyone signed in can read
+  ambulances_list: null,
+  ambulance_set_status: ['cluster_supervisor','dispatcher','leadership','admin'],
+  overview_summary: null,                               // anyone signed in can read
+  card_get: null,
+  cards_get_bulk: null,
   station_status_list: ['cluster_supervisor','dispatcher','leadership','admin','sar'],
   reposition_list: ['cluster_supervisor','dispatcher','leadership','admin'],
   admin_allowlist_view: ['admin'],
@@ -452,7 +459,7 @@ const NEEDS_JSON = new Set([
   'augmentations','mobilization_plan','roster_fill','unit_availability',
   'units_list','unit_positions','active_summary','dashboard_active',
   'dashboard_dispatch','dashboard_sv','sar_summary','roster','station_status_list',
-  'unit_suggest','units_status_grid'
+  'unit_suggest','units_status_grid','ambulances_list','overview_summary'
 ]);
 
 const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
@@ -881,6 +888,238 @@ const ACTIONS = {
       } catch (_) {}
       return { ok: true, unit_code, to_station, ts: now };
     } catch (e) { return { ok: false, error: 'set_failed', detail: e.message }; }
+  },
+
+  // ==============================================================
+  // unit_set_location — free-form current location text per unit
+  // (e.g. "Gate 3, near checkpoint B" — overlays station-level data)
+  // ==============================================================
+  async _ensureUnitLocationsTable(env) {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS unit_locations (
+      unit_code TEXT PRIMARY KEY,
+      location TEXT,
+      notes TEXT,
+      set_by_nid TEXT,
+      set_by_name TEXT,
+      updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    )`).run();
+  },
+
+  async unit_set_location(user, env, params) {
+    await ACTIONS._ensureUnitLocationsTable(env);
+    const unit_code = String(params.unit_code || params.unit || '').trim();
+    const location = String(params.location || '').trim();
+    const notes = String(params.notes || '').trim();
+    if (!unit_code) return { ok: false, error: 'missing_unit_code' };
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      await env.DB.prepare(
+        `INSERT INTO unit_locations (unit_code, location, notes, set_by_nid, set_by_name, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(unit_code) DO UPDATE SET
+           location = ?2, notes = ?3, set_by_nid = ?4, set_by_name = ?5, updated_at = ?6`
+      ).bind(unit_code, location, notes, user.nid, user.name || '', now).run();
+      return { ok: true, unit_code, location, ts: now };
+    } catch (e) { return { ok: false, error: 'save_failed', detail: e.message }; }
+  },
+
+  async unit_locations_list(user, env) {
+    await ACTIONS._ensureUnitLocationsTable(env);
+    try {
+      const r = await env.DB.prepare(
+        `SELECT unit_code, location, notes, set_by_name, updated_at FROM unit_locations ORDER BY updated_at DESC`
+      ).all();
+      return { ok: true, locations: r.results || [] };
+    } catch (e) { return { ok: false, error: 'fetch_failed', detail: e.message }; }
+  },
+
+  // ==============================================================
+  // ambulances_list — full roster from data.json + live status overrides
+  // ==============================================================
+  async ambulances_list(user, env, params, dj) {
+    const roster = (dj && dj.ambulance_roster) || [];
+    // Get live status overrides
+    let statusMap = {};
+    let locMap = {};
+    try {
+      await env.DB.prepare(`CREATE TABLE IF NOT EXISTS ambulance_status (
+        ambulance_id TEXT PRIMARY KEY,
+        status TEXT,
+        current_location TEXT,
+        crew_on_duty TEXT,
+        notes TEXT,
+        set_by_nid TEXT,
+        set_by_name TEXT,
+        updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+      )`).run();
+      const r = await env.DB.prepare(`SELECT * FROM ambulance_status`).all();
+      (r.results || []).forEach(row => { statusMap[row.ambulance_id] = row; });
+    } catch (_) {}
+    const merged = roster.map(a => {
+      const live = statusMap[a.id] || {};
+      return {
+        id: a.id, type: a.type, cls: a.cls, home: a.home,
+        day_crew: a.day_crew, night_crew: a.night_crew,
+        status: live.status || a.status || 'Ready',
+        current_location: live.current_location || '',
+        crew_on_duty: live.crew_on_duty || '',
+        notes: live.notes || a.notes || '',
+        updated_at: live.updated_at || null,
+        updated_by: live.set_by_name || ''
+      };
+    });
+    // Aggregates
+    const by_type = {};
+    const by_station = {};
+    const by_status = {};
+    merged.forEach(a => {
+      by_type[a.type] = (by_type[a.type] || 0) + 1;
+      by_station[a.home] = (by_station[a.home] || 0) + 1;
+      by_status[a.status] = (by_status[a.status] || 0) + 1;
+    });
+    return { ok: true, ambulances: merged, total: merged.length, by_type, by_station, by_status };
+  },
+
+  async ambulance_set_status(user, env, params) {
+    const ambulance_id = String(params.ambulance_id || params.id || '').trim();
+    if (!ambulance_id) return { ok: false, error: 'missing_ambulance_id' };
+    const status = String(params.status || '').trim();
+    const current_location = String(params.current_location || params.location || '').trim();
+    const crew_on_duty = String(params.crew_on_duty || params.crew || '').trim();
+    const notes = String(params.notes || '').trim();
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      await env.DB.prepare(`CREATE TABLE IF NOT EXISTS ambulance_status (
+        ambulance_id TEXT PRIMARY KEY,
+        status TEXT,
+        current_location TEXT,
+        crew_on_duty TEXT,
+        notes TEXT,
+        set_by_nid TEXT,
+        set_by_name TEXT,
+        updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+      )`).run();
+      await env.DB.prepare(
+        `INSERT INTO ambulance_status (ambulance_id, status, current_location, crew_on_duty, notes, set_by_nid, set_by_name, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+         ON CONFLICT(ambulance_id) DO UPDATE SET
+           status = COALESCE(NULLIF(?2,''), status),
+           current_location = ?3, crew_on_duty = ?4, notes = ?5,
+           set_by_nid = ?6, set_by_name = ?7, updated_at = ?8`
+      ).bind(ambulance_id, status, current_location, crew_on_duty, notes, user.nid, user.name || '', now).run();
+      return { ok: true, ambulance_id, status, ts: now };
+    } catch (e) { return { ok: false, error: 'save_failed', detail: e.message }; }
+  },
+
+  // ==============================================================
+  // overview_summary — cross-section view by zone or whole
+  // ==============================================================
+  async overview_summary(user, env, params, dj) {
+    const zone = String(params.zone || 'all').toLowerCase();
+    const detail = (dj && dj.units_detail) || [];
+    const roster = (dj && dj.ambulance_roster) || [];
+    const ZONE_STATIONS = {
+      arafat: ['ARF1','ARF2','ARF3'],
+      muzdalifah: ['MUZ1','MUZ2','MUZ3'],
+      mina: ['MIN1','MIN2','MIN3'],
+      occ: ['OCC']
+    };
+    const stations = zone === 'all'
+      ? [].concat(ZONE_STATIONS.arafat, ZONE_STATIONS.muzdalifah, ZONE_STATIONS.mina, ZONE_STATIONS.occ)
+      : (ZONE_STATIONS[zone] || []);
+
+    // Fetch reposition overrides for current station positions
+    let posMap = {};
+    try {
+      const r = await env.DB.prepare(
+        `SELECT unit_code, to_station FROM reposition_log
+         WHERE status IN ('approved','active') ORDER BY requested_at DESC`
+      ).all();
+      (r.results || []).forEach(row => { if (!posMap[row.unit_code]) posMap[row.unit_code] = row.to_station; });
+    } catch (_) {}
+
+    // Locations
+    let locMap = {};
+    try {
+      const r = await env.DB.prepare(`SELECT unit_code, location FROM unit_locations`).all();
+      (r.results || []).forEach(row => { locMap[row.unit_code] = row.location; });
+    } catch (_) {}
+
+    // Per-station aggregates
+    const byStation = {};
+    stations.forEach(st => { byStation[st] = { station: st, units: [], unit_types: {}, ambulances: [], paramedics: 0 }; });
+
+    detail.forEach(u => {
+      const currentStation = posMap[u.id] || u.home || '';
+      if (!stations.includes(currentStation)) return;
+      const row = byStation[currentStation];
+      row.units.push({
+        code: u.id, type: u.type, category: u.category, size: u.size,
+        home: u.home, current_station: currentStation,
+        location: locMap[u.id] || '',
+        members: u.members || [], filled: u.filled_count || 0, total: u.total_count || 0
+      });
+      row.unit_types[u.type] = (row.unit_types[u.type] || 0) + 1;
+      row.paramedics += u.size || 0;
+    });
+
+    roster.forEach(a => {
+      if (!stations.includes(a.home)) return;
+      byStation[a.home].ambulances.push({
+        id: a.id, type: a.type, cls: a.cls, status: a.status || 'Ready',
+        day_crew: a.day_crew, night_crew: a.night_crew
+      });
+    });
+
+    // Totals
+    const totals = {
+      stations: stations.length,
+      units: 0, paramedics: 0, ambulances: 0,
+      unit_types: {}, ambulance_types: {}, ambulance_classes: {}
+    };
+    Object.values(byStation).forEach(s => {
+      totals.units += s.units.length;
+      totals.paramedics += s.paramedics;
+      totals.ambulances += s.ambulances.length;
+      Object.entries(s.unit_types).forEach(([t, n]) => totals.unit_types[t] = (totals.unit_types[t] || 0) + n);
+      s.ambulances.forEach(a => {
+        totals.ambulance_types[a.type] = (totals.ambulance_types[a.type] || 0) + 1;
+        totals.ambulance_classes[a.cls] = (totals.ambulance_classes[a.cls] || 0) + 1;
+      });
+    });
+
+    return { ok: true, zone, stations, by_station: Object.values(byStation), totals };
+  },
+
+  // ==============================================================
+  // card_get / card_save — per-card editable content
+  // ==============================================================
+  async card_get(user, env, params) {
+    await ACTIONS._ensureDocsTable(env);
+    const slug = String(params.slug || '').trim().toLowerCase();
+    if (!slug) return { ok: false, error: 'missing_slug' };
+    try {
+      const r = await env.DB.prepare(
+        `SELECT slug, title, content, version, updated_by_name, updated_at FROM editable_docs WHERE slug = ?1`
+      ).bind(slug).first();
+      if (!r) return { ok: true, slug, content: '', version: 0, exists: false };
+      return { ok: true, ...r, exists: true };
+    } catch (e) { return { ok: false, error: 'fetch_failed', detail: e.message }; }
+  },
+
+  // Bulk get for cards on a page (e.g. all "protocols:*" cards)
+  async cards_get_bulk(user, env, params) {
+    await ACTIONS._ensureDocsTable(env);
+    const prefix = String(params.prefix || '').trim().toLowerCase();
+    if (!prefix) return { ok: false, error: 'missing_prefix' };
+    try {
+      const r = await env.DB.prepare(
+        `SELECT slug, content, version, updated_by_name, updated_at FROM editable_docs WHERE slug LIKE ?1`
+      ).bind(prefix + '%').all();
+      const cards = {};
+      (r.results || []).forEach(row => { cards[row.slug] = row; });
+      return { ok: true, cards };
+    } catch (e) { return { ok: false, error: 'fetch_failed', detail: e.message }; }
   },
 
   async unit_availability(user, env, params, dj) {

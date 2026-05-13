@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0a0e1a"><title>Ambulances · Hajj 2026</title>
+<link rel="stylesheet" href="assets/style.css?v=0.2.43">
+<style>
+body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-serif; margin:0; }
+.a-shell { max-width:1500px; margin:0 auto; padding:18px; }
+.a-hero { background:linear-gradient(135deg, rgba(20,30,55,0.85), rgba(15,20,40,0.85)); border:1px solid rgba(99,179,237,0.18); border-radius:14px; padding:18px 22px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px; }
+.a-hero h1 { margin:0; font-size:20px; color:#cdf1ff; }
+.a-hero .sub { color:#93a4cd; font-size:12px; margin-top:4px; }
+.a-stats { display:flex; gap:8px; flex-wrap:wrap; }
+.a-stat { background:rgba(15,23,42,0.7); border:1px solid rgba(99,179,237,0.22); border-radius:8px; padding:8px 14px; min-width:90px; text-align:center; }
+.a-stat .v { font-size:20px; font-weight:700; color:#67e8f9; line-height:1; }
+.a-stat .l { font-size:10px; color:#93a4cd; text-transform:uppercase; letter-spacing:0.06em; margin-top:3px; }
+.a-toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; background:rgba(20,28,50,0.45); border:1px solid rgba(99,179,237,0.12); border-radius:11px; padding:10px 14px; }
+.a-tab { padding:7px 14px; background:rgba(15,23,42,0.7); color:#93a4cd; border:1px solid rgba(99,179,237,0.18); border-radius:7px; cursor:pointer; font-size:12px; font-weight:600; }
+.a-tab:hover { background:rgba(56,189,248,0.13); color:#cdf1ff; }
+.a-tab.active { background:rgba(56,189,248,0.28); color:#cdf1ff; border-color:rgba(56,189,248,0.5); }
+.a-tab .ct { color:#fcd34d; font-weight:700; margin-left:4px; }
+.a-toolbar select, .a-toolbar input { padding:7px 11px; border-radius:7px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.22); font-size:13px; }
+.a-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(290px, 1fr)); gap:11px; }
+.a-card { background:rgba(20,28,50,0.55); border:1px solid rgba(99,179,237,0.18); border-radius:10px; padding:14px 16px; cursor:pointer; transition:transform 0.12s, border-color 0.12s; position:relative; }
+.a-card:hover { transform:translateY(-1px); border-color:rgba(56,189,248,0.45); }
+.a-card.t-Essential { border-left:4px solid #ef4444; }
+.a-card.t-Backup { border-left:4px solid #fcd34d; }
+.a-card.t-Roving { border-left:4px solid #67e8f9; }
+.a-card .top { display:flex; justify-content:space-between; align-items:baseline; }
+.a-card .id { font-size:15px; font-weight:700; color:#cdf1ff; }
+.a-card .cls { font-size:9px; padding:2px 7px; border-radius:99px; background:rgba(99,179,237,0.18); color:#cdf1ff; letter-spacing:0.08em; font-weight:600; }
+.a-card .cls.bls { background:rgba(56,189,248,0.18); }
+.a-card .cls.als { background:rgba(239,68,68,0.18); color:#fca5a5; }
+.a-card .type-pill { display:inline-block; font-size:9px; padding:1px 6px; border-radius:99px; background:rgba(99,179,237,0.14); color:#93a4cd; text-transform:uppercase; letter-spacing:0.06em; }
+.a-card .station { font-size:11px; color:#fcd34d; margin-top:4px; font-weight:600; }
+.a-card .status { display:inline-block; font-size:10px; padding:2px 8px; border-radius:99px; margin-top:6px; font-weight:600; letter-spacing:0.06em; }
+.a-card .status.ready { background:rgba(34,197,94,0.18); color:#86efac; }
+.a-card .status.in-use { background:rgba(245,158,11,0.18); color:#fcd34d; }
+.a-card .status.maintenance { background:rgba(239,68,68,0.18); color:#fca5a5; }
+.a-card .status.unavailable { background:rgba(239,68,68,0.18); color:#fca5a5; }
+.a-card .loc { font-size:11px; color:#94a3b8; margin-top:6px; font-style:italic; min-height:14px; }
+.a-card .crews { font-size:11px; color:#93a4cd; margin-top:6px; }
+.a-empty { color:#6b7d9e; padding:40px; text-align:center; font-size:14px; grid-column:1/-1; }
+.a-modal { position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:9000; display:none; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px); }
+.a-modal.visible { display:flex; }
+.a-modal-inner { background:#0e1530; border:1px solid rgba(99,179,237,0.25); border-radius:12px; padding:0; max-width:560px; width:100%; display:flex; flex-direction:column; }
+.a-modal h2 { margin:0; padding:16px 22px; border-bottom:1px solid rgba(99,179,237,0.16); color:#cdf1ff; font-size:16px; display:flex; justify-content:space-between; align-items:center; }
+.a-modal .close { background:none; border:0; color:#93a4cd; font-size:24px; cursor:pointer; padding:0 6px; }
+.a-modal-body { padding:18px 22px; }
+.a-modal-body label { font-size:11px; color:#93a4cd; letter-spacing:0.06em; text-transform:uppercase; display:block; margin:12px 0 5px; }
+.a-modal-body input, .a-modal-body select, .a-modal-body textarea { width:100%; padding:9px 11px; border-radius:7px; background:rgba(15,23,42,0.7); color:#e7ecf7; border:1px solid rgba(99,179,237,0.22); font-size:13px; font-family:inherit; }
+.a-modal-body textarea { min-height:70px; resize:vertical; }
+.a-modal-actions { padding:12px 22px; border-top:1px solid rgba(99,179,237,0.16); display:flex; gap:8px; justify-content:flex-end; }
+.a-btn { padding:8px 16px; border-radius:7px; cursor:pointer; font-weight:600; font-size:13px; border:1px solid rgba(99,179,237,0.3); background:rgba(15,23,42,0.7); color:#cdf1ff; }
+.a-btn:hover { background:rgba(56,189,248,0.18); }
+.a-btn.primary { background:rgba(34,197,94,0.22); color:#86efac; border-color:rgba(34,197,94,0.4); }
+.a-btn.primary:hover { background:rgba(34,197,94,0.34); }
+.a-toast { position:fixed; top:14px; right:14px; padding:10px 16px; border-radius:8px; font-size:13px; font-weight:600; opacity:0; transition:opacity 0.3s; z-index:9500; background:rgba(34,197,94,0.22); color:#86efac; border:1px solid rgba(34,197,94,0.4); }
+.a-toast.visible { opacity:1; }
+.a-toast.error { background:rgba(239,68,68,0.22); color:#fca5a5; border-color:rgba(239,68,68,0.4); }
+</style>
+</head>
+<body>
+<div id="topbar"></div>
+
+<script src="assets/version.js?v=0.2.43"></script>
+<script src="assets/config.js?v=0.2.43"></script>
+<script src="assets/auth.js?v=0.2.43"></script>
+<script src="assets/topbar.js?v=0.2.43"></script>
+<script>HAJJ.requireSession();</script>
+
+<div class="a-shell">
+  <div class="a-hero">
+    <div>
+      <h1>🚑 Ambulance Fleet</h1>
+      <div class="sub">25 ALS ambulances · click any to view crew or update live status</div>
+    </div>
+    <div class="a-stats">
+      <div class="a-stat"><div class="v" id="aTotal">—</div><div class="l">Total</div></div>
+      <div class="a-stat"><div class="v" id="aReady">—</div><div class="l">Ready</div></div>
+      <div class="a-stat"><div class="v" id="aInUse">—</div><div class="l">In Use</div></div>
+      <div class="a-stat"><div class="v" id="aAls">—</div><div class="l">ALS</div></div>
+    </div>
+  </div>
+
+  <div class="a-toolbar">
+    <div id="aTabs"></div>
+    <select id="aStation">
+      <option value="">All stations</option>
+      <option>ARF1</option><option>ARF2</option><option>ARF3</option>
+      <option>MUZ1</option><option>MUZ2</option><option>MUZ3</option>
+      <option>MIN1</option><option>MIN2</option><option>MIN3</option>
+      <option>OCC</option>
+    </select>
+    <select id="aStatus">
+      <option value="">All status</option>
+      <option>Ready</option><option>In Use</option><option>Maintenance</option><option>Unavailable</option>
+    </select>
+    <span style="flex:1"></span>
+    <button class="a-btn" id="aRefresh">↻ Refresh</button>
+  </div>
+
+  <div class="a-grid" id="aGrid"></div>
+</div>
+
+<div class="a-modal" id="aModal">
+  <div class="a-modal-inner">
+    <h2 id="aModalTitle">Ambulance details <button class="close" id="aModalClose">×</button></h2>
+    <div class="a-modal-body" id="aModalBody"></div>
+    <div class="a-modal-actions">
+      <button class="a-btn" id="aModalCancel">Close</button>
+      <button class="a-btn primary" id="aModalSave">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<div id="aToast" class="a-toast"></div>
+
+<script>
+(async function() {
+  if (!HAJJ.requireAuth()) return;
+  if (typeof CADTopbar !== 'undefined') CADTopbar.render({ title:"Ambulances", subtitle:"fleet roster · live status" });
+
+  const user = HAJJ.getUser();
+  const canEdit = user && ['cluster_supervisor','dispatcher','leadership','admin'].includes(user.role);
+
+  let _amb = [];
+  let _activeType = 'All';
+
+  function toast(msg, isErr) {
+    const el = document.getElementById('aToast');
+    el.textContent = msg;
+    el.classList.toggle('error', !!isErr);
+    el.classList.add('visible');
+    setTimeout(() => el.classList.remove('visible'), 2000);
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function visible() {
+    const stn = document.getElementById('aStation').value;
+    const st = document.getElementById('aStatus').value;
+    return _amb.filter(a => {
+      if (_activeType !== 'All' && a.type !== _activeType) return false;
+      if (stn && a.home !== stn) return false;
+      if (st && a.status !== st) return false;
+      return true;
+    });
+  }
+
+  function render() {
+    const list = visible();
+    const grid = document.getElementById('aGrid');
+    if (!list.length) { grid.innerHTML = '<div class="a-empty">No ambulances match filters.</div>'; return; }
+    grid.innerHTML = list.map(a => {
+      const statusClass = (a.status || 'ready').toLowerCase().replace(/\s+/g,'-');
+      return `
+        <div class="a-card t-${escapeHtml(a.type)}" data-id="${escapeHtml(a.id)}">
+          <div class="top">
+            <span class="id">${escapeHtml(a.id)}</span>
+            <span class="cls ${(a.cls||'').toLowerCase()}">${escapeHtml(a.cls || '')}</span>
+          </div>
+          <div><span class="type-pill">${escapeHtml(a.type)}</span></div>
+          <div class="station">${escapeHtml(a.home)}</div>
+          <div><span class="status ${statusClass}">${escapeHtml(a.status || 'Ready')}</span></div>
+          ${a.current_location ? '<div class="loc">📍 '+escapeHtml(a.current_location)+'</div>' : '<div class="loc"></div>'}
+          <div class="crews">Day: ${escapeHtml(a.day_crew || '—')} · Night: ${escapeHtml(a.night_crew || '—')}</div>
+        </div>`;
+    }).join('');
+    grid.querySelectorAll('.a-card').forEach(card => {
+      card.addEventListener('click', () => openModal(card.dataset.id));
+    });
+  }
+
+  function renderTabs() {
+    const types = ['All'];
+    const seen = new Set();
+    _amb.forEach(a => { if (a.type && !seen.has(a.type)) { seen.add(a.type); types.push(a.type); } });
+    document.getElementById('aTabs').innerHTML = types.map(t => {
+      const count = t === 'All' ? _amb.length : _amb.filter(a => a.type === t).length;
+      return `<button class="a-tab ${t === _activeType ? 'active' : ''}" data-c="${escapeHtml(t)}">${escapeHtml(t)}<span class="ct">${count}</span></button>`;
+    }).join('');
+    document.getElementById('aTabs').querySelectorAll('.a-tab').forEach(t => {
+      t.addEventListener('click', () => { _activeType = t.dataset.c; renderTabs(); render(); });
+    });
+  }
+
+  function openModal(id) {
+    const a = _amb.find(x => x.id === id);
+    if (!a) return;
+    const statusOpts = ['Ready','In Use','Maintenance','Unavailable'].map(s =>
+      `<option ${a.status === s ? 'selected' : ''}>${s}</option>`).join('');
+    document.getElementById('aModalTitle').innerHTML = escapeHtml(a.id) + ' — ' + escapeHtml(a.type) + ' (' + escapeHtml(a.cls) + ')'
+      + ' <button class="close" id="aModalClose">×</button>';
+    document.getElementById('aModalBody').innerHTML = `
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+        <div><label>Status</label><select id="aMStatus" ${canEdit ? '' : 'disabled'}>${statusOpts}</select></div>
+        <div><label>Home Station</label><input value="${escapeHtml(a.home)}" disabled style="opacity:0.7;"></div>
+      </div>
+      <label>📍 Current Location (free text)</label>
+      <input id="aMLocation" value="${escapeHtml(a.current_location || '')}" placeholder="e.g. en route to King Faisal Hospital" ${canEdit ? '' : 'disabled'}>
+      <label>Crew On Duty Now</label>
+      <input id="aMCrew" value="${escapeHtml(a.crew_on_duty || '')}" placeholder="paramedic names or unit code (e.g. Alpha-01)" ${canEdit ? '' : 'disabled'}>
+      <label>Notes</label>
+      <textarea id="aMNotes" placeholder="operational notes" ${canEdit ? '' : 'disabled'}>${escapeHtml(a.notes || '')}</textarea>
+      <div style="margin-top:14px; font-size:11px; color:#6b7d9e;">
+        Default day crew: ${escapeHtml(a.day_crew || '—')} · Night crew: ${escapeHtml(a.night_crew || '—')}
+        ${a.updated_at ? '<br>Last updated: ' + new Date(a.updated_at * 1000).toLocaleString() + (a.updated_by ? ' by ' + escapeHtml(a.updated_by) : '') : ''}
+      </div>
+    `;
+    document.getElementById('aModal').classList.add('visible');
+    document.getElementById('aModal').dataset.ambId = a.id;
+    document.getElementById('aModalClose').addEventListener('click', closeModal);
+  }
+
+  function closeModal() { document.getElementById('aModal').classList.remove('visible'); }
+
+  async function saveModal() {
+    const modal = document.getElementById('aModal');
+    const id = modal.dataset.ambId;
+    if (!id) return;
+    const r = await HAJJ.authedCall('ambulance_set_status', {
+      ambulance_id: id,
+      status: document.getElementById('aMStatus').value,
+      current_location: document.getElementById('aMLocation').value,
+      crew_on_duty: document.getElementById('aMCrew').value,
+      notes: document.getElementById('aMNotes').value
+    });
+    if (r && r.ok) { toast('Saved'); closeModal(); refresh(); }
+    else toast('Save failed: ' + ((r && r.error) || '?'), true);
+  }
+
+  async function refresh() {
+    const r = await HAJJ.authedCall('ambulances_list', {});
+    if (!r || !r.ok) { toast('Failed to load', true); return; }
+    _amb = r.ambulances || [];
+    document.getElementById('aTotal').textContent = _amb.length;
+    document.getElementById('aReady').textContent = _amb.filter(a => a.status === 'Ready').length;
+    document.getElementById('aInUse').textContent = _amb.filter(a => a.status === 'In Use').length;
+    document.getElementById('aAls').textContent = _amb.filter(a => a.cls === 'ALS').length;
+    renderTabs();
+    render();
+  }
+
+  document.getElementById('aStation').addEventListener('change', render);
+  document.getElementById('aStatus').addEventListener('change', render);
+  document.getElementById('aRefresh').addEventListener('click', refresh);
+  document.getElementById('aModalCancel').addEventListener('click', closeModal);
+  document.getElementById('aModalSave').addEventListener('click', saveModal);
+  document.getElementById('aModal').addEventListener('click', e => { if (e.target.id === 'aModal') closeModal(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+  await refresh();
+})();
+</script>
+</body></html>
