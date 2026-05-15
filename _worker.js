@@ -1371,37 +1371,58 @@ const ACTIONS = {
     }
 
     // Compose timeline = bands + gaps. Display-only structure.
+    // On DH 9, the Wuqūf gap (B2B end 11:00 → C start 18:57) gets split at
+    // 18:10 — the moment Nafra Zone-1 boarding passes activate. The last
+    // 47 min before trains depart is "pre-departure boarding" not idle.
+    function pushGap(arr, dhI, startMin, endMin, prevMvt, nextMvt) {
+      if (startMin >= endMin) return;
+      if (dhI === 9 && prevMvt && prevMvt.startsWith('B') && nextMvt === 'C'
+          && startMin < 18*60+10 && endMin > 18*60+10) {
+        const split = 18*60 + 10;
+        arr.push({
+          type: 'gap',
+          start: fmtHM(startMin), end: fmtHM(split),
+          start_min: startMin, end_min: split,
+          reason: 'Wuqūf at Arafat — pilgrims standing at Arafat until sunset Nafra',
+          kind: 'ritual',
+        });
+        arr.push({
+          type: 'gap',
+          start: fmtHM(split), end: fmtHM(endMin),
+          start_min: split, end_min: endMin,
+          reason: 'Pre-departure boarding — Nafra Zone 1 active; first trains depart 18:57',
+          kind: 'boarding',
+        });
+        return;
+      }
+      const g = gapReason(dhI, startMin, endMin, prevMvt, nextMvt);
+      arr.push({
+        type: 'gap',
+        start: fmtHM(startMin), end: fmtHM(endMin),
+        start_min: startMin, end_min: endMin,
+        reason: g.reason, kind: g.kind,
+      });
+    }
     const timelineBands = [];
     let cursor = 0;
     for (let i = 0; i < bands.length; i++) {
       const b = bands[i];
       if (b.start_min > cursor) {
         const prevMvt = i > 0 ? bands[i-1].mvt : null;
-        const g = gapReason(dhInt, cursor, b.start_min, prevMvt, b.mvt);
-        timelineBands.push({
-          type: 'gap',
-          start: fmtHM(cursor), end: fmtHM(b.start_min),
-          start_min: cursor, end_min: b.start_min,
-          reason: g.reason, kind: g.kind,
-        });
+        pushGap(timelineBands, dhInt, cursor, b.start_min, prevMvt, b.mvt);
       }
       timelineBands.push({
         type: 'band', mvt: b.mvt, trains: b.trains, desc: b.desc,
         start: b.start, end: b.end,
         start_min: b.start_min, end_min: b.end_min,
         crosses_midnight: b.crosses_midnight, starts_yesterday: b.starts_yesterday,
+        shift: b.shift,
       });
       cursor = b.end_min;
     }
     if (cursor < 1440 && bands.length > 0) {
       const prevMvt = bands[bands.length - 1].mvt;
-      const g = gapReason(dhInt, cursor, 1440, prevMvt, null);
-      timelineBands.push({
-        type: 'gap',
-        start: fmtHM(cursor), end: '24:00',
-        start_min: cursor, end_min: 1440,
-        reason: g.reason, kind: g.kind,
-      });
+      pushGap(timelineBands, dhInt, cursor, 1440, prevMvt, null);
     }
     if (bands.length === 0) {
       const note = dhInt < 7
@@ -1479,13 +1500,27 @@ const ACTIONS = {
     // Per-movement aggregate pax for this DH (groups by movement family).
     // Each band on the timeline gets a total + per-station breakdown so
     // the page can show "Movement C: 303,950 pilgrims, peak at ARF1 18:00".
+    //
+    // Hour-bucket overlap rule: each pax record p represents arrivals in
+    // bucket [p.hour*60, (p.hour+1)*60). It contributes to a band iff
+    // those minutes overlap [band.start_min, band.end_min). This fixes the
+    // Movement C edge case where the band starts at 18:57 but Period-1
+    // boarding (78,517 pilgrims, hour 18) is operationally part of C.
+    //
+    // forecast_published: SAR only published pax flow for B/C/D (PDF §4).
+    // Movements A and E have no public forecast — flag this so the UI can
+    // say "no published forecast" instead of a misleading 0.
+    const PUBLISHED_FAMILIES = new Set(['B', 'C', 'D']);
     const paxByBand = bands.map(b => {
       const family = b.mvt.charAt(0);  // B1A → B, E1 → E
       const stTotals = {};
       let total = 0;
       for (const p of paxForDH) {
         if (p.movement_group !== family) continue;
-        if (p.hour * 60 < b.start_min || p.hour * 60 >= b.end_min) continue;
+        const bucketStart = p.hour * 60;
+        const bucketEnd = bucketStart + 60;
+        // Overlap test: bucket overlaps band window?
+        if (bucketEnd <= b.start_min || bucketStart >= b.end_min) continue;
         const stBase = p.station.split('_')[0];
         stTotals[stBase] = (stTotals[stBase] || 0) + p.count;
         total += p.count;
@@ -1497,6 +1532,7 @@ const ACTIONS = {
         mvt: b.mvt, start: b.start, end: b.end,
         total, top: top.slice(0, 4),
         per_station: stTotals,
+        forecast_published: PUBLISHED_FAMILIES.has(family),
       };
     });
 
@@ -1512,12 +1548,14 @@ const ACTIONS = {
           parseInt(String(p.start_dh).split(' ')[0], 10)
         ).filter(x => x >= 4 && x <= 14))).sort((a,b)=>a-b).map(String),
         dh_dates: {
-          // DH → Gregorian: DH 1 = 2026-05-27 per Hajj 1447H official calendar.
-          // (Used by client for "DH X (Day of Arafah, 26 May)" labels.)
-          "4": "2026-05-21", "5": "2026-05-22", "6": "2026-05-23",
-          "7": "2026-05-24", "8": "2026-05-25", "9": "2026-05-26",
-          "10":"2026-05-27", "11":"2026-05-28", "12":"2026-05-29",
-          "13":"2026-05-30", "14":"2026-05-31",
+          // DH → Gregorian: DH 1 = 2026-05-22 (1 Dhul Hijjah 1447 per Saudi
+          // National Center for Astronomy). DH 9 = Day of Arafah (May 30),
+          // DH 10 = Eid Al-Adha (May 31). Primary operating window DH 7–13
+          // = May 28 – June 3, matching the SAR operating calendar.
+          "4": "2026-05-25", "5": "2026-05-26", "6": "2026-05-27",
+          "7": "2026-05-28", "8": "2026-05-29", "9": "2026-05-30",
+          "10":"2026-05-31", "11":"2026-06-01", "12":"2026-06-02",
+          "13":"2026-06-03", "14":"2026-06-04",
         },
       },
       phases_for_dh: phasesForDH,

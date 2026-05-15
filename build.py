@@ -223,6 +223,44 @@ METRO_TAFWEEJ = [
     {"zone":5, "color":"#FFC518", "color_name":"orange", "start":"22:00","end":"23:30","total":32726},
 ]
 
+# Operational gaps — hours where NO train movement is active but the metro
+# is in a defined operational state. Used by /metro.html so non-train hours
+# show their reason (maintenance, pilgrims at Arafat, demob) instead of "—".
+# Each entry: kind in {'maint','transition','wait','closed'}, plus desc.
+METRO_GAPS = [
+    # DH 4-6: Pre-mobilization (no train ops scheduled, system in setup)
+    {"kind":"closed", "start_dh":"4 DH", "start_hour":"00:00", "end_dh":"7 DH", "end_hour":"08:00",
+     "label":"PRE-OPS", "desc":"System pre-mobilization — metro not operating"},
+    # DH 8: gap 02:00-04:00 = nightly maintenance window
+    {"kind":"maint", "start_dh":"8 DH", "start_hour":"02:00", "end_dh":"8 DH", "end_hour":"04:00",
+     "label":"MAINT", "desc":"Nightly maintenance window — no train service"},
+    # DH 8: gap 16:00-18:00 = pre-B convoy staging window
+    {"kind":"transition", "start_dh":"8 DH", "start_hour":"16:00", "end_dh":"8 DH", "end_hour":"18:00",
+     "label":"PRE-B", "desc":"Pre-convoy transition — switching to ascent mode"},
+    # DH 9: gap 05:00-05:30 (B1B → B2A short turnaround)
+    {"kind":"transition", "start_dh":"9 DH", "start_hour":"05:00", "end_dh":"9 DH", "end_hour":"05:30",
+     "label":"B-TRN", "desc":"B1B → B2A turnaround — platform reconfiguration"},
+    # DH 9: gap 11:00-18:57 = pilgrims at Arafat (the Wuquf — actual pilgrimage rite)
+    {"kind":"wait", "start_dh":"9 DH", "start_hour":"11:00", "end_dh":"9 DH", "end_hour":"18:57",
+     "label":"WUQUF", "desc":"Pilgrims at Arafat (Wuquf) — metro standby, station crews on watch"},
+    # DH 10: gap 00:30-01:00 (C wind-down → D start)
+    {"kind":"transition", "start_dh":"10 DH", "start_hour":"00:30", "end_dh":"10 DH", "end_hour":"01:00",
+     "label":"C→D", "desc":"Nafra wind-down — final ARF→MUZ shuttles, prep for skip-stop"},
+    # DH 11, 12, 13: nightly maintenance 02:00-04:00
+    {"kind":"maint", "start_dh":"11 DH", "start_hour":"02:00", "end_dh":"11 DH", "end_hour":"04:00",
+     "label":"MAINT", "desc":"Nightly maintenance window — no train service"},
+    {"kind":"maint", "start_dh":"12 DH", "start_hour":"02:00", "end_dh":"12 DH", "end_hour":"04:00",
+     "label":"MAINT", "desc":"Nightly maintenance window — no train service"},
+    {"kind":"maint", "start_dh":"13 DH", "start_hour":"02:00", "end_dh":"13 DH", "end_hour":"04:00",
+     "label":"MAINT", "desc":"Nightly maintenance window — no train service"},
+    # DH 13: gap 18:00 onward = operations end
+    {"kind":"closed", "start_dh":"13 DH", "start_hour":"18:00", "end_dh":"14 DH", "end_hour":"00:00",
+     "label":"END", "desc":"Train operations complete — final E1 returned"},
+    # DH 14: demob
+    {"kind":"closed", "start_dh":"14 DH", "start_hour":"00:00", "end_dh":"14 DH", "end_hour":"23:59",
+     "label":"DEMOB", "desc":"Demobilization — fleet released, gates closed"},
+]
+
 # Station opening / closing times per movement (from SAR doc Section 2).
 # Used to flag whether each station is "open" or "closed" during the
 # selected hour. Times in 24h ISO HH:MM format, anchored to Hijri DH day.
@@ -1428,6 +1466,7 @@ def main():
                 for (dh, h, st, c) in rows
             ],
             "tafweej": METRO_TAFWEEJ,
+            "gaps": METRO_GAPS,
             "station_hours": METRO_STATION_HOURS,
         },
         "status_counts": status_counts,
