@@ -1,4 +1,174 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Heat Watch</title><link rel="stylesheet" href="assets/style.css?v=0.2.47"><style>body { background:#0a0e1a; color:#e7ecf7; font-family:Inter,system-ui,sans-serif; }.ht-shell { max-width:1280px; margin:0 auto; padding:20px; }.ht-banner { border-radius:14px; padding:24px 28px; margin:14px 0; }.ht-banner.low { background:linear-gradient(135deg,rgba(34,197,94,0.15),rgba(22,163,74,0.10)); border:1px solid rgba(34,197,94,0.4); }.ht-banner.moderate { background:linear-gradient(135deg,rgba(245,158,11,0.18),rgba(217,119,6,0.10)); border:1px solid rgba(245,158,11,0.4); }.ht-banner.high { background:linear-gradient(135deg,rgba(239,68,68,0.20),rgba(220,38,38,0.12)); border:2px solid rgba(239,68,68,0.45); }.ht-banner.extreme { background:linear-gradient(135deg,rgba(139,0,0,0.30),rgba(220,38,38,0.18)); border:2px solid rgba(220,38,38,0.6); animation:flash 2s infinite; }@keyframes flash { 0%,100% { box-shadow:0 0 0 0 rgba(220,38,38,0.5); } 50% { box-shadow:0 0 0 14px rgba(220,38,38,0); } }.ht-banner h2 { margin:0; font-size:26px; }.ht-banner.low h2 { color:#86efac; } .ht-banner.moderate h2 { color:#fcd34d; } .ht-banner.high h2, .ht-banner.extreme h2 { color:#fca5a5; }.ht-banner .level { font-size:11px; letter-spacing:0.16em; text-transform:uppercase; margin-bottom:6px; opacity:0.7; }.ht-banner .rec { font-size:14px; color:#e8f1ff; margin-top:10px; line-height:1.5; }.ht-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }@media (max-width:900px) { .ht-grid { grid-template-columns:1fr; } }.ht-card { background:rgba(20,28,50,0.5); border:1px solid rgba(99,179,237,0.18); border-radius:12px; padding:18px 22px; }.ht-card h3 { margin:0 0 12px; font-size:13px; color:#cdf1ff; letter-spacing:0.06em; text-transform:uppercase; padding-bottom:8px; border-bottom:1px solid rgba(99,179,237,0.12); }.ht-stat { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(99,179,237,0.06); }.ht-stat .l { color:#93a4cd; font-size:13px; }.ht-stat .v { color:#e8f1ff; font-weight:700; font-variant-numeric:tabular-nums; }.ht-row { padding:10px 14px; background:rgba(15,23,42,0.5); border-radius:7px; margin-bottom:6px; display:grid; grid-template-columns:80px 70px 1fr 80px; gap:10px; align-items:center; font-size:12px; }.ht-row .t { color:#67e8f9; font-family:ui-monospace,Menlo,monospace; }.ht-row .badge { padding:2px 7px; border-radius:4px; font-size:10px; font-weight:700; text-align:center; text-transform:uppercase; }.ht-row .badge.red { background:rgba(239,68,68,0.20); color:#fca5a5; }.ht-row .badge.yellow { background:rgba(245,158,11,0.18); color:#fcd34d; }.ht-row .badge.green { background:rgba(34,197,94,0.18); color:#86efac; }.ht-row .complaint { color:#cbd5e1; }.ht-station-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; }.ht-st-cell { padding:12px 10px; background:rgba(15,23,42,0.5); border-radius:8px; text-align:center; border:1px solid rgba(99,179,237,0.12); }.ht-st-cell.heat .num { color:#fcd34d; }.ht-st-cell .lbl { font-size:11px; color:#93a4cd; }.ht-st-cell .num { font-size:24px; font-weight:800; color:#e8f1ff; margin-top:3px; font-variant-numeric:tabular-nums; }</style></head><body><div id="topbar"></div><div class="ht-shell"><h1 style="font-size:28px; margin:16px 0 4px;">Heat Watch</h1><p style="color:#93a4cd; margin:0 0 4px;">Real-time heat illness risk + active heat-related incidents. Auto-updates every 30s.</p><div id="htBanner" class="ht-banner low"><div class="level" id="htLevel">--</div><h2 id="htTitle">Loading weather...</h2><div class="rec" id="htRec"></div></div><div class="ht-grid"><div class="ht-card"><h3>Mecca Weather (live)</h3><div id="htWeather"><div style="color:#6b7d9e;">Loading...</div></div></div><div class="ht-card"><h3>Heat Incidents by Station (last 6h)</h3><div class="ht-station-grid" id="htStations"><div style="color:#6b7d9e; padding:14px;">Loading...</div></div></div></div><div class="ht-card" style="margin-top:14px;"><h3>Recent Heat-Related Incidents (last 6h)</h3><div id="htRecent"><div style="color:#6b7d9e; padding:14px;">Loading...</div></div></div></div><script src="assets/auth.js?v=0.2.47"></script><script src="assets/shortcuts.js?v=0.2.47"></script><script src="assets/topbar.js?v=0.2.47"></script><script src="assets/version.js?v=0.2.47"></script><script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Heat Watch · Hajj CAD</title>
+<link rel="stylesheet" href="assets/style.css?v=0.2.52">
+<style>
+body { background:#0a0e1a; color:#e7ecf7; font-family:Inter,system-ui,sans-serif; }
+.ht-shell { max-width:1280px; margin:0 auto; padding:20px; }
+.ht-banner { border-radius:14px; padding:24px 28px; margin:14px 0; }
+.ht-banner.low { background:linear-gradient(135deg,rgba(34,197,94,0.15),rgba(22,163,74,0.10)); border:1px solid rgba(34,197,94,0.4); }
+.ht-banner.moderate { background:linear-gradient(135deg,rgba(245,158,11,0.18),rgba(217,119,6,0.10)); border:1px solid rgba(245,158,11,0.4); }
+.ht-banner.high { background:linear-gradient(135deg,rgba(239,68,68,0.20),rgba(220,38,38,0.12)); border:2px solid rgba(239,68,68,0.45); }
+.ht-banner.extreme { background:linear-gradient(135deg,rgba(139,0,0,0.30),rgba(220,38,38,0.18)); border:2px solid rgba(220,38,38,0.6); animation:flash 2s infinite; }
+@keyframes flash { 0%,100% { box-shadow:0 0 0 0 rgba(220,38,38,0.5); } 50% { box-shadow:0 0 0 14px rgba(220,38,38,0); } }
+.ht-banner h2 { margin:0; font-size:26px; }
+.ht-banner.low h2 { color:#86efac; }
+.ht-banner.moderate h2 { color:#fcd34d; }
+.ht-banner.high h2, .ht-banner.extreme h2 { color:#fca5a5; }
+.ht-banner .level { font-size:11px; letter-spacing:0.16em; text-transform:uppercase; margin-bottom:6px; opacity:0.7; }
+.ht-banner .rec { font-size:14px; color:#e8f1ff; margin-top:10px; line-height:1.5; }
+.ht-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+@media (max-width:900px) { .ht-grid { grid-template-columns:1fr; } }
+.ht-card { background:rgba(20,28,50,0.5); border:1px solid rgba(99,179,237,0.18); border-radius:12px; padding:18px 22px; }
+.ht-card h3 { margin:0 0 12px; font-size:13px; color:#cdf1ff; letter-spacing:0.06em; text-transform:uppercase; padding-bottom:8px; border-bottom:1px solid rgba(99,179,237,0.12); }
+.ht-stat { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(99,179,237,0.06); }
+.ht-stat .l { color:#93a4cd; font-size:13px; }
+.ht-stat .v { color:#e8f1ff; font-weight:700; font-variant-numeric:tabular-nums; }
+.ht-row { padding:10px 14px; background:rgba(15,23,42,0.5); border-radius:7px; margin-bottom:6px; display:grid; grid-template-columns:80px 70px 1fr 80px; gap:10px; align-items:center; font-size:12px; }
+.ht-row .t { color:#67e8f9; font-family:ui-monospace,Menlo,monospace; }
+.ht-row .badge { padding:2px 7px; border-radius:4px; font-size:10px; font-weight:700; text-align:center; text-transform:uppercase; }
+.ht-row .badge.red { background:rgba(239,68,68,0.20); color:#fca5a5; }
+.ht-row .badge.yellow { background:rgba(245,158,11,0.18); color:#fcd34d; }
+.ht-row .badge.green { background:rgba(34,197,94,0.18); color:#86efac; }
+.ht-row .complaint { color:#cbd5e1; }
+.ht-station-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; }
+.ht-st-cell { padding:12px 10px; background:rgba(15,23,42,0.5); border-radius:8px; text-align:center; border:1px solid rgba(99,179,237,0.12); }
+.ht-st-cell.heat .num { color:#fcd34d; }
+.ht-st-cell .lbl { font-size:11px; color:#93a4cd; }
+.ht-st-cell .num { font-size:24px; font-weight:800; color:#e8f1ff; margin-top:3px; font-variant-numeric:tabular-nums; }
+
+/* SRCA embed section */
+.srca-section {
+  margin-top: 32px;
+  border-top: 1px solid rgba(99,179,237,0.12);
+  padding-top: 22px;
+}
+.srca-section h2 {
+  font-size: 18px; margin: 0 0 4px; color: #e8f1ff;
+}
+.srca-credit {
+  background: rgba(15,23,42,0.6);
+  border: 1px solid rgba(99,179,237,0.18);
+  border-left: 4px solid #f59e0b;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin: 10px 0 14px;
+  display: flex; flex-wrap: wrap; gap: 14px;
+  align-items: center; justify-content: space-between;
+  font-size: 13px;
+}
+.srca-credit .credit-text { color: #cbd5e1; line-height: 1.5; flex: 1; min-width: 280px; }
+.srca-credit .credit-text strong { color: #fde68a; }
+.srca-credit .credit-actions { display: flex; gap: 8px; }
+.srca-credit a {
+  background: rgba(99,179,237,0.15);
+  color: #93c5fd;
+  border: 1px solid rgba(99,179,237,0.4);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  text-decoration: none;
+  font-weight: 600;
+}
+.srca-credit a:hover { background: rgba(99,179,237,0.25); }
+.srca-frame-wrap {
+  background: rgba(20,28,50,0.5);
+  border: 1px solid rgba(99,179,237,0.18);
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  height: 1400px;
+}
+.srca-frame-wrap iframe {
+  width: 100%; height: 100%; border: 0; display: block;
+}
+.srca-loading {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: #6b7d9e; font-size: 13px;
+  background: rgba(20,28,50,0.8);
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+.srca-loading.hidden { opacity: 0; }
+.srca-fallback-note {
+  font-size: 11px; color: #6b7d9e; margin-top: 8px; text-align: center;
+}
+@media (max-width: 900px) {
+  .srca-frame-wrap { height: 1800px; }
+}
+</style>
+</head>
+<body>
+<div id="topbar"></div>
+<div class="ht-shell">
+  <h1 style="font-size:28px; margin:16px 0 4px;">Heat Watch</h1>
+  <p style="color:#93a4cd; margin:0 0 4px;">Real-time heat illness risk + active heat-related incidents. Auto-updates every 30s.</p>
+
+  <div id="htBanner" class="ht-banner low">
+    <div class="level" id="htLevel">--</div>
+    <h2 id="htTitle">Loading weather...</h2>
+    <div class="rec" id="htRec"></div>
+  </div>
+
+  <div class="ht-grid">
+    <div class="ht-card">
+      <h3>Mecca Weather (live)</h3>
+      <div id="htWeather"><div style="color:#6b7d9e;">Loading...</div></div>
+    </div>
+    <div class="ht-card">
+      <h3>Heat Incidents by Station (last 6h)</h3>
+      <div class="ht-station-grid" id="htStations">
+        <div style="color:#6b7d9e; padding:14px;">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ht-card" style="margin-top:14px;">
+    <h3>Recent Heat-Related Incidents (last 6h)</h3>
+    <div id="htRecent"><div style="color:#6b7d9e; padding:14px;">Loading...</div></div>
+  </div>
+
+  <!-- ───────────────── SRCA Hajj Heat Dashboard embed ───────────────── -->
+  <div class="srca-section">
+    <h2>SRCA Hajj Heat Alert Dashboard</h2>
+    <p style="color:#93a4cd; margin:4px 0 0; font-size:13px;">Live regional heat-risk forecast for the Holy Sites, integrated from the Saudi Red Crescent Authority dashboard.</p>
+
+    <div class="srca-credit">
+      <div class="credit-text">
+        <strong>Source &amp; Credit:</strong> Saudi Red Crescent Authority (هيئة الهلال الأحمر السعودي) · prepared by <strong>AI @ Dr. Al-Nasir</strong>. Live data from Open-Meteo, refreshed every 15 minutes. Embedded into Hajj CAD with attribution; all content remains property of the original authors.
+      </div>
+      <div class="credit-actions">
+        <a href="https://srcahajjheatdash.com" target="_blank" rel="noopener noreferrer">Open original ↗</a>
+      </div>
+    </div>
+
+    <div class="srca-frame-wrap">
+      <div class="srca-loading" id="srcaLoading">Loading SRCA heat dashboard…</div>
+      <iframe
+        id="srcaFrame"
+        src="https://srcahajjheatdash.com"
+        title="SRCA Hajj Heat Alert Dashboard"
+        loading="lazy"
+        referrerpolicy="no-referrer"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+        onload="document.getElementById('srcaLoading').classList.add('hidden');"
+      ></iframe>
+    </div>
+    <div class="srca-fallback-note">
+      Doesn't load? <a href="https://srcahajjheatdash.com" target="_blank" rel="noopener" style="color:#93c5fd;">Open directly →</a>
+    </div>
+  </div>
+</div>
+
+<script src="assets/auth.js?v=0.2.52"></script>
+<script src="assets/shortcuts.js?v=0.2.52"></script>
+<script src="assets/topbar.js?v=0.2.52"></script>
+<script src="assets/version.js?v=0.2.52"></script>
+<script>
 (async function() {
   if (!await HAJJ.requireRole(['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'])) return;
   CADTopbar.render({ title: "Heat Watch" });
@@ -40,4 +210,6 @@
   refresh();
   setInterval(refresh, 30000);
 })();
-</script></body></html>
+</script>
+</body>
+</html>

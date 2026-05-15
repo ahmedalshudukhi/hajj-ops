@@ -69,19 +69,181 @@ MOVEMENTS = [
     {"code":"DEMOB","shift":"DAY","dh":"14+ DH","label":"Demobilization","staff":160,"para":160,"amb":12},
 ]
 MOVEMENT_PHASES = [
-    {"mvt":"PRE-B","start_dh":"4 DH","start_hour":"06:00","end_dh":"8 DH","end_hour":"17:00","shift":"DAY","duration_hrs":60},
-    {"mvt":"B1A","start_dh":"8 DH","start_hour":"20:00","end_dh":"9 DH","end_hour":"01:00","shift":"NIGHT","duration_hrs":6},
-    {"mvt":"B1B","start_dh":"9 DH","start_hour":"02:00","end_dh":"9 DH","end_hour":"04:00","shift":"NIGHT","duration_hrs":3},
-    {"mvt":"B2A","start_dh":"9 DH","start_hour":"05:00","end_dh":"9 DH","end_hour":"07:00","shift":"DAY","duration_hrs":3},
-    {"mvt":"B2B","start_dh":"9 DH","start_hour":"08:00","end_dh":"9 DH","end_hour":"10:00","shift":"DAY","duration_hrs":3},
-    {"mvt":"GAP","start_dh":"9 DH","start_hour":"13:00","end_dh":"9 DH","end_hour":"19:00","shift":"DAY","duration_hrs":7},
-    {"mvt":"C","start_dh":"9 DH","start_hour":"22:00","end_dh":"10 DH","end_hour":"00:00","shift":"NIGHT","duration_hrs":3},
-    {"mvt":"D","start_dh":"10 DH","start_hour":"00:00","end_dh":"10 DH","end_hour":"08:00","shift":"NIGHT","duration_hrs":9},
-    {"mvt":"E1","start_dh":"10 DH","start_hour":"09:00","end_dh":"10 DH","end_hour":"12:00","shift":"DAY","duration_hrs":4},
-    {"mvt":"E2","start_dh":"10 DH","start_hour":"13:00","end_dh":"10 DH","end_hour":"17:00","shift":"DAY","duration_hrs":5},
-    {"mvt":"E3","start_dh":"10 DH","start_hour":"18:00","end_dh":"13 DH","end_hour":"23:00","shift":"MIXED","duration_hrs":78},
-    {"mvt":"DEMOB","start_dh":"14 DH","start_hour":"00:00","end_dh":"14 DH","end_hour":"23:00","shift":"DAY","duration_hrs":24},
+    # ─── Metro movements (per SAR official ops doc, 1447H) ──────────
+    # Movement A — regular metro, all 9 stations, both platforms
+    # (operators and tawafa shuttle)
+    {"mvt":"A",  "start_dh":"7 DH",  "start_hour":"08:00", "end_dh":"8 DH",  "end_hour":"00:00", "shift":"MIXED", "trains":7,  "desc":"Regular metro — all stations"},
+    {"mvt":"A",  "start_dh":"8 DH",  "start_hour":"00:00", "end_dh":"8 DH",  "end_hour":"02:00", "shift":"NIGHT", "trains":7,  "desc":"Regular metro — all stations"},
+    {"mvt":"A",  "start_dh":"8 DH",  "start_hour":"04:00", "end_dh":"8 DH",  "end_hour":"16:00", "shift":"DAY",   "trains":7,  "desc":"Regular metro — all stations"},
+
+    # Movement B — Convoy: Mina (south side) → Arafat (north/south)
+    # Four sub-phases B1A → B1B → B2A → B2B as pilgrims ascend.
+    {"mvt":"B1A","start_dh":"8 DH",  "start_hour":"18:00", "end_dh":"9 DH",  "end_hour":"02:00", "shift":"NIGHT", "trains":12, "desc":"Convoy ascent — Mina(S) → Arafat(N), via Muz3"},
+    {"mvt":"B1B","start_dh":"9 DH",  "start_hour":"02:00", "end_dh":"9 DH",  "end_hour":"05:00", "shift":"NIGHT", "trains":15, "desc":"Convoy ascent — Mina(S) → Arafat(N), incl. Mina3"},
+    {"mvt":"B2A","start_dh":"9 DH",  "start_hour":"05:30", "end_dh":"9 DH",  "end_hour":"08:00", "shift":"DAY",   "trains":15, "desc":"Convoy ascent — Mina(S) → Arafat(S+N), via Muz3"},
+    {"mvt":"B2B","start_dh":"9 DH",  "start_hour":"08:00", "end_dh":"9 DH",  "end_hour":"11:00", "shift":"DAY",   "trains":15, "desc":"Convoy ascent — Mina(S) → Arafat(S only)"},
+
+    # Movement C — Shuttle convoy / Nafra: Arafat → Muzdalifah
+    # Critical 5h window after sunset on Day of Arafah.
+    {"mvt":"C",  "start_dh":"9 DH",  "start_hour":"18:57", "end_dh":"10 DH", "end_hour":"00:30", "shift":"NIGHT", "trains":12, "desc":"Nafra shuttle — Arafat → Muzdalifah (3 paired stations)"},
+
+    # Movement D — Skip-stop: Muzdalifah → Jamarat
+    {"mvt":"D",  "start_dh":"10 DH", "start_hour":"01:00", "end_dh":"10 DH", "end_hour":"09:00", "shift":"NIGHT", "trains":12, "desc":"Skip-stop — Muzdalifah → Jamarat (3 patterns)"},
+
+    # Movement E — Jamarat shuttling (DH 10-13), with daily 02:00-04:00 maintenance
+    {"mvt":"E1", "start_dh":"10 DH", "start_hour":"09:00", "end_dh":"11 DH", "end_hour":"02:00", "shift":"MIXED", "trains":12, "desc":"Metro-type — Jamarat throwing (E1: 5 stations)"},
+    {"mvt":"E1", "start_dh":"11 DH", "start_hour":"04:00", "end_dh":"11 DH", "end_hour":"11:00", "shift":"DAY",   "trains":12, "desc":"Metro-type — Jamarat throwing"},
+    {"mvt":"E2", "start_dh":"11 DH", "start_hour":"11:00", "end_dh":"11 DH", "end_hour":"17:00", "shift":"DAY",   "trains":12, "desc":"Metro-type — Jamarat (E2: dedicated north trains)"},
+    {"mvt":"E1", "start_dh":"11 DH", "start_hour":"17:00", "end_dh":"12 DH", "end_hour":"02:00", "shift":"MIXED", "trains":12, "desc":"Metro-type — Jamarat throwing"},
+    {"mvt":"E1", "start_dh":"12 DH", "start_hour":"04:00", "end_dh":"12 DH", "end_hour":"11:00", "shift":"DAY",   "trains":12, "desc":"Metro-type — Jamarat throwing"},
+    {"mvt":"E2", "start_dh":"12 DH", "start_hour":"11:00", "end_dh":"12 DH", "end_hour":"17:00", "shift":"DAY",   "trains":12, "desc":"Metro-type — Jamarat (E2: dedicated north trains)"},
+    {"mvt":"E1", "start_dh":"12 DH", "start_hour":"17:00", "end_dh":"13 DH", "end_hour":"02:00", "shift":"MIXED", "trains":12, "desc":"Metro-type — Jamarat throwing"},
+    {"mvt":"E1", "start_dh":"13 DH", "start_hour":"04:00", "end_dh":"13 DH", "end_hour":"18:00", "shift":"MIXED", "trains":12, "desc":"Metro-type — Jamarat throwing (final)"},
+
+    # ─── Medical operational phases (fallback labels for non-train hours) ──
+    # These appear AFTER metro entries so the metro label wins when both
+    # match (e.g. hour DH 7 12:00 → "A" not "PRE-B").
+    {"mvt":"PRE-B","start_dh":"4 DH","start_hour":"06:00", "end_dh":"8 DH",  "end_hour":"18:00", "shift":"DAY",   "trains":0,  "desc":"Pre-mobilization (medical setup)"},
+    {"mvt":"DEMOB","start_dh":"14 DH","start_hour":"00:00","end_dh":"14 DH", "end_hour":"23:00", "shift":"DAY",   "trains":0,  "desc":"Demobilization"},
 ]
+
+# ─── SAR Metro reference data (from official 1447H operations doc) ───────
+# Per-movement, per-station platform activity. Platform codes:
+#   'N' = northern platform (الرصيف الشمالي)
+#   'S' = southern platform (الرصيف الجنوبي)
+#   'NS' = both platforms in use
+# Role: 'board' (alighting passengers depart here), 'alight' (arrivals),
+# 'pass' (train passes through but doesn't stop), 'both' (board + alight)
+METRO_PLATFORMS = {
+    "A": [  # Regular metro — all 9 stations, both platforms
+        {"st":"ARF1","plat":"NS","role":"both"}, {"st":"ARF2","plat":"NS","role":"both"}, {"st":"ARF3","plat":"NS","role":"both"},
+        {"st":"MUZ1","plat":"NS","role":"both"}, {"st":"MUZ2","plat":"NS","role":"both"}, {"st":"MUZ3","plat":"NS","role":"both"},
+        {"st":"MIN1","plat":"NS","role":"both"}, {"st":"MIN2","plat":"NS","role":"both"}, {"st":"MIN3","plat":"NS","role":"both"},
+    ],
+    "B1A": [  # Mina(S) → Muz3 → Arafat(N) — convoy ascent, no Mina 3
+        {"st":"MIN1","plat":"S","role":"board"}, {"st":"MIN2","plat":"S","role":"board"},
+        {"st":"MUZ3","plat":"S","role":"board"},
+        {"st":"ARF1","plat":"N","role":"alight"}, {"st":"ARF2","plat":"N","role":"alight"}, {"st":"ARF3","plat":"N","role":"alight"},
+    ],
+    "B1B": [  # Adds Mina 3; Arafat 3 also gets south side for Mina-3 passengers
+        {"st":"MIN1","plat":"S","role":"board"}, {"st":"MIN2","plat":"S","role":"board"}, {"st":"MIN3","plat":"S","role":"board"},
+        {"st":"MUZ3","plat":"S","role":"board"},
+        {"st":"ARF1","plat":"N","role":"alight"}, {"st":"ARF2","plat":"N","role":"alight"}, {"st":"ARF3","plat":"NS","role":"alight"},
+    ],
+    "B2A": [  # Arrivals switch to south side at Arafat (north remains for Muz-3 traffic)
+        {"st":"MIN1","plat":"S","role":"board"}, {"st":"MIN2","plat":"S","role":"board"}, {"st":"MIN3","plat":"S","role":"board"},
+        {"st":"MUZ3","plat":"S","role":"board"},
+        {"st":"ARF1","plat":"S","role":"alight"}, {"st":"ARF2","plat":"S","role":"alight"}, {"st":"ARF3","plat":"NS","role":"alight"},
+    ],
+    "B2B": [  # Mina only, all Arafat south
+        {"st":"MIN1","plat":"S","role":"board"}, {"st":"MIN2","plat":"S","role":"board"}, {"st":"MIN3","plat":"S","role":"board"},
+        {"st":"ARF1","plat":"S","role":"alight"}, {"st":"ARF2","plat":"S","role":"alight"}, {"st":"ARF3","plat":"S","role":"alight"},
+    ],
+    "C": [  # Nafra — paired stations Arafat-N → Muz-N
+        {"st":"ARF1","plat":"NS","role":"board"}, {"st":"ARF2","plat":"NS","role":"board"}, {"st":"ARF3","plat":"NS","role":"board"},
+        {"st":"MUZ1","plat":"NS","role":"alight"}, {"st":"MUZ2","plat":"NS","role":"alight"}, {"st":"MUZ3","plat":"NS","role":"alight"},
+    ],
+    "D": [  # Skip-stop: 3 patterns from each Muz to Jamarat with intermediate stops
+        {"st":"MUZ1","plat":"N","role":"board"}, {"st":"MUZ2","plat":"N","role":"board"}, {"st":"MUZ3","plat":"N","role":"board"},
+        {"st":"MIN1","plat":"N","role":"alight"}, {"st":"MIN2","plat":"N","role":"alight"}, {"st":"MIN3","plat":"N","role":"alight"},
+    ],
+    "E1": [  # Metro-type Jamarat: 5 stops only — Arafat 3, Muz 3, Mina 1, Mina 2, Jamarat
+        {"st":"ARF3","plat":"NS","role":"both"}, {"st":"MUZ3","plat":"NS","role":"both"},
+        {"st":"MIN1","plat":"NS","role":"both"}, {"st":"MIN2","plat":"NS","role":"both"}, {"st":"MIN3","plat":"NS","role":"both"},
+    ],
+    "E2": [  # Dedicated north-platform trains, each Arafat/Muz station has its own train to Jamarat
+        {"st":"ARF1","plat":"N","role":"board"}, {"st":"ARF2","plat":"N","role":"board"}, {"st":"ARF3","plat":"N","role":"board"},
+        {"st":"MUZ1","plat":"N","role":"board"}, {"st":"MUZ2","plat":"N","role":"board"}, {"st":"MUZ3","plat":"N","role":"board"},
+        {"st":"MIN1","plat":"N","role":"both"}, {"st":"MIN2","plat":"N","role":"both"}, {"st":"MIN3","plat":"N","role":"alight"},
+    ],
+    "PRE-B": [],   # No train operations during medical pre-mob
+    "DEMOB": [],   # No train operations during medical demob
+}
+
+# Hourly passenger flow per station (counts ARRIVING at the station during
+# the movement, per SAR doc Section 4). Keyed by (dh, hour, station).
+# Values in pilgrim-headcount. Used for the operational forecast view.
+METRO_PAX_FLOW = {
+    # Movement B — Mina → Arafat (counts of pilgrims arriving at the station)
+    # Source: SAR doc page "تدفقات الحشود — الحركة B — أيام التشغيل 8 و 9"
+    "B": [
+        # (dh, hour, station, count)
+        (8,18,"MUZ3",4630),
+        (8,19,"MUZ3",3197),
+        (8,20,"MUZ3",3001), (8,20,"MIN1",10694), (8,20,"MIN2",13412), (8,20,"MIN3",9847),
+        (8,21,"MUZ3",1530), (8,21,"MIN1",9586),  (8,21,"MIN2",11922), (8,21,"MIN3",7727),
+        (8,22,"MUZ3",2059), (8,22,"MIN1",8294),  (8,22,"MIN2",10565), (8,22,"MIN3",6972),
+        (8,23,"MUZ3",1937), (8,23,"MIN1",7207),  (8,23,"MIN2",9024),  (8,23,"MIN3",3962),
+        (9,0,"MIN1",6151),  (9,0,"MIN2",7708),   (9,0,"MIN3",5573),
+        (9,2,"MUZ3",3589),  (9,2,"MIN1",4888),   (9,2,"MIN2",6768),   (9,2,"MIN3",5644),
+        (9,3,"MUZ3",1942),  (9,3,"MIN1",2102),   (9,3,"MIN2",2068),   (9,3,"MIN3",5728),
+        (9,4,"MUZ3",2508),  (9,4,"MIN3",4891),
+        (9,5,"MUZ3",2383),  (9,5,"MIN1",7149),   (9,5,"MIN2",7314),   (9,5,"MIN3",1081),
+        (9,6,"MUZ3",1977),  (9,6,"MIN1",13562),  (9,6,"MIN2",13006),
+        (9,7,"MIN1",11521), (9,7,"MIN2",11719),
+        (9,8,"MIN1",11061), (9,8,"MIN2",11591),
+        (9,9,"MIN1",11144), (9,9,"MIN2",10992),
+        (9,10,"MIN1",2068), (9,10,"MIN2",2256),
+    ],
+    # Movement C — Nafra (Arafat → Muzdalifah). Boarding counts at Arafat
+    # stations during 5 tafweej periods (zones).
+    "C": [
+        # Period 1: 18:10-19:10 — N=Northern, S=Southern platform
+        (9,18,"ARF1_N",13515),(9,18,"ARF1_S",12302),(9,18,"ARF2_N",14397),(9,18,"ARF2_S",15170),(9,18,"ARF3_N",10585),(9,18,"ARF3_S",12548),
+        # Period 2: 19:30-20:10
+        (9,19,"ARF1_N",11536),(9,19,"ARF1_S",12558),(9,19,"ARF2_N",12875),(9,19,"ARF2_S",10029),(9,19,"ARF3_N",9718), (9,19,"ARF3_S",11048),
+        # Period 3: 20:30-21:20
+        (9,20,"ARF1_N",13066),(9,20,"ARF1_S",12142),(9,20,"ARF2_N",12461),(9,20,"ARF2_S",12491),(9,20,"ARF3_N",10696),(9,20,"ARF3_S",11691),
+        # Period 4: 21:30-22:20
+        (9,21,"ARF1_N",14030),(9,21,"ARF1_S",16278),(9,21,"ARF2_N",10998),(9,21,"ARF2_S",11188),(9,21,"ARF3_N",7518), (9,21,"ARF3_S",6374),
+        # Period 5: 22:30-23:20 (only ARF2 active)
+        (9,22,"ARF2_N",10736),(9,22,"ARF2_S",8000),
+    ],
+    # Movement D — Muzdalifah → Jamarat. Pax arriving at each Muz station.
+    "D": [
+        (10,1,"MUZ1",6367),  (10,1,"MUZ2",12260), (10,1,"MUZ3",11630),
+        (10,2,"MUZ1",2846),  (10,2,"MUZ2",12472), (10,2,"MUZ3",9551),
+        (10,3,"MUZ1",2406),  (10,3,"MUZ2",12229), (10,3,"MUZ3",4820),
+        (10,4,"MUZ1",2274),  (10,4,"MUZ2",12381), (10,4,"MUZ3",4931),
+        (10,5,"MUZ1",19246), (10,5,"MUZ2",15482), (10,5,"MUZ3",5207),
+        (10,6,"MUZ1",23073), (10,6,"MUZ2",16811), (10,6,"MUZ3",4591),
+        (10,7,"MUZ1",22919), (10,7,"MUZ2",17019), (10,7,"MUZ3",4712),
+        (10,8,"MUZ1",22468), (10,8,"MUZ2",16872), (10,8,"MUZ3",5131),
+        (10,9,"MUZ1",3828),  (10,9,"MUZ2",2819),  (10,9,"MUZ3",852),
+    ],
+}
+
+# Tafweej (boarding pass) zones for Arafat→Muzdalifah Nafra (Movement C).
+# Five colored zones, each releases pilgrims in a defined window.
+METRO_TAFWEEJ = [
+    {"zone":1, "color":"#9ED65E", "color_name":"green",  "start":"18:10","end":"19:30","total":80166},
+    {"zone":2, "color":"#FEFE19", "color_name":"yellow", "start":"19:10","end":"20:30","total":72412},
+    {"zone":3, "color":"#1AB8EF", "color_name":"blue",   "start":"20:00","end":"21:30","total":73718},
+    {"zone":4, "color":"#DC7BCF", "color_name":"purple", "start":"21:00","end":"22:30","total":57309},
+    {"zone":5, "color":"#FFC518", "color_name":"orange", "start":"22:00","end":"23:30","total":32726},
+]
+
+# Station opening / closing times per movement (from SAR doc Section 2).
+# Used to flag whether each station is "open" or "closed" during the
+# selected hour. Times in 24h ISO HH:MM format, anchored to Hijri DH day.
+METRO_STATION_HOURS = {
+    "ARF1": [
+        {"mvt":"A","dh":7,"open":"07:30","close":None},
+        {"mvt":"A","dh":8,"open":None,"close":"01:30"}, {"mvt":"A","dh":8,"open":"03:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"15:30"},
+        {"mvt":"B","dh":8,"open":"17:30","close":None},
+        {"mvt":"B","dh":9,"open":None,"close":"11:45"},
+        {"mvt":"C","dh":9,"open":"17:58","close":None},
+        {"mvt":"C","dh":9,"open":None,"close":"23:30"},
+    ],
+    "ARF2": [{"mvt":"A","dh":7,"open":"07:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"01:30"}, {"mvt":"A","dh":8,"open":"03:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"15:30"}, {"mvt":"B","dh":8,"open":"17:30","close":None}, {"mvt":"B","dh":9,"open":None,"close":"11:45"}, {"mvt":"C","dh":9,"open":"17:58","close":None}, {"mvt":"C","dh":9,"open":None,"close":"23:30"}],
+    "ARF3": [{"mvt":"A","dh":7,"open":"07:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"01:30"}, {"mvt":"A","dh":8,"open":"03:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"15:30"}, {"mvt":"B","dh":8,"open":"17:30","close":None}, {"mvt":"B","dh":9,"open":None,"close":"11:45"}, {"mvt":"C","dh":9,"open":"17:58","close":None}, {"mvt":"C","dh":9,"open":None,"close":"23:30"}],
+    "MUZ1": [{"mvt":"A","dh":7,"open":"07:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"01:30"}, {"mvt":"A","dh":8,"open":"03:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"15:30"}, {"mvt":"C","dh":9,"open":"17:58","close":None}, {"mvt":"D","dh":10,"open":"00:00","close":None}, {"mvt":"D","dh":10,"open":None,"close":"08:30"}],
+    "MUZ2": [{"mvt":"A","dh":7,"open":"07:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"01:30"}, {"mvt":"A","dh":8,"open":"03:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"15:30"}, {"mvt":"C","dh":9,"open":"17:58","close":None}, {"mvt":"D","dh":10,"open":"00:00","close":None}, {"mvt":"D","dh":10,"open":None,"close":"08:30"}],
+    "MUZ3": [{"mvt":"A","dh":7,"open":"07:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"01:30"}, {"mvt":"A","dh":8,"open":"03:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"15:30"}, {"mvt":"B","dh":8,"open":"17:30","close":None}, {"mvt":"B","dh":9,"open":None,"close":"10:30"}, {"mvt":"C","dh":9,"open":"17:58","close":None}, {"mvt":"D","dh":10,"open":"00:00","close":None}, {"mvt":"D","dh":10,"open":None,"close":"08:30"}],
+    "MIN1": [{"mvt":"A","dh":7,"open":"07:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"01:30"}, {"mvt":"A","dh":8,"open":"03:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"15:30"}, {"mvt":"B","dh":8,"open":"17:30","close":None}, {"mvt":"B","dh":9,"open":None,"close":"07:15"}, {"mvt":"D","dh":10,"open":"08:30","close":None}, {"mvt":"E","dh":10,"open":None,"close":None}],
+    "MIN2": [{"mvt":"A","dh":7,"open":"07:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"01:30"}, {"mvt":"A","dh":8,"open":"03:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"15:30"}, {"mvt":"B","dh":8,"open":"17:30","close":None}, {"mvt":"B","dh":9,"open":None,"close":"10:30"}, {"mvt":"D","dh":10,"open":"08:30","close":None}, {"mvt":"E","dh":10,"open":None,"close":None}],
+    "MIN3": [{"mvt":"A","dh":7,"open":"07:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"01:30"}, {"mvt":"A","dh":8,"open":"03:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"15:30"}, {"mvt":"B","dh":9,"open":None,"close":"01:30"}, {"mvt":"D","dh":10,"open":"08:30","close":None}, {"mvt":"E","dh":10,"open":None,"close":None}],
+}
 GP_COVERAGE = [
     {"station":"ARF1","gp_day":"GP-01","gp_night":"GP-11","covers":"Mike-1, Mike-2","notes":""},
     {"station":"ARF2","gp_day":"GP-02","gp_night":"GP-12","covers":"Mike-3, Mike-4","notes":""},
@@ -399,9 +561,10 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
     DH_RANGE = list(range(4, 15))  # DH 4 through DH 14 inclusive
     out_hours = []
     for dh in DH_RANGE:
-        # DH 4-7: pre-mob, day-hours only. DH 8-14: full 24h.
-        start_hour = 6 if dh in [4,5,6,7] else 0
-        end_hour = 18 if dh in [4,5,6,7] else 24
+        # DH 4-6: medical pre-mob, day-hours only. DH 7-14: full 24h
+        # (Movement A regular metro starts DH 7 08:00 and runs to DH 8 00:00).
+        start_hour = 6 if dh in [4,5,6] else 0
+        end_hour = 18 if dh in [4,5,6] else 24
         for h in range(start_hour, end_hour):
             # Movement label — strict membership: an hour is labeled with a
             # movement ONLY when it falls inside that movement's declared
@@ -1253,6 +1416,20 @@ def main():
         "org_structure": org,
         "movements": MOVEMENTS,
         "movement_phases": MOVEMENT_PHASES,
+        # Metro reference (SAR official ops doc, 1447H) — used by the
+        # /metro.html operational viewer to show train movements, active
+        # platforms per station, expected pax flow, and tafweej zones.
+        "metro": {
+            "phases": MOVEMENT_PHASES,
+            "platforms": METRO_PLATFORMS,
+            "pax_flow": [
+                {"movement_group":g, "dh":dh, "hour":h, "station":st, "count":c}
+                for g, rows in METRO_PAX_FLOW.items()
+                for (dh, h, st, c) in rows
+            ],
+            "tafweej": METRO_TAFWEEJ,
+            "station_hours": METRO_STATION_HOURS,
+        },
         "status_counts": status_counts,
         "zone_by_mvt": {},
         "roster": roster,
@@ -1334,6 +1511,10 @@ def main():
             "timeline": data.get("timeline", []),
             "refreshed_at": data["refreshed_at"],
         },
+        "api/v1/metro.json": {
+            "metro": data.get("metro", {}),
+            "refreshed_at": data["refreshed_at"],
+        },
         "api/v1/index.json": {
             "api": "hajj-ops v1",
             "version": "v11.8",
@@ -1345,6 +1526,7 @@ def main():
                 "/api/v1/movements.json",
                 "/api/v1/ambulances.json",
                 "/api/v1/calendar.json",
+                "/api/v1/metro.json",
                 "/data.json",
             ],
             "docs": "https://hajj.shuki.tech/api-docs.html",

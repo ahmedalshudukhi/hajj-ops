@@ -102,6 +102,7 @@
     { href: 'incidents.html', label: 'Incidents', roles: ['cluster_supervisor','dispatcher','leadership','admin'] },
     { href: 'units.html',    label: 'Units',     roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'] },
     { href: 'positioning.html', label: 'Positioning', roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'] },
+    { href: 'metro.html',    label: 'Metro',     roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'] },
     { href: 'hospitals.html', label: 'Hospitals', roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'] },
     { href: 'pcr.html',      label: 'PCR',       roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'] },
     { href: 'messages.html', label: 'Messages',  roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'] },

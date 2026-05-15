@@ -351,6 +351,7 @@ const ROLE_GATE = {
   overview_summary: null,                               // anyone signed in can read
   positioning_at: null,                                  // anyone signed in can read
   positioning_day: null,                                 // anyone signed in can read
+  metro_data: null,                                      // anyone signed in can read — SAR train movements
   card_get: null,
   cards_get_bulk: null,
   station_status_list: ['cluster_supervisor','dispatcher','leadership','admin','sar'],
@@ -461,7 +462,7 @@ const NEEDS_JSON = new Set([
   'augmentations','mobilization_plan','roster_fill','unit_availability',
   'units_list','unit_positions','active_summary','dashboard_active',
   'dashboard_dispatch','dashboard_sv','sar_summary','roster','station_status_list',
-  'unit_suggest','units_status_grid','ambulances_list','overview_summary','positioning_at','positioning_day'
+  'unit_suggest','units_status_grid','ambulances_list','overview_summary','positioning_at','positioning_day','metro_data'
 ]);
 
 const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
@@ -1273,6 +1274,262 @@ const ACTIONS = {
       total_roster: scopedRoster,
       rows,
       meta: { dh_days: allDH, movements: allMvts }
+    };
+  },
+
+  // ==============================================================
+  // metro_data — SAR train movements operational view.
+  // Returns the active movement (and adjacent movements) for the given
+  // DH, plus per-station platform activity and expected pax flow for
+  // the selected hour. The page can pull the full reference set via
+  // params={"full":1}.
+  //
+  // v0.2.52 rebuild: PDF-precise timing (B2A=05:30, C=18:57→00:30),
+  // gap reasons for non-movement hours, per-movement pax buckets,
+  // and band-collapsed timeline (active-period bands only — no dead
+  // "—" hours dominating the strip).
+  // ==============================================================
+  async metro_data(user, env, params, dj) {
+    const dh   = String(params.dh   || '9').replace(/[^0-9]/g, '') || '9';
+    const hour = params.hour != null ? String(params.hour).padStart(2,'0') + ':00' : null;
+    const full = !!params.full;
+
+    const metro = (dj && dj.metro) || {};
+    const phases = metro.phases || [];
+    const platforms = metro.platforms || {};
+    const paxFlow = metro.pax_flow || [];
+    const tafweej = metro.tafweej || [];
+    const stationHours = metro.station_hours || {};
+
+    const dhInt = parseInt(dh, 10);
+
+    // Phase windows expressed in minutes from DH4 00:00 for easy overlap math.
+    // dh part of "8 DH" → integer 8. "05:30" → 330 minutes.
+    function parseDH(s) { return parseInt(String(s).split(' ')[0], 10); }
+    function parseHM(s) {
+      const [h, m] = String(s).split(':').map(x => parseInt(x, 10));
+      return h * 60 + (m || 0);
+    }
+    function phaseStartMin(p) { return parseDH(p.start_dh) * 1440 + parseHM(p.start_hour); }
+    function phaseEndMin(p)   { return parseDH(p.end_dh)   * 1440 + parseHM(p.end_hour); }
+
+    // Phases that touch this DH at all.
+    const dhStart = dhInt * 1440;
+    const dhEnd   = (dhInt + 1) * 1440;
+    const phasesForDH = phases.filter(p =>
+      p.mvt !== 'PRE-B' && p.mvt !== 'DEMOB' &&
+      phaseStartMin(p) < dhEnd && phaseEndMin(p) > dhStart
+    );
+
+    // Build active bands clipped to this DH window. Each band = one
+    // continuous segment of one movement inside this DH.
+    const bands = phasesForDH.map(p => {
+      const s = Math.max(phaseStartMin(p), dhStart);
+      const e = Math.min(phaseEndMin(p),   dhEnd);
+      return {
+        mvt: p.mvt,
+        start_min: s - dhStart,                       // 0..1440
+        end_min:   e - dhStart,
+        start: fmtHM(s - dhStart),
+        end:   fmtHM(e - dhStart),
+        trains: p.trains || 0,
+        desc: p.desc || '',
+        shift: p.shift,
+        crosses_midnight: phaseEndMin(p) > dhEnd,
+        starts_yesterday: phaseStartMin(p) < dhStart,
+      };
+    }).sort((a,b) => a.start_min - b.start_min);
+
+    function fmtHM(min) {
+      const m = Math.max(0, Math.min(1440, min|0));
+      const h = Math.floor(m / 60), mm = m % 60;
+      return String(h).padStart(2,'0') + ':' + String(mm).padStart(2,'0');
+    }
+
+    // Gaps between bands → labeled with the reason if known.
+    // Reasons are derived from the calendar: between B-series and C on DH9
+    // is the Wuquf (standing at Arafat); 02:00-04:00 on E-days is the
+    // SAR-mandated daily maintenance window.
+    function gapReason(dhI, startMin, endMin, prevMvt, nextMvt) {
+      // Daily 02:00-04:00 maintenance on DH 11, 12, 13
+      if ((dhI >= 11 && dhI <= 13) && startMin >= 120 && endMin <= 240) {
+        return { reason: 'Daily maintenance window (02:00–04:00)', kind: 'maintenance' };
+      }
+      // DH 9 Wuquf: between B2B end (11:00) and C start (18:57)
+      if (dhI === 9 && prevMvt && prevMvt.startsWith('B') && nextMvt === 'C') {
+        return { reason: 'Wuqūf at Arafat — pilgrims standing at Arafat until sunset Nafra', kind: 'ritual' };
+      }
+      // DH 8 between Movement A (ends 16:00) and B1A (starts 18:00)
+      if (dhI === 8 && prevMvt === 'A' && nextMvt && nextMvt.startsWith('B')) {
+        return { reason: 'Transition — handover from regular metro to convoy ops', kind: 'transition' };
+      }
+      // DH 8 02:00 → 04:00 maintenance during Movement A
+      if (dhI === 8 && startMin >= 120 && endMin <= 240) {
+        return { reason: 'Maintenance window (02:00–04:00)', kind: 'maintenance' };
+      }
+      return { reason: 'No train operations', kind: 'idle' };
+    }
+
+    // Compose timeline = bands + gaps. Display-only structure.
+    const timelineBands = [];
+    let cursor = 0;
+    for (let i = 0; i < bands.length; i++) {
+      const b = bands[i];
+      if (b.start_min > cursor) {
+        const prevMvt = i > 0 ? bands[i-1].mvt : null;
+        const g = gapReason(dhInt, cursor, b.start_min, prevMvt, b.mvt);
+        timelineBands.push({
+          type: 'gap',
+          start: fmtHM(cursor), end: fmtHM(b.start_min),
+          start_min: cursor, end_min: b.start_min,
+          reason: g.reason, kind: g.kind,
+        });
+      }
+      timelineBands.push({
+        type: 'band', mvt: b.mvt, trains: b.trains, desc: b.desc,
+        start: b.start, end: b.end,
+        start_min: b.start_min, end_min: b.end_min,
+        crosses_midnight: b.crosses_midnight, starts_yesterday: b.starts_yesterday,
+      });
+      cursor = b.end_min;
+    }
+    if (cursor < 1440 && bands.length > 0) {
+      const prevMvt = bands[bands.length - 1].mvt;
+      const g = gapReason(dhInt, cursor, 1440, prevMvt, null);
+      timelineBands.push({
+        type: 'gap',
+        start: fmtHM(cursor), end: '24:00',
+        start_min: cursor, end_min: 1440,
+        reason: g.reason, kind: g.kind,
+      });
+    }
+    if (bands.length === 0) {
+      const note = dhInt < 7
+        ? 'Pre-mobilization (medical setup, no train ops)'
+        : dhInt === 14
+          ? 'Demobilization day (no train ops)'
+          : 'No train operations on this day';
+      timelineBands.push({
+        type: 'gap', start: '00:00', end: '24:00',
+        start_min: 0, end_min: 1440,
+        reason: note, kind: 'idle',
+      });
+    }
+
+    // Per-hour movement label (kept for backward compatibility with
+    // existing chart consumers; uses bands above for accurate lookup).
+    const startHr = (dhInt >= 7) ? 0 : 6;
+    const endHr   = (dhInt >= 7) ? 24 : 18;
+    const hourlyTimeline = [];
+    for (let h = startHr; h < endHr; h++) {
+      const minStart = h * 60;
+      const minMid = h * 60 + 30;
+      let label = "—", trains = 0, desc = "";
+      for (const b of bands) {
+        if (b.start_min <= minMid && minMid < b.end_min) {
+          label = b.mvt; trains = b.trains; desc = b.desc; break;
+        }
+      }
+      hourlyTimeline.push({hour: String(h).padStart(2,'0')+':00', mvt: label, trains, desc});
+    }
+
+    // Per-station, per-hour platform activity grid.
+    const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+    const grid = STATIONS.map(st => ({
+      st,
+      hours: hourlyTimeline.map(t => {
+        const plats = platforms[t.mvt] || [];
+        const here = plats.find(p => p.st === st);
+        return {
+          hour: t.hour,
+          mvt: t.mvt,
+          plat: here ? here.plat : null,
+          role: here ? here.role : null,
+          active: !!here
+        };
+      })
+    }));
+
+    // Pax flow filtered to this DH.
+    const paxForDH = paxFlow.filter(p => p.dh === dhInt);
+    const paxByStHr = {};
+    const paxByPlatStHr = {};
+    for (const p of paxForDH) {
+      const stRaw = p.station;
+      const stBase = stRaw.split('_')[0];
+      const platSuffix = stRaw.includes('_') ? stRaw.split('_')[1] : null;
+      const key = stBase + '@' + String(p.hour).padStart(2,'0');
+      paxByStHr[key] = (paxByStHr[key] || 0) + p.count;
+      if (platSuffix) {
+        const pkey = stRaw + '@' + String(p.hour).padStart(2,'0');
+        paxByPlatStHr[pkey] = (paxByPlatStHr[pkey] || 0) + p.count;
+      }
+    }
+    for (const row of grid) {
+      for (const cell of row.hours) {
+        const h2 = cell.hour.split(':')[0];
+        cell.pax = paxByStHr[row.st + '@' + h2] || 0;
+        if (cell.plat === 'NS') {
+          cell.pax_n = paxByPlatStHr[row.st + '_N@' + h2] || 0;
+          cell.pax_s = paxByPlatStHr[row.st + '_S@' + h2] || 0;
+        }
+      }
+    }
+
+    // Per-movement aggregate pax for this DH (groups by movement family).
+    // Each band on the timeline gets a total + per-station breakdown so
+    // the page can show "Movement C: 303,950 pilgrims, peak at ARF1 18:00".
+    const paxByBand = bands.map(b => {
+      const family = b.mvt.charAt(0);  // B1A → B, E1 → E
+      const stTotals = {};
+      let total = 0;
+      for (const p of paxForDH) {
+        if (p.movement_group !== family) continue;
+        if (p.hour * 60 < b.start_min || p.hour * 60 >= b.end_min) continue;
+        const stBase = p.station.split('_')[0];
+        stTotals[stBase] = (stTotals[stBase] || 0) + p.count;
+        total += p.count;
+      }
+      const top = Object.entries(stTotals)
+        .map(([st, n]) => ({ st, n }))
+        .sort((a,b) => b.n - a.n);
+      return {
+        mvt: b.mvt, start: b.start, end: b.end,
+        total, top: top.slice(0, 4),
+        per_station: stTotals,
+      };
+    });
+
+    // Tafweej zones apply only to DH 9 (Nafra prep at Arafat).
+    const tafweejForDH = (dhInt === 9) ? tafweej : [];
+
+    return {
+      ok: true,
+      dh,
+      hour,
+      meta: {
+        dh_days: Array.from(new Set(phases.map(p =>
+          parseInt(String(p.start_dh).split(' ')[0], 10)
+        ).filter(x => x >= 4 && x <= 14))).sort((a,b)=>a-b).map(String),
+        dh_dates: {
+          // DH → Gregorian: DH 1 = 2026-05-27 per Hajj 1447H official calendar.
+          // (Used by client for "DH X (Day of Arafah, 26 May)" labels.)
+          "4": "2026-05-21", "5": "2026-05-22", "6": "2026-05-23",
+          "7": "2026-05-24", "8": "2026-05-25", "9": "2026-05-26",
+          "10":"2026-05-27", "11":"2026-05-28", "12":"2026-05-29",
+          "13":"2026-05-30", "14":"2026-05-31",
+        },
+      },
+      phases_for_dh: phasesForDH,
+      bands,
+      timeline_bands: timelineBands,
+      pax_by_band: paxByBand,
+      hourly_timeline: hourlyTimeline,
+      grid,
+      tafweej: tafweejForDH,
+      station_hours: stationHours,
+      all_phases: full ? phases : undefined,
+      all_platforms: full ? platforms : undefined,
     };
   },
 
