@@ -329,6 +329,10 @@
     docs_get:               { method: 'GET', exec: true },
     docs_save:              { method: 'GET', exec: true },
 
+    // Schedule positioning view
+    positioning_at:         { method: 'GET', exec: true },
+    positioning_day:        { method: 'GET', exec: true },
+
     // Writes (still GET via query params for now, consistent with reads)
     dispatch_create:        { method: 'GET', exec: true },
     dispatch_event:         { method: 'GET', exec: true },
