@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Positioning · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.45">
+<link rel="stylesheet" href="assets/style.css?v=0.2.46">
 <style>
 body { background: var(--bg); }
 .content { padding: 12px 14px 80px; max-width: 1280px; margin: 0 auto; }
@@ -140,10 +140,10 @@ td.metric-hi   { font-weight: 600; }
 </style>
 </head>
 <body>
-<script src="assets/version.js?v=0.2.45"></script>
-<script src="assets/config.js?v=0.2.45"></script>
-<script src="assets/auth.js?v=0.2.45"></script>
-<script src="assets/topbar.js?v=0.2.45"></script>
+<script src="assets/version.js?v=0.2.46"></script>
+<script src="assets/config.js?v=0.2.46"></script>
+<script src="assets/auth.js?v=0.2.46"></script>
+<script src="assets/topbar.js?v=0.2.46"></script>
 
 <div class="content">
   <div class="picker">
@@ -192,8 +192,18 @@ td.metric-hi   { font-weight: 600; }
 
 <script>
 (function () {
-  HAJJ.requireSession();
-  CADTopbar.render({ title: "Positioning", subtitle: "schedule day view" });
+  try {
+    if (typeof HAJJ === 'undefined' || !HAJJ.requireAuth) {
+      throw new Error('Auth module not loaded — refresh the page');
+    }
+    if (!HAJJ.requireAuth()) return;  // redirects to login if no session
+    CADTopbar.render({ title: "Positioning", subtitle: "schedule day view" });
+  } catch (e) {
+    console.error('Positioning init error:', e);
+    document.getElementById('posBody').innerHTML =
+      '<tr><td colspan="9" style="text-align:center; color:#fca5a5; padding:24px;">Init error: ' + (e.message || e) + '</td></tr>';
+    return;
+  }
 
   const $ = id => document.getElementById(id);
   let _metaLoaded = false;
@@ -209,7 +219,10 @@ td.metric-hi   { font-weight: 600; }
   $('pickZone').addEventListener('change', refresh);
   $('btnNow').addEventListener('click', jumpToNow);
 
-  refresh();
+  refresh().catch(e => {
+    console.error('Refresh failed:', e);
+    renderError('Error: ' + (e.message || e));
+  });
 
   async function refresh() {
     const dh   = $('pickDH').value || '9';
