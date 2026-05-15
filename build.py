@@ -403,17 +403,22 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
         start_hour = 6 if dh in [4,5,6,7] else 0
         end_hour = 18 if dh in [4,5,6,7] else 24
         for h in range(start_hour, end_hour):
-            # Movement window: half-open [start, end). So a phase that ends
-            # at end_hour does NOT cover end_hour itself — that hour belongs
-            # to whatever phase starts there (or GAP if none).
-            mvt_code = "GAP"; shift_label = "DAY" if 6 <= h < 18 else "NIGHT"
+            # Movement label: each hour belongs to the movement most recently
+            # started at or before that hour — phases roll forward until the
+            # NEXT phase starts (no "GAP holes" between defined phases).
+            # GAP itself is an explicit phase from 13:00-19:00 on DH 9, and
+            # also the default before PRE-B starts on 4 DH 06:00.
+            cur = dh*100 + h
+            best_ph = None; best_start = -1
             for ph in MOVEMENT_PHASES:
-                sd = int(ph["start_dh"].split()[0]); ed = int(ph["end_dh"].split()[0])
-                sh_p = int(ph["start_hour"].split(":")[0]); eh_p = int(ph["end_hour"].split(":")[0])
-                cur = dh*100 + h; start = sd*100 + sh_p; end = ed*100 + eh_p
-                if start <= cur < end:
-                    mvt_code = ph["mvt"]; shift_label = ph["shift"]
-                    break
+                sd = int(ph["start_dh"].split()[0]); sh_p = int(ph["start_hour"].split(":")[0])
+                start = sd*100 + sh_p
+                if start <= cur and start > best_start:
+                    best_ph = ph; best_start = start
+            if best_ph is not None:
+                mvt_code = best_ph["mvt"]; shift_label = best_ph["shift"]
+            else:
+                mvt_code = "GAP"; shift_label = "DAY" if 6 <= h < 18 else "NIGHT"
 
             zones = {"Arafat":0, "Muzdalifah":0, "Mina":0, "Support":0}
             stations = {st:0 for st in SITES}
@@ -430,7 +435,7 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
             sd_by_type     = {st: defaultdict(int) for st in SITES}
             sd_units       = {st: [] for st in SITES}
             sd_shifts      = {st: set() for st in SITES}
-            sd_has_medical = {st: False for st in SITES}
+            sd_doctors     = {st: 0 for st in SITES}
 
             for uid, day_shifts in schedule.items():
                 if dh not in day_shifts: continue
@@ -463,33 +468,28 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
                     sd_by_type[home][utype] += 1
                     sd_units[home].append(uid)
                     sd_shifts[home].add(matched_shift)
-                    if utype == "Medical":
-                        sd_has_medical[home] = True
+                    if utype == "Doctor":
+                        sd_doctors[home] += 1
 
-            # Crewed ambulance presence at each station (kept as a secondary
-            # metric — the "currently has a crew on duty" view). The main
-            # `stations_amb` field below uses the static physical count.
-            stations_amb_crewed = {st: 0 for st in SITES}
+            # Crewed ambulance presence at each station — the "currently
+            # has a crew on duty" view. This is what `stations_amb` shows
+            # by default. The static physical count is kept as a secondary
+            # `stations_amb_total` field so the detail panel can show "x/y".
+            stations_amb = {st: 0 for st in SITES}
             for st, ambs in amb_by_home.items():
-                if st not in stations_amb_crewed: continue
+                if st not in stations_amb: continue
                 for a in ambs:
                     day_crew = a["day_crew"]; night_crew = a["night_crew"]
                     if (day_crew and day_crew in active_units) or (night_crew and night_crew in active_units):
-                        stations_amb_crewed[st] += 1
+                        stations_amb[st] += 1
 
-            # Physical ambulance count per site (constant across hours).
-            stations_amb = dict(static_amb_by_home)
+            stations_amb_total = dict(static_amb_by_home)
 
-            # Doctors per station: each clinical site has a day GP and a
-            # night GP assigned (see GP_COVERAGE). A doctor counts as
-            # "on duty at hour h at station s" when any Medical unit is
-            # active at s — i.e. the GP is paired with the active Mike unit.
-            stations_doctors = {st: (1 if sd_has_medical.get(st) else 0) for st in SITES}
-            # OCC has GP-10 day / GP-20 night even if there's no Medical
-            # "unit" object — depot ops, surveillance role.
-            if "OCC" in stations_doctors and stations_doctors["OCC"] == 0:
-                # Active during ops days regardless; standing presence rule.
-                if dh >= 7: stations_doctors["OCC"] = 1
+            # Doctors per station: derived from active Doctor-type units
+            # (Delta-*). Each station has 2 Delta units (day GP slot + night
+            # GP slot) — sd_doctors picks up both when both are on duty,
+            # which is the correct picture during handover overlap hours.
+            stations_doctors = dict(sd_doctors)
             total_doctors = sum(stations_doctors.values())
 
             # Build per-site detail blob for the positioning view's expander.
@@ -499,8 +499,8 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
                     "paras":          sd_paras[st],
                     "by_type":        dict(sd_by_type[st]),
                     "doctors":        stations_doctors[st],
-                    "amb_present":    static_amb_by_home.get(st, 0),
-                    "amb_crewed":     stations_amb_crewed[st],
+                    "amb_crewed":     stations_amb[st],
+                    "amb_total":      stations_amb_total.get(st, 0),
                     "active_units":   sorted(sd_units[st]),
                     "active_shifts":  sorted(sd_shifts[st]),
                 }
@@ -509,6 +509,7 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
             muz_a = stations_amb.get("MUZ1",0)+stations_amb.get("MUZ2",0)+stations_amb.get("MUZ3",0)
             min_a = stations_amb.get("MIN1",0)+stations_amb.get("MIN2",0)+stations_amb.get("MIN3",0)
             grand_a = sum(stations_amb.values())
+            grand_a_total = sum(stations_amb_total.values())
 
             out_hours.append({
                 "dh":f"{dh} DH","hour":f"{h:02d}:00","mvt":mvt_code,"shift":shift_label,
@@ -518,11 +519,12 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
                 "rov_c":0,"fwd_c":0,"dep_c":0,
                 "support":zones["Support"],"rov_a":0,"fwd_a":0,"dep_a":0,
                 "stations":stations, "stations_amb":stations_amb,
-                "stations_amb_crewed": stations_amb_crewed,
-                "stations_doctors":    stations_doctors,
-                "stations_detail":     stations_detail,
-                "doctors":             total_doctors,
+                "stations_amb_total": stations_amb_total,
+                "stations_doctors":  stations_doctors,
+                "stations_detail":   stations_detail,
+                "doctors":           total_doctors,
                 "grand_s":sum(zones.values()),"grand_a":grand_a,
+                "grand_a_total":     grand_a_total,
                 "by_type": dict(by_type),
                 "by_zone_type": {z: dict(d) for z, d in by_zone_type.items()},
                 "units_active": len(active_units),
@@ -1209,7 +1211,7 @@ def main():
     print(f"  Sheets: {wb.sheetnames}")
 
     roles = read_sheet(wb, "Roles")
-    units = read_sheet(wb, "Units", r"^(PM|DPM|ADM|MDL|CHF|DCH|LOG|OCC|DPT|TRN|SUP|Mike|Alpha|Romeo)")
+    units = read_sheet(wb, "Units", r"^(PM|DPM|ADM|MDL|CHF|DCH|LOG|OCC|DPT|TRN|SUP|Mike|Alpha|Romeo|Delta)")
     staff = read_sheet(wb, "Staff")
     shifts = read_sheet(wb, "Shifts")
     schedule = read_sheet(wb, "Schedule")

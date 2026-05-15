@@ -61,8 +61,29 @@
       .cad-tile-roles { font-size: 10px; color: #6b7280;
         text-transform: uppercase; letter-spacing: 0.05em; margin-top: 8px; }
       @media (max-width: 480px) { .cad-tile-grid { grid-template-columns: 1fr; } }
+
+      /* Shudukhi Labs subtle site-wide footer */
+      .shudukhi-labs-footer {
+        position: fixed; right: 10px; bottom: 6px;
+        font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
+        color: rgba(148, 163, 184, 0.45);
+        opacity: 0.55; pointer-events: none; user-select: none;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        z-index: 1; mix-blend-mode: difference;
+      }
+      @media (max-width: 480px) { .shudukhi-labs-footer { font-size: 8px; right: 6px; bottom: 4px; } }
     `;
     document.head.appendChild(css);
+
+    // Inject the footer once per page.
+    if (!document.querySelector('.shudukhi-labs-footer')) {
+      const f = document.createElement('footer');
+      f.className = 'shudukhi-labs-footer';
+      f.setAttribute('aria-hidden', 'true');
+      f.textContent = 'Shudukhi Labs';
+      if (document.body) document.body.appendChild(f);
+      else document.addEventListener('DOMContentLoaded', function(){ document.body.appendChild(f); });
+    }
   }
 
   // ---- All pages and which roles can see them ----

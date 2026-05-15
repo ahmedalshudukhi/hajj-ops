@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Positioning · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.49">
+<link rel="stylesheet" href="assets/style.css?v=0.2.50">
 <style>
 body { background: var(--bg); }
 .content { padding: 12px 14px 80px; max-width: 1280px; margin: 0 auto; }
@@ -150,6 +150,68 @@ td.off-duty    { color: var(--text-muted); font-style: italic; }
 }
 .station-grid-mini .mini.mini-empty { opacity: 0.45; }
 
+/* Heatmap section */
+.heatmap-section { margin-top: 24px; }
+.heatmap-head {
+  display: flex; flex-wrap: wrap; align-items: center;
+  justify-content: space-between; gap: 12px;
+  margin-bottom: 10px;
+}
+.heatmap-head h2 {
+  margin: 0; font-size: 14px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+.heatmap-controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.heatmap-controls .hm-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-muted); margin-right: 6px;
+}
+.hm-tab {
+  background: var(--surface-2); color: var(--text-dim);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px; padding: 5px 10px;
+  font-size: 11px; font-weight: 600; cursor: pointer;
+}
+.hm-tab:hover { background: var(--surface); color: var(--text); }
+.hm-tab.active {
+  background: rgba(168,85,247,0.25); color: #e9d5ff;
+  border-color: rgba(168,85,247,0.5);
+}
+.hm-hint {
+  font-size: 11px; color: var(--text-muted);
+  margin-bottom: 8px; opacity: 0.7;
+}
+.heatmap-wrap { max-height: 70vh; overflow: auto; }
+table.heatmap-tbl { font-size: 11px; font-variant-numeric: tabular-nums; }
+table.heatmap-tbl th, table.heatmap-tbl td {
+  padding: 4px 6px; text-align: center; white-space: nowrap;
+  border-bottom: 1px solid var(--border-soft);
+  border-right: 1px solid var(--border-soft);
+}
+table.heatmap-tbl th:first-child, table.heatmap-tbl td:first-child {
+  text-align: left; font-weight: 600; min-width: 64px;
+  position: sticky; left: 0; background: var(--surface); z-index: 1;
+}
+table.heatmap-tbl thead th { font-size: 10px; }
+table.heatmap-tbl td.hm-cell { cursor: pointer; transition: filter 0.1s; }
+table.heatmap-tbl td.hm-cell:hover { filter: brightness(1.3); outline: 1px solid var(--text); }
+table.heatmap-tbl td.hm-cell.zero { color: var(--text-muted); opacity: 0.4; }
+table.heatmap-tbl tr.hm-night-band td:first-child { border-left: 3px solid #6366f1; }
+table.heatmap-tbl tr.hm-day-band   td:first-child { border-left: 3px solid var(--warning); }
+table.heatmap-tbl td.hm-mvt { font-size: 10px; color: var(--text-muted); }
+table.heatmap-tbl td.hm-total { font-weight: 700; background: var(--surface-2); }
+
+/* Shudukhi Labs subtle site footer */
+.shudukhi-labs-footer {
+  position: fixed; right: 10px; bottom: 6px;
+  font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase;
+  color: var(--text-muted); opacity: 0.35;
+  pointer-events: none; user-select: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  z-index: 1;
+}
+
 .empty-banner {
   background: var(--surface); border: 1px dashed var(--border-soft);
   border-radius: var(--radius); padding: 24px; text-align: center;
@@ -158,10 +220,10 @@ td.off-duty    { color: var(--text-muted); font-style: italic; }
 </style>
 </head>
 <body>
-<script src="assets/version.js?v=0.2.49"></script>
-<script src="assets/config.js?v=0.2.49"></script>
-<script src="assets/auth.js?v=0.2.49"></script>
-<script src="assets/topbar.js?v=0.2.49"></script>
+<script src="assets/version.js?v=0.2.50"></script>
+<script src="assets/config.js?v=0.2.50"></script>
+<script src="assets/auth.js?v=0.2.50"></script>
+<script src="assets/topbar.js?v=0.2.50"></script>
 
 <div class="content">
   <div class="picker">
@@ -207,7 +269,31 @@ td.off-duty    { color: var(--text-muted); font-style: italic; }
   </div>
 
   <div class="station-detail" id="stationDetail"></div>
+
+  <div class="heatmap-section">
+    <div class="heatmap-head">
+      <h2>Hour × Station heatmap</h2>
+      <div class="heatmap-controls">
+        <span class="hm-label">Metric:</span>
+        <button class="hm-tab active" data-metric="paras">Paras</button>
+        <button class="hm-tab" data-metric="doctors">Doctors</button>
+        <button class="hm-tab" data-metric="ambs_crewed">Amb crewed</button>
+        <button class="hm-tab" data-metric="Medical">Mike</button>
+        <button class="hm-tab" data-metric="Ambulance">Alpha</button>
+        <button class="hm-tab" data-metric="Foot-Runner">Romeo</button>
+      </div>
+    </div>
+    <div class="hm-hint">Click any cell to inspect that hour × station above.</div>
+    <div class="tbl-wrap heatmap-wrap">
+      <table class="pos heatmap-tbl" id="heatmapTbl">
+        <thead><tr id="heatmapHead"></tr></thead>
+        <tbody id="heatmapBody"></tbody>
+      </table>
+    </div>
+  </div>
 </div>
+
+<footer class="shudukhi-labs-footer" aria-hidden="true">Shudukhi Labs</footer>
 
 <script>
 (function () {
@@ -227,7 +313,9 @@ td.off-duty    { color: var(--text-muted); font-style: italic; }
   const $ = id => document.getElementById(id);
   let _metaLoaded = false;
   let _lastRows = [];
+  let _lastResponse = null;
   let _selectedHour = null;
+  let _heatmapMetric = 'paras';
 
   // Hardcode DH days as a fallback before first response — populated for real after
   $('pickDH').innerHTML = ['4','5','6','7','8','9','10','11','12','13','14']
@@ -261,8 +349,10 @@ td.off-duty    { color: var(--text-muted); font-style: italic; }
     }
 
     _lastRows = r.rows || [];
+    _lastResponse = r;
     paintSummary(r);
     paintTable(r);
+    paintHeatmap(r);
     if (_selectedHour) {
       const hit = _lastRows.find(x => x.hour === _selectedHour);
       if (hit) paintStationDetail(hit, r.stations);
@@ -301,11 +391,15 @@ td.off-duty    { color: var(--text-muted); font-style: italic; }
       const isNight = x.shift === 'NIGHT' || (parseInt(x.hour, 10) >= 18 || parseInt(x.hour, 10) < 6);
       const cls = isNight ? 'night-row' : 'day-row';
       const t = x.by_type || {};
-      const doctors = (t['Doctor'] || 0);
+      const doctors = (t['Doctor'] || x.doctors || 0);
       const mike    = (t['Medical'] || 0);
       const alpha   = (t['Ambulance'] || 0);
       const romeo   = (t['Foot-Runner'] || 0);
       const offDuty = (typeof x.off_duty === 'number') ? x.off_duty : 0;
+      // Show ambs as "crewed / total" when they differ, else just one number.
+      const ambCell = (x.ambs_total && x.ambs_total !== x.ambs)
+        ? (x.ambs + '<span style="opacity:.45"> / ' + x.ambs_total + '</span>')
+        : String(x.ambs || 0);
       return ''
         + '<tr class="' + cls + '" data-hour="' + x.hour + '">'
         +   '<td>' + x.hour + '</td>'
@@ -313,7 +407,7 @@ td.off-duty    { color: var(--text-muted); font-style: italic; }
         +   cell(x.units)
         +   cell(x.paras)
         +   '<td class="off-duty">' + offDuty + '</td>'
-        +   cell(x.ambs)
+        +   '<td' + ((x.ambs||0) >= 20 ? ' class="metric-hi"' : ((x.ambs||0)===0 ? ' class="metric-zero"' : '')) + '>' + ambCell + '</td>'
         +   cell(doctors)
         +   cell(mike)
         +   cell(alpha)
@@ -359,24 +453,24 @@ td.off-duty    { color: var(--text-muted); font-style: italic; }
   function paintStationDetail(row, stations) {
     const ps = row.per_station || {};
     const cards = (stations || []).map(st => {
-      const s = ps[st] || { paras: 0, ambs: 0, ambs_crewed: 0, doctors: 0, by_type: {}, active_units: [], active_shifts: [] };
+      const s = ps[st] || { paras: 0, ambs_crewed: 0, ambs_total: 0, doctors: 0, by_type: {}, active_units: [], active_shifts: [] };
       const bt = s.by_type || {};
       const mike  = bt['Medical']     || 0;
       const alpha = bt['Ambulance']   || 0;
       const romeo = bt['Foot-Runner'] || 0;
       const other = Object.entries(bt)
-        .filter(([k]) => !['Medical','Ambulance','Foot-Runner'].includes(k))
+        .filter(([k]) => !['Medical','Ambulance','Foot-Runner','Doctor'].includes(k))
         .reduce((a, [,v]) => a + v, 0);
-      const ambCrewedTxt = (s.ambs_crewed === s.ambs)
-        ? String(s.ambs)
-        : (s.ambs + ' (' + s.ambs_crewed + ' crewed)');
+      const ambTxt = (s.ambs_total && s.ambs_total !== s.ambs_crewed)
+        ? (s.ambs_crewed + '/' + s.ambs_total)
+        : String(s.ambs_crewed || s.ambs_total || 0);
       const docDot = s.doctors > 0 ? '🩺 ' : '';
       const shiftsTxt = (s.active_shifts || []).join(', ') || '—';
-      const empty = s.paras === 0 && s.ambs === 0;
+      const empty = s.paras === 0 && (s.ambs_total || 0) === 0;
       return ''
         + '<div class="mini' + (empty ? ' mini-empty' : '') + '">'
         +   '<div class="nm">' + st + ' <span class="sub">· ' + docDot + (s.doctors||0) + ' GP</span></div>'
-        +   '<div class="sub"><strong>' + s.paras + '</strong> paras · <strong>' + ambCrewedTxt + '</strong> amb</div>'
+        +   '<div class="sub"><strong>' + s.paras + '</strong> paras · <strong>' + ambTxt + '</strong> amb</div>'
         +   '<div class="sub-types">'
         +     '<span title="Mike">M ' + mike + '</span>'
         +     '<span title="Alpha">A ' + alpha + '</span>'
@@ -389,7 +483,7 @@ td.off-duty    { color: var(--text-muted); font-style: italic; }
     $('stationDetail').className = 'station-detail open';
     $('stationDetail').innerHTML = ''
       + '<h3>Per-station — ' + row.hour + ' · movement ' + (row.mvt || '—') + ' · '
-      +   row.paras + ' paras · ' + row.ambs + ' amb · ' + row.doctors + ' doctors</h3>'
+      +   row.paras + ' paras · ' + (row.ambs||0) + '/' + (row.ambs_total||0) + ' amb · ' + (row.doctors||0) + ' doctors</h3>'
       + '<div class="station-grid-mini">' + cards + '</div>';
   }
 
@@ -397,6 +491,91 @@ td.off-duty    { color: var(--text-muted); font-style: italic; }
     $('stationDetail').className = 'station-detail';
     $('stationDetail').innerHTML = '';
   }
+
+  // Heatmap: station × hour grid for the selected DH and zone.
+  // Metric switches what each cell shows (paras, doctors, mike, alpha,
+  // romeo, ambs_crewed). Click a cell to open the detail panel above.
+
+  function metricLookup(rowPS, st, metric) {
+    const cell = rowPS[st] || {};
+    if (metric === 'paras')        return cell.paras || 0;
+    if (metric === 'doctors')      return cell.doctors || 0;
+    if (metric === 'ambs_crewed')  return cell.ambs_crewed || 0;
+    return (cell.by_type && cell.by_type[metric]) || 0;
+  }
+
+  function paintHeatmap(r) {
+    const rows = r.rows || [];
+    const stations = r.stations || [];
+    if (!rows.length || !stations.length) {
+      $('heatmapHead').innerHTML = '<th>Hour</th>';
+      $('heatmapBody').innerHTML = '<tr><td colspan="' + (stations.length+3) + '" style="text-align:center; padding:24px; color:var(--text-muted);">No data.</td></tr>';
+      return;
+    }
+
+    // Compute scale max across visible cells for color intensity.
+    let maxVal = 1;
+    rows.forEach(row => stations.forEach(st => {
+      const v = metricLookup(row.per_station || {}, st, _heatmapMetric);
+      if (v > maxVal) maxVal = v;
+    }));
+
+    function cellColor(v, isNight) {
+      if (!v) return 'transparent';
+      const a = 0.12 + (v / Math.max(maxVal, 1)) * 0.65;
+      return isNight
+        ? 'rgba(99, 102, 241, ' + a.toFixed(2) + ')'
+        : 'rgba(245, 158, 11, ' + a.toFixed(2) + ')';
+    }
+
+    // Header: Hour · Mvt · station1 · ... · stationN · Total
+    let head = '<th>Hour</th><th>Mvt</th>';
+    stations.forEach(st => head += '<th>' + st + '</th>');
+    head += '<th class="hm-total">Σ</th>';
+    $('heatmapHead').innerHTML = head;
+
+    let body = '';
+    rows.forEach(row => {
+      const isNight = row.shift === 'NIGHT' || (parseInt(row.hour, 10) >= 18 || parseInt(row.hour, 10) < 6);
+      const bandCls = isNight ? 'hm-night-band' : 'hm-day-band';
+      let rowSum = 0;
+      let cells = '<td>' + row.hour + '</td>'
+                + '<td class="hm-mvt">' + (row.mvt || '—') + '</td>';
+      stations.forEach(st => {
+        const v = metricLookup(row.per_station || {}, st, _heatmapMetric);
+        rowSum += v;
+        const display = v === 0 ? '·' : v;
+        const cls = 'hm-cell' + (v === 0 ? ' zero' : '');
+        cells += '<td class="' + cls + '" style="background:' + cellColor(v, isNight) + ';" '
+              + 'data-hour="' + row.hour + '" data-st="' + st + '">' + display + '</td>';
+      });
+      cells += '<td class="hm-total">' + rowSum + '</td>';
+      body += '<tr class="' + bandCls + '">' + cells + '</tr>';
+    });
+    $('heatmapBody').innerHTML = body;
+
+    // Wire cell clicks to open the detail panel for that hour.
+    Array.from(document.querySelectorAll('#heatmapBody td.hm-cell')).forEach(td => {
+      td.addEventListener('click', () => {
+        const hour = td.getAttribute('data-hour');
+        const row = rows.find(x => x.hour === hour);
+        if (row) {
+          _selectedHour = hour;
+          paintStationDetail(row, stations);
+          $('stationDetail').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+    });
+  }
+
+  // Wire heatmap metric tabs (once, at startup).
+  Array.from(document.querySelectorAll('.hm-tab')).forEach(t => {
+    t.addEventListener('click', () => {
+      _heatmapMetric = t.dataset.metric;
+      document.querySelectorAll('.hm-tab').forEach(x => x.classList.toggle('active', x === t));
+      if (_lastResponse) paintHeatmap(_lastResponse);
+    });
+  });
 
   function jumpToNow() {
     const DH1 = new Date('2026-05-27T00:00:00+03:00');
