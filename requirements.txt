@@ -1,1 +1,7 @@
 openpyxl>=3.1.0
+# Optional: Google service-account auth for fetching the private Backend
+# Sheet directly. Without these the build falls back to a local
+# backend.xlsx (preferred) or the public export URL (only works if the
+# sheet is shared anyone-with-link).
+google-auth>=2.27
+requests>=2.31

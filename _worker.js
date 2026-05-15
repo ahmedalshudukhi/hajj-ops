@@ -1180,16 +1180,31 @@ const ACTIONS = {
       mina:       ['MIN1','MIN2','MIN3'],
       occ:        ['OCC']
     };
+    // Map UI zone keys to the canonical zone keys that build.py emits in by_zone_type / total_roster_by_zone
+    const ZONE_NAMES = {
+      arafat:     ['Arafat'],
+      muzdalifah: ['Muzdalifah'],
+      mina:       ['Mina'],
+      occ:        ['Support'],
+      all:        ['Arafat','Muzdalifah','Mina','Support']
+    };
     const ALL_STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3','OCC'];
     const stations = (zone === 'all') ? ALL_STATIONS : (ZONE_STATIONS[zone] || ALL_STATIONS);
-    const inZone = new Set(stations);
+    const zoneNames = ZONE_NAMES[zone] || ZONE_NAMES.all;
 
     const hourly = (dj && dj.hourly && dj.hourly.hours) || [];
     const allDH    = Array.from(new Set(hourly.map(r => String(r.dh).replace(' DH','')))).sort((a,b) => +a - +b);
     const allMvts  = Array.from(new Set(hourly.map(r => r.mvt))).sort();
 
+    // Compute roster total within the selected zone scope.
+    // build.py emits hourly.total_roster_by_zone — fall back to total_roster if missing.
+    const rosterByZone = (dj && dj.hourly && dj.hourly.total_roster_by_zone) || {};
+    const totalRoster  = (dj && dj.hourly && dj.hourly.total_roster) || 0;
+    const scopedRoster = (zone === 'all')
+      ? totalRoster
+      : zoneNames.reduce((sum, z) => sum + (rosterByZone[z] || 0), 0);
+
     const dayRows = hourly.filter(r => String(r.dh) === (dh + ' DH'));
-    // Sort by hour ascending
     dayRows.sort((a,b) => a.hour.localeCompare(b.hour));
 
     const rows = dayRows.map(r => {
@@ -1198,11 +1213,19 @@ const ACTIONS = {
         paras += (r.stations && r.stations[st]) || 0;
         ambs  += (r.stations_amb && r.stations_amb[st]) || 0;
       });
-      // by_type comes from r.by_type — but only scoped if we filter, which we can't
-      // do without per-station-per-type. Use the unscoped totals when zone === 'all';
-      // for a single-zone view, scale roughly via station ratio. For now we surface
-      // the unscoped by_type and a flag.
-      const by_type = r.by_type || {};
+
+      // Compute zone-scoped by_type using r.by_zone_type when available, else fall back
+      let by_type = {};
+      if (r.by_zone_type) {
+        zoneNames.forEach(z => {
+          const zMap = r.by_zone_type[z] || {};
+          Object.entries(zMap).forEach(([k, v]) => { by_type[k] = (by_type[k] || 0) + v; });
+        });
+      } else {
+        // Older data.json without by_zone_type — use unscoped by_type
+        by_type = r.by_type || {};
+      }
+
       const perStation = {};
       stations.forEach(st => {
         perStation[st] = {
@@ -1210,6 +1233,7 @@ const ACTIONS = {
           ambs:  (r.stations_amb && r.stations_amb[st]) || 0
         };
       });
+
       return {
         hour: r.hour,
         mvt: r.mvt || '',
@@ -1217,9 +1241,9 @@ const ACTIONS = {
         units: r.units_active || 0,
         paras,
         ambs,
+        off_duty: Math.max(0, scopedRoster - paras),
         by_type,
         per_station: perStation,
-        // Surface raw totals so the frontend can show all-zone metrics when zone === 'all'
         all_paras: r.grand_s || 0,
         all_ambs:  r.grand_a || 0,
         all_units: r.units_active || 0
@@ -1232,6 +1256,7 @@ const ACTIONS = {
       zone,
       stations,
       zone_scoped: zone !== 'all',
+      total_roster: scopedRoster,
       rows,
       meta: { dh_days: allDH, movements: allMvts }
     };

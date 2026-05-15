@@ -99,6 +99,7 @@ table.pos tr.night-row td:first-child { border-left: 3px solid #6366f1; }
 
 td.metric-zero { color: var(--text-muted); opacity: 0.5; }
 td.metric-hi   { font-weight: 600; }
+td.off-duty    { color: var(--text-muted); font-style: italic; }
 
 /* Compact mode (mobile) */
 @media (max-width: 720px) {
@@ -174,6 +175,7 @@ td.metric-hi   { font-weight: 600; }
           <th>Movement</th>
           <th>Units</th>
           <th>Paras</th>
+          <th>Off Duty</th>
           <th>Ambs</th>
           <th>Doctors</th>
           <th>Mike</th>
@@ -182,7 +184,7 @@ td.metric-hi   { font-weight: 600; }
         </tr>
       </thead>
       <tbody id="posBody">
-        <tr><td colspan="9" style="text-align:center; color:var(--text-muted); padding:24px;">Loading…</td></tr>
+        <tr><td colspan="10" style="text-align:center; color:var(--text-muted); padding:24px;">Loading…</td></tr>
       </tbody>
     </table>
   </div>
@@ -201,7 +203,7 @@ td.metric-hi   { font-weight: 600; }
   } catch (e) {
     console.error('Positioning init error:', e);
     document.getElementById('posBody').innerHTML =
-      '<tr><td colspan="9" style="text-align:center; color:#fca5a5; padding:24px;">Init error: ' + (e.message || e) + '</td></tr>';
+      '<tr><td colspan="10" style="text-align:center; color:#fca5a5; padding:24px;">Init error: ' + (e.message || e) + '</td></tr>';
     return;
   }
 
@@ -252,10 +254,10 @@ td.metric-hi   { font-weight: 600; }
   }
 
   function setLoading() {
-    $('posBody').innerHTML = '<tr><td colspan="9" style="text-align:center; color:var(--text-muted); padding:24px;">Loading…</td></tr>';
+    $('posBody').innerHTML = '<tr><td colspan="10" style="text-align:center; color:var(--text-muted); padding:24px;">Loading…</td></tr>';
   }
   function renderError(msg) {
-    $('posBody').innerHTML = '<tr><td colspan="9" style="text-align:center; color:var(--text-muted); padding:24px;">' + msg + '</td></tr>';
+    $('posBody').innerHTML = '<tr><td colspan="10" style="text-align:center; color:var(--text-muted); padding:24px;">' + msg + '</td></tr>';
   }
 
   function paintSummary(r) {
@@ -275,7 +277,7 @@ td.metric-hi   { font-weight: 600; }
   function paintTable(r) {
     const rows = r.rows || [];
     if (!rows.length) {
-      $('posBody').innerHTML = '<tr><td colspan="9" style="text-align:center; color:var(--text-muted); padding:24px;">No hours in this day.</td></tr>';
+      $('posBody').innerHTML = '<tr><td colspan="10" style="text-align:center; color:var(--text-muted); padding:24px;">No hours in this day.</td></tr>';
       return;
     }
     $('posBody').innerHTML = rows.map(x => {
@@ -286,12 +288,14 @@ td.metric-hi   { font-weight: 600; }
       const mike    = (t['Medical'] || 0);
       const alpha   = (t['Ambulance'] || 0);
       const romeo   = (t['Foot-Runner'] || 0);
+      const offDuty = (typeof x.off_duty === 'number') ? x.off_duty : 0;
       return ''
         + '<tr class="' + cls + '" data-hour="' + x.hour + '">'
         +   '<td>' + x.hour + '</td>'
         +   '<td><span class="mvt-chip ' + mvtClass(x.mvt) + '">' + (x.mvt || '—') + '</span></td>'
         +   cell(x.units)
         +   cell(x.paras)
+        +   '<td class="off-duty">' + offDuty + '</td>'
         +   cell(x.ambs)
         +   cell(doctors)
         +   cell(mike)

@@ -14,9 +14,12 @@ from datetime import datetime, timezone, time as dtime
 from collections import defaultdict, Counter
 import openpyxl
 
-DEFAULT_FILE_ID = "1USar5JRbsZR_YAjW_XnPSHvYLYFOYuOl"
+# Source: Backend Google Sheet (live edits) — export as xlsx on every build.
+# This replaces the older static xlsx file (1USar5...) which would go stale
+# whenever Ahmed edited the Backend Sheet without re-exporting.
+DEFAULT_FILE_ID = "16nlZuencav9uB9o9Kscgmb5UvVGeKcu4e3YxqdKohiw"
 FILE_ID = os.environ.get("GDRIVE_FILE_ID", DEFAULT_FILE_ID)
-DOWNLOAD_URL = f"https://docs.google.com/uc?export=download&id={FILE_ID}"
+DOWNLOAD_URL = f"https://docs.google.com/spreadsheets/d/{FILE_ID}/export?format=xlsx"
 
 STATIONS = ["ARF1","ARF2","ARF3","MUZ1","MUZ2","MUZ3","MIN1","MIN2","MIN3"]
 SITES_ALL = STATIONS + ["OCC"]                    # 10 fixed sites (SRCA dropped v11.7)
@@ -134,8 +137,77 @@ def compute_shift_duration(start_time, end_time):
         return (24 - sh_) + eh_
     return eh_ - sh_
 
+def compute_phase_duration(start_dh, start_hour, end_dh, end_hour):
+    """Calculate movement phase duration in hours (wall-clock elapsed) from
+    start/end DH+hour strings.
+    Args:
+        start_dh / end_dh: '4 DH' format
+        start_hour / end_hour: '06:00' format (24-hour)
+
+    Why this exists: the hand-maintained `duration_hrs` field on each
+    MOVEMENT_PHASES entry drifted from the start/end times (e.g. B1A was
+    stored as 6 h but 8 DH 20:00 → 9 DH 01:00 is 5 h; PRE-B was stored as
+    60 h but 4 DH 06:00 → 8 DH 17:00 is 107 h). Always derive at build time
+    from start_dh/start_hour/end_dh/end_hour — single source of truth.
+    """
+    def _dh(x): return int(str(x).split()[0])
+    def _hr(x):
+        parts = str(x).split(':')
+        return int(parts[0]) + (int(parts[1]) / 60 if len(parts) >= 2 else 0)
+    return (_dh(end_dh) - _dh(start_dh)) * 24 + (_hr(end_hour) - _hr(start_hour))
+
 def download_xlsx():
+    # Order of preference:
+    #   1. Local backend.xlsx / _backend_cache.xlsx (Ahmed dropped a fresh export)
+    #   2. Service-account-authenticated Drive export (cron-friendly, secure)
+    #   3. Public /export?format=xlsx (only works if the sheet is "anyone with link")
+    here = os.path.dirname(os.path.abspath(__file__))
+    local_candidates = [
+        os.path.join(here, "backend.xlsx"),
+        os.path.join(here, "_backend_cache.xlsx"),
+    ]
+    for p in local_candidates:
+        if os.path.exists(p):
+            print(f"  Using local file: {p} ({os.path.getsize(p):,} bytes)")
+            return p
+
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx"); tmp.close()
+
+    # Try service-account auth if credentials are provided. The cron sets
+    # GOOGLE_SERVICE_ACCOUNT_JSON from a GitHub secret; locally Ahmed can set
+    # GOOGLE_SERVICE_ACCOUNT_PATH to a JSON key file.
+    sa_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+    sa_path = os.environ.get("GOOGLE_SERVICE_ACCOUNT_PATH", "").strip()
+    if sa_json or sa_path:
+        try:
+            import json as _json
+            from google.oauth2 import service_account
+            from google.auth.transport.requests import Request as _GAuthRequest
+            info = _json.loads(sa_json) if sa_json else None
+            scopes = ["https://www.googleapis.com/auth/drive.readonly"]
+            if info:
+                creds = service_account.Credentials.from_service_account_info(info, scopes=scopes)
+            else:
+                creds = service_account.Credentials.from_service_account_file(sa_path, scopes=scopes)
+            creds.refresh(_GAuthRequest())
+            # Drive v3 export endpoint converts a Google Sheet to xlsx server-side.
+            url = (
+                f"https://www.googleapis.com/drive/v3/files/{FILE_ID}/export"
+                f"?mimeType=application%2Fvnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+            print(f"  Fetching via service account (file: {FILE_ID})...")
+            req = urllib.request.Request(url, headers={
+                "Authorization": f"Bearer {creds.token}",
+                "User-Agent": "hajj-ops/5.0",
+            })
+            with urllib.request.urlopen(req, timeout=60) as resp, open(tmp.name, "wb") as out:
+                out.write(resp.read())
+            print(f"  ✓ Downloaded {os.path.getsize(tmp.name):,} bytes (authenticated)")
+            return tmp.name
+        except Exception as e:
+            print(f"  ⚠ Service-account auth failed: {e}")
+            print(f"     Falling back to public export URL — likely 401 if sheet is private.")
+
     print(f"  Downloading from Google Drive (file: {FILE_ID})...")
     req = urllib.request.Request(DOWNLOAD_URL, headers={"User-Agent": "hajj-ops/5.0"})
     with urllib.request.urlopen(req, timeout=30) as resp, open(tmp.name, "wb") as out:
@@ -289,6 +361,18 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
                 code = s(r.get(f"{dh}DH-S{slot}"))
                 if code: schedule[uid][dh].append(code)
 
+    # Pre-compute roster totals (sum of unit sizes) overall and by zone.
+    # Used by the positioning page to display "Off Duty" counts.
+    def _zone_of(home):
+        if home.startswith("ARF"): return "Arafat"
+        if home.startswith("MUZ"): return "Muzdalifah"
+        if home.startswith("MIN"): return "Mina"
+        return "Support"
+    total_roster_by_zone = {"Arafat":0, "Muzdalifah":0, "Mina":0, "Support":0}
+    for uid, sz in unit_size.items():
+        total_roster_by_zone[_zone_of(unit_home.get(uid, ""))] += sz
+    total_roster = sum(total_roster_by_zone.values())
+
     # Index ambulances by home station for hourly active-amb counts
     amb_by_home = defaultdict(list)
     for a in (ambulance_rows or []):
@@ -321,6 +405,12 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
             stations = {st:0 for st in STATIONS}
             stations_amb = {st:0 for st in STATIONS}
             by_type = defaultdict(int)
+            by_zone_type = {
+                "Arafat": defaultdict(int),
+                "Muzdalifah": defaultdict(int),
+                "Mina": defaultdict(int),
+                "Support": defaultdict(int),
+            }
             active_units = set()
 
             for uid, day_shifts in schedule.items():
@@ -338,6 +428,8 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
                 home = unit_home.get(uid, "")
                 utype = unit_type.get(uid, "") or "Other"
                 by_type[utype] += 1
+                zone_name = _zone_of(home)
+                by_zone_type[zone_name][utype] += 1
                 if home.startswith("ARF"):
                     zones["Arafat"] += size
                     if home in stations: stations[home] += size
@@ -375,6 +467,7 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
                 "stations":stations, "stations_amb":stations_amb,
                 "grand_s":sum(zones.values()),"grand_a":grand_a,
                 "by_type": dict(by_type),
+                "by_zone_type": {z: dict(d) for z, d in by_zone_type.items()},
                 "units_active": len(active_units),
             })
 
@@ -384,6 +477,8 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
         "peak_muzdalifah":max((h["muz_s"] for h in out_hours), default=0),
         "peak_mina":max((h["min_s"] for h in out_hours), default=0),
         "movement_peaks":{},"total_hours":len(out_hours),
+        "total_roster": total_roster,
+        "total_roster_by_zone": total_roster_by_zone,
     }
 
 def compute_augmentations(aug_rows):
@@ -1042,6 +1137,16 @@ def compute_insights(stations_detail, day_night_station, amb_by_station, hourly_
 
 def main():
     print("Hajj Ops Builder v8 (v11.8 schema)")
+
+    # Auto-derive movement phase durations from start/end times. The hand-
+    # maintained `duration_hrs` field had drifted (B1A stored 6 h, actual 5 h;
+    # PRE-B stored 60 h, actual 107 h; etc.). Single source of truth: the
+    # start_dh/start_hour/end_dh/end_hour fields.
+    for _ph in MOVEMENT_PHASES:
+        _ph["duration_hrs"] = compute_phase_duration(
+            _ph["start_dh"], _ph["start_hour"], _ph["end_dh"], _ph["end_hour"]
+        )
+
     xlsx_path = download_xlsx()
     wb = openpyxl.load_workbook(xlsx_path, data_only=True)
     print(f"  Sheets: {wb.sheetnames}")
@@ -1113,7 +1218,14 @@ def main():
     }
 
     with open("data.json", "w") as f:
-        json.dump(data, f, ensure_ascii=False, indent=None, separators=(",", ":"))
+        # Custom default: openpyxl returns datetime.time / datetime.date /
+        # datetime.datetime objects for time- and date-typed cells (e.g. the
+        # shift Start/End columns). Stringify them rather than crashing.
+        def _json_default(o):
+            if hasattr(o, 'isoformat'):
+                return o.isoformat()
+            return str(o)
+        json.dump(data, f, ensure_ascii=False, indent=None, separators=(",", ":"), default=_json_default)
 
     size = os.path.getsize("data.json")
     print(f"  ✓ Wrote data.json ({size:,} bytes)")
@@ -1181,7 +1293,7 @@ def main():
     }
     for _path, _payload in _api_endpoints.items():
         with open(_path, "w") as _f:
-            json.dump(_payload, _f, ensure_ascii=False, separators=(",", ":"))
+            json.dump(_payload, _f, ensure_ascii=False, separators=(",", ":"), default=_json_default)
     print(f"  \u2713 Wrote {len(_api_endpoints)} /api/v1/*.json files")
 
     try: os.unlink(xlsx_path)

@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0a0e1a"><title>Operational Overview · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.47">
+<link rel="stylesheet" href="assets/style.css?v=0.2.48">
 <style>
 body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-serif; margin:0; }
 .ov-shell { max-width:1500px; margin:0 auto; padding:18px; }
@@ -15,6 +15,13 @@ body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-ser
 .ov-zone-tab.active { background:rgba(56,189,248,0.3); color:#cdf1ff; border-color:rgba(56,189,248,0.55); }
 .ov-zone-tab .pill { display:inline-block; margin-left:6px; padding:1px 7px; border-radius:99px; background:rgba(99,179,237,0.2); font-size:10px; }
 .ov-zone-tab.active .pill { background:rgba(252,211,77,0.25); color:#fcd34d; }
+.ov-type-tabs { display:flex; gap:6px; flex-wrap:wrap; margin:-4px 0 14px; align-items:center; }
+.ov-type-tabs .lbl { font-size:10px; color:#6b7d9e; letter-spacing:0.08em; text-transform:uppercase; margin-right:6px; }
+.ov-type-tab { padding:6px 13px; background:rgba(15,23,42,0.5); color:#93a4cd; border:1px solid rgba(99,179,237,0.15); border-radius:99px; cursor:pointer; font-size:12px; font-weight:600; }
+.ov-type-tab:hover { background:rgba(56,189,248,0.10); color:#cdf1ff; }
+.ov-type-tab.active { background:rgba(168,85,247,0.25); color:#e9d5ff; border-color:rgba(168,85,247,0.5); }
+.ov-type-tab .pill { display:inline-block; margin-left:5px; padding:0 6px; border-radius:99px; background:rgba(99,179,237,0.18); font-size:9px; }
+.ov-type-tab.active .pill { background:rgba(168,85,247,0.35); color:#e9d5ff; }
 .ov-totals { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-bottom:18px; }
 .ov-total { background:rgba(20,28,50,0.55); border:1px solid rgba(99,179,237,0.18); border-radius:10px; padding:13px 16px; }
 .ov-total .v { font-size:26px; font-weight:800; color:#67e8f9; line-height:1.1; }
@@ -55,10 +62,10 @@ body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-ser
 <body>
 <div id="topbar"></div>
 
-<script src="assets/version.js?v=0.2.47"></script>
-<script src="assets/config.js?v=0.2.47"></script>
-<script src="assets/auth.js?v=0.2.47"></script>
-<script src="assets/topbar.js?v=0.2.47"></script>
+<script src="assets/version.js?v=0.2.48"></script>
+<script src="assets/config.js?v=0.2.48"></script>
+<script src="assets/auth.js?v=0.2.48"></script>
+<script src="assets/topbar.js?v=0.2.48"></script>
 <script>HAJJ.requireSession();</script>
 
 <div class="ov-shell">
@@ -71,6 +78,7 @@ body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-ser
   </div>
 
   <div class="ov-zone-tabs" id="ovZoneTabs"></div>
+  <div class="ov-type-tabs" id="ovTypeTabs"></div>
 
   <div class="ov-totals" id="ovTotals"></div>
 
@@ -110,6 +118,7 @@ body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-ser
   const canEdit = user && ['cluster_supervisor','dispatcher','leadership','admin'].includes(user.role);
 
   let _zone = 'all';
+  let _unitType = 'all';
   let _data = null;
 
   const ZONES = [
@@ -118,6 +127,17 @@ body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-ser
     { key: 'muzdalifah', label: 'Muzdalifah', stations: 3 },
     { key: 'mina', label: 'Mina', stations: 3 },
     { key: 'occ', label: 'OCC', stations: 1 }
+  ];
+
+  // Operational unit codes used across the dashboard. Backend "type" values:
+  // Medical = Mike, Ambulance = Alpha, Foot-Runner = Romeo. Everything else
+  // (Command, Logistics, Training, Depot, etc.) groups under "Support".
+  const TYPE_FILTERS = [
+    { key: 'all',        label: 'All',     match: null },
+    { key: 'Medical',    label: 'Mike',    match: ['Medical'] },
+    { key: 'Ambulance',  label: 'Alpha',   match: ['Ambulance'] },
+    { key: 'Foot-Runner',label: 'Romeo',   match: ['Foot-Runner'] },
+    { key: 'Support',    label: 'Support', match: null /* computed as fallback */ }
   ];
 
   function toast(msg, isErr) {
@@ -143,26 +163,107 @@ body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-ser
     });
   }
 
+  // Match a unit against the active type filter.
+  // - 'all'    → everything
+  // - 'Medical' / 'Ambulance' / 'Foot-Runner' → exact type match
+  // - 'Support' → anything that isn't one of the three operational types
+  function unitMatches(u) {
+    if (_unitType === 'all') return true;
+    const t = u.type || u.unit_type || '';
+    if (_unitType === 'Support') return !['Medical','Ambulance','Foot-Runner'].includes(t);
+    return t === _unitType;
+  }
+
+  // Build type-tab counts from current zone slice (so a Mina view shows Mina counts).
+  function buildTypeCounts() {
+    const counts = { 'all': 0, 'Medical': 0, 'Ambulance': 0, 'Foot-Runner': 0, 'Support': 0 };
+    if (!_data || !_data.by_station) return counts;
+    for (const st of _data.by_station) {
+      for (const u of (st.units || [])) {
+        counts.all += 1;
+        const t = u.type || u.unit_type || '';
+        if (t === 'Medical' || t === 'Ambulance' || t === 'Foot-Runner') counts[t] += 1;
+        else counts.Support += 1;
+      }
+    }
+    return counts;
+  }
+
+  function renderTypeTabs() {
+    const counts = buildTypeCounts();
+    const html = '<span class="lbl">Unit type</span>' + TYPE_FILTERS.map(t => {
+      const n = counts[t.key] || 0;
+      // Hide Support chip if there are no support units in current zone slice
+      if (t.key === 'Support' && n === 0) return '';
+      return `<button class="ov-type-tab ${t.key === _unitType ? 'active' : ''}" data-type="${esc(t.key)}">${esc(t.label)}<span class="pill">${n}</span></button>`;
+    }).join('');
+    const el = document.getElementById('ovTypeTabs');
+    el.innerHTML = html;
+    el.querySelectorAll('.ov-type-tab').forEach(t => {
+      t.addEventListener('click', () => {
+        _unitType = t.dataset.type;
+        renderTypeTabs();
+        rerender();   // client-side filter, no fetch needed
+      });
+    });
+  }
+
   function renderTotals(t) {
+    // If a type filter is active, recompute totals from filtered units;
+    // otherwise use the server-supplied totals directly.
+    let units, paramedics, ambulances, stations, unit_types, ambulance_types, ambulance_classes, showAmb;
+    if (_unitType === 'all') {
+      units = t.units; paramedics = t.paramedics; ambulances = t.ambulances; stations = t.stations;
+      unit_types = t.unit_types || {}; ambulance_types = t.ambulance_types || {}; ambulance_classes = t.ambulance_classes || {};
+      showAmb = true;
+    } else {
+      units = 0; paramedics = 0; ambulances = 0; stations = 0;
+      unit_types = {}; ambulance_types = {}; ambulance_classes = {};
+      // Ambulances are only relevant when looking at Alpha (Ambulance) units.
+      showAmb = (_unitType === 'Ambulance' || _unitType === 'all');
+      for (const st of (_data.by_station || [])) {
+        const matched = (st.units || []).filter(unitMatches);
+        if (!matched.length) continue;
+        stations += 1;
+        units += matched.length;
+        for (const u of matched) {
+          paramedics += (u.size || u.total || 0);
+          const ty = u.type || 'Other';
+          unit_types[ty] = (unit_types[ty] || 0) + 1;
+        }
+        if (showAmb) {
+          for (const a of (st.ambulances || [])) {
+            ambulances += 1;
+            if (a.type) ambulance_types[a.type] = (ambulance_types[a.type] || 0) + 1;
+            if (a.cls)  ambulance_classes[a.cls] = (ambulance_classes[a.cls] || 0) + 1;
+          }
+        }
+      }
+    }
+
     const items = [
-      { v: t.units, l: 'Units' },
-      { v: t.paramedics, l: 'Paramedics' },
-      { v: t.ambulances, l: 'Ambulances' },
-      { v: t.stations, l: 'Stations' }
+      { v: units, l: 'Units' },
+      { v: paramedics, l: 'Paramedics' },
     ];
-    // Unit type breakdown
-    const types = Object.entries(t.unit_types || {}).sort((a,b) => b[1] - a[1]);
-    const ambTypes = Object.entries(t.ambulance_types || {});
-    const ambCls = Object.entries(t.ambulance_classes || {});
-    document.getElementById('ovTotals').innerHTML = items.map(i =>
+    if (showAmb) items.push({ v: ambulances, l: 'Ambulances' });
+    items.push({ v: stations, l: 'Stations' });
+
+    const types = Object.entries(unit_types).sort((a,b) => b[1] - a[1]);
+    const ambTypes = Object.entries(ambulance_types);
+    const ambCls = Object.entries(ambulance_classes);
+
+    let html = items.map(i =>
       `<div class="ov-total"><div class="v">${i.v}</div><div class="l">${i.l}</div></div>`
-    ).join('') +
-    `<div class="ov-total"><div class="v">${types.length}</div><div class="l">Unit Types</div>
+    ).join('');
+    html += `<div class="ov-total"><div class="v">${types.length}</div><div class="l">Unit Types</div>
        <div class="sub">${types.slice(0,3).map(([k,v]) => k+': '+v).join(' · ')}</div>
-     </div>` +
-    `<div class="ov-total"><div class="v">${ambTypes.length || 0}</div><div class="l">Amb. Mix</div>
-       <div class="sub">${ambTypes.map(([k,v]) => k+': '+v).join(' · ')}${ambCls.length ? '<br>'+ambCls.map(([k,v]) => k+': '+v).join(' · ') : ''}</div>
      </div>`;
+    if (showAmb && (ambTypes.length || ambCls.length)) {
+      html += `<div class="ov-total"><div class="v">${ambTypes.length || 0}</div><div class="l">Amb. Mix</div>
+         <div class="sub">${ambTypes.map(([k,v]) => k+': '+v).join(' · ')}${ambCls.length ? '<br>'+ambCls.map(([k,v]) => k+': '+v).join(' · ') : ''}</div>
+       </div>`;
+    }
+    document.getElementById('ovTotals').innerHTML = html;
   }
 
   function ZONE_OF(st) {
@@ -177,29 +278,54 @@ body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-ser
   function renderStations(byStation) {
     const grid = document.getElementById('ovStations');
     if (!byStation || !byStation.length) { grid.innerHTML = '<div class="ov-empty">No stations in this zone.</div>'; return; }
-    grid.innerHTML = byStation.map(s => {
+    // Apply type filter: drop stations whose units don't match.
+    const showAmb = (_unitType === 'all' || _unitType === 'Ambulance');
+    const stations = byStation.map(s => {
+      const matched = (s.units || []).filter(unitMatches);
+      return { ...s, units: matched };
+    }).filter(s => s.units.length > 0);
+
+    if (!stations.length) {
+      grid.innerHTML = '<div class="ov-empty">No units of this type in the selected zone.</div>';
+      return;
+    }
+
+    grid.innerHTML = stations.map(s => {
       const filled = s.units.reduce((sum, u) => sum + (u.filled || 0), 0);
       const total = s.units.reduce((sum, u) => sum + (u.total || 0), 0);
+      const paras = s.units.reduce((sum, u) => sum + (u.size || u.total || 0), 0);
       const fillPct = total ? Math.round(filled / total * 100) : 0;
       const fillCls = fillPct >= 90 ? 'good' : (fillPct >= 60 ? 'warn' : 'bad');
-      const typesText = Object.entries(s.unit_types || {}).map(([k,v]) => k+': '+v).join(' · ');
-      const ambReady = s.ambulances.filter(a => a.status === 'Ready' || !a.status).length;
+      // Type breakdown (filtered)
+      const typeCounts = {};
+      s.units.forEach(u => { const t = u.type || 'Other'; typeCounts[t] = (typeCounts[t] || 0) + 1; });
+      const typesText = Object.entries(typeCounts).map(([k,v]) => k+': '+v).join(' · ');
+      const ambs = showAmb ? (s.ambulances || []) : [];
+      const ambReady = ambs.filter(a => a.status === 'Ready' || !a.status).length;
       const ambTypes = {};
-      s.ambulances.forEach(a => ambTypes[a.type] = (ambTypes[a.type] || 0) + 1);
+      ambs.forEach(a => ambTypes[a.type] = (ambTypes[a.type] || 0) + 1);
       const ambBreak = Object.entries(ambTypes).map(([k,v]) => k+': '+v).join(' · ');
       const located = s.units.filter(u => u.location).length;
       return `
         <div class="ov-station">
           <h3>${esc(s.station)} <span class="zone-tag">${esc(ZONE_OF(s.station))}</span></h3>
           <div class="row"><span>Units</span><span class="v">${s.units.length}</span></div>
-          <div class="row"><span>Paramedics on site</span><span class="v">${s.paramedics}</span></div>
-          <div class="row"><span>Roster fill</span><span class="v ${fillCls}">${filled} / ${total} (${fillPct}%)</span></div>
+          <div class="row"><span>Paramedics on site</span><span class="v">${paras}</span></div>
+          ${total ? '<div class="row"><span>Roster fill</span><span class="v '+fillCls+'">'+filled+' / '+total+' ('+fillPct+'%)</span></div>' : ''}
           ${typesText ? '<div class="breakdown">'+esc(typesText)+'</div>' : ''}
-          <div class="row" style="margin-top:6px;"><span>Ambulances</span><span class="v">${s.ambulances.length} (${ambReady} ready)</span></div>
-          ${ambBreak ? '<div class="breakdown">'+esc(ambBreak)+'</div>' : ''}
+          ${showAmb ? '<div class="row" style="margin-top:6px;"><span>Ambulances</span><span class="v">'+ambs.length+' ('+ambReady+' ready)</span></div>' : ''}
+          ${showAmb && ambBreak ? '<div class="breakdown">'+esc(ambBreak)+'</div>' : ''}
           ${located ? '<div class="row"><span>Units with exact location</span><span class="v good">'+located+'/'+s.units.length+'</span></div>' : ''}
         </div>`;
     }).join('');
+  }
+
+  // Client-side re-render (no server round-trip). Used when the user
+  // switches the unit-type chip without changing zone.
+  function rerender() {
+    if (!_data) return;
+    renderTotals(_data.totals || {});
+    renderStations(_data.by_station || []);
   }
 
   async function loadNotes() {
@@ -224,6 +350,7 @@ body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-ser
     const r = await HAJJ.authedCall('overview_summary', { zone: _zone });
     if (!r || !r.ok) { toast('Failed to load: ' + ((r && r.error) || '?'), true); return; }
     _data = r;
+    renderTypeTabs();
     renderTotals(r.totals);
     renderStations(r.by_station);
     await loadNotes();
