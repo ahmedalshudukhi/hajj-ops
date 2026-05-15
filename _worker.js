@@ -350,6 +350,7 @@ const ROLE_GATE = {
   ambulance_set_status: ['cluster_supervisor','dispatcher','leadership','admin'],
   overview_summary: null,                               // anyone signed in can read
   positioning_at: null,                                  // anyone signed in can read
+  positioning_day: null,                                 // anyone signed in can read
   card_get: null,
   cards_get_bulk: null,
   station_status_list: ['cluster_supervisor','dispatcher','leadership','admin','sar'],
@@ -460,7 +461,7 @@ const NEEDS_JSON = new Set([
   'augmentations','mobilization_plan','roster_fill','unit_availability',
   'units_list','unit_positions','active_summary','dashboard_active',
   'dashboard_dispatch','dashboard_sv','sar_summary','roster','station_status_list',
-  'unit_suggest','units_status_grid','ambulances_list','overview_summary','positioning_at'
+  'unit_suggest','units_status_grid','ambulances_list','overview_summary','positioning_at','positioning_day'
 ]);
 
 const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
@@ -1162,6 +1163,77 @@ const ACTIONS = {
       found: true, stations, by_station: byStation,
       totals: { paras: tParas, ambulances: tAmbs, units: tUnits, by_type: tType },
       meta
+    };
+  },
+
+  // ==============================================================
+  // positioning_day — full-day table view. Returns 24 hourly rows
+  // for the chosen DH, scoped to the chosen zone (or all).
+  // ==============================================================
+  async positioning_day(user, env, params, dj) {
+    const dh   = String(params.dh   || '9').replace(/[^0-9]/g, '') || '9';
+    const zone = String(params.zone || 'all').toLowerCase();
+
+    const ZONE_STATIONS = {
+      arafat:     ['ARF1','ARF2','ARF3'],
+      muzdalifah: ['MUZ1','MUZ2','MUZ3'],
+      mina:       ['MIN1','MIN2','MIN3'],
+      occ:        ['OCC']
+    };
+    const ALL_STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3','OCC'];
+    const stations = (zone === 'all') ? ALL_STATIONS : (ZONE_STATIONS[zone] || ALL_STATIONS);
+    const inZone = new Set(stations);
+
+    const hourly = (dj && dj.hourly && dj.hourly.hours) || [];
+    const allDH    = Array.from(new Set(hourly.map(r => String(r.dh).replace(' DH','')))).sort((a,b) => +a - +b);
+    const allMvts  = Array.from(new Set(hourly.map(r => r.mvt))).sort();
+
+    const dayRows = hourly.filter(r => String(r.dh) === (dh + ' DH'));
+    // Sort by hour ascending
+    dayRows.sort((a,b) => a.hour.localeCompare(b.hour));
+
+    const rows = dayRows.map(r => {
+      let paras = 0, ambs = 0;
+      stations.forEach(st => {
+        paras += (r.stations && r.stations[st]) || 0;
+        ambs  += (r.stations_amb && r.stations_amb[st]) || 0;
+      });
+      // by_type comes from r.by_type — but only scoped if we filter, which we can't
+      // do without per-station-per-type. Use the unscoped totals when zone === 'all';
+      // for a single-zone view, scale roughly via station ratio. For now we surface
+      // the unscoped by_type and a flag.
+      const by_type = r.by_type || {};
+      const perStation = {};
+      stations.forEach(st => {
+        perStation[st] = {
+          paras: (r.stations && r.stations[st]) || 0,
+          ambs:  (r.stations_amb && r.stations_amb[st]) || 0
+        };
+      });
+      return {
+        hour: r.hour,
+        mvt: r.mvt || '',
+        shift: r.shift || '',
+        units: r.units_active || 0,
+        paras,
+        ambs,
+        by_type,
+        per_station: perStation,
+        // Surface raw totals so the frontend can show all-zone metrics when zone === 'all'
+        all_paras: r.grand_s || 0,
+        all_ambs:  r.grand_a || 0,
+        all_units: r.units_active || 0
+      };
+    });
+
+    return {
+      ok: true,
+      dh: dh + ' DH',
+      zone,
+      stations,
+      zone_scoped: zone !== 'all',
+      rows,
+      meta: { dh_days: allDH, movements: allMvts }
     };
   },
 

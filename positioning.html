@@ -5,144 +5,132 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Positioning · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.44">
+<link rel="stylesheet" href="assets/style.css?v=0.2.45">
 <style>
 body { background: var(--bg); }
-
 .content { padding: 12px 14px 80px; max-width: 1280px; margin: 0 auto; }
 
-/* ---- Picker bar ---- */
+/* Picker bar */
 .picker {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 10px;
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: end;
   background: var(--surface);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius);
-  padding: 14px;
-  margin-bottom: 14px;
+  padding: 12px; margin-bottom: 14px;
 }
-.picker .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.picker .field { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
 .picker label {
   font-size: 10px; font-weight: 600; text-transform: uppercase;
   letter-spacing: 0.08em; color: var(--text-muted);
 }
-.picker select, .picker input {
+.picker select {
   background: var(--surface-2); color: var(--text);
   border: 1px solid var(--border-soft); border-radius: 8px;
-  padding: 8px 10px; font-size: 13px; font-variant-numeric: tabular-nums;
+  padding: 8px 10px; font-size: 13px;
 }
 .picker .now-btn {
-  align-self: end;
   background: rgba(59,130,246,0.18); color: #93c5fd;
   border: 1px solid rgba(59,130,246,0.4);
   border-radius: 8px; padding: 8px 14px;
   font-weight: 600; font-size: 12px; cursor: pointer;
-  transition: background 0.15s;
 }
 .picker .now-btn:hover { background: rgba(59,130,246,0.28); }
 
-/* ---- Context strip ---- */
-.context {
-  display: flex; flex-wrap: wrap; gap: 8px;
-  margin-bottom: 14px; align-items: center;
+/* Summary strip above table */
+.day-summary {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  margin-bottom: 12px;
 }
-.ctx-pill {
-  display: inline-flex; align-items: center; gap: 6px;
+.ds-pill {
   background: var(--surface); border: 1px solid var(--border-soft);
-  border-radius: 999px; padding: 6px 12px; font-size: 12px;
-  color: var(--text-dim);
+  border-radius: 999px; padding: 6px 14px;
+  font-size: 12px; color: var(--text-dim);
 }
-.ctx-pill strong { color: var(--text); font-weight: 600; }
-.ctx-pill .dot {
-  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
-  background: var(--text-muted);
-}
-.ctx-pill .dot.day   { background: var(--warning); }
-.ctx-pill .dot.night { background: #6366f1; }
+.ds-pill strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 
-/* ---- Totals row ---- */
-.totals {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 8px;
-  margin-bottom: 14px;
-}
-.tot-card {
+/* Table */
+.tbl-wrap {
   background: var(--surface);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius);
-  padding: 12px 14px;
-  border-top: 3px solid var(--info);
+  overflow: hidden;
+  overflow-x: auto;
 }
-.tot-card.units  { border-top-color: var(--success); }
-.tot-card.paras  { border-top-color: var(--info); }
-.tot-card.ambs   { border-top-color: var(--warning); }
-.tot-num {
-  font-size: 24px; font-weight: 700;
-  font-variant-numeric: tabular-nums; line-height: 1;
+table.pos {
+  width: 100%; border-collapse: collapse;
+  font-size: 13px; font-variant-numeric: tabular-nums;
 }
-.tot-label {
-  margin-top: 4px;
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
-  color: var(--text-muted);
-}
-
-/* ---- Station grid ---- */
-.station-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 10px;
-}
-.station-card {
-  background: var(--surface);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius);
-  padding: 14px;
-  display: flex; flex-direction: column; gap: 8px;
-}
-.station-card.empty { opacity: 0.55; }
-.sc-head {
-  display: flex; align-items: baseline; justify-content: space-between;
-  gap: 8px; margin-bottom: 2px;
-}
-.sc-name { font-size: 15px; font-weight: 700; letter-spacing: 0.02em; }
-.sc-zone {
-  font-size: 10px; color: var(--text-muted);
-  text-transform: uppercase; letter-spacing: 0.08em;
-}
-.sc-mainrow {
-  display: grid; grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px; align-items: end;
-  padding: 6px 0;
+table.pos th, table.pos td {
+  padding: 8px 10px; text-align: right; white-space: nowrap;
   border-bottom: 1px solid var(--border-soft);
 }
-.sc-stat { display: flex; flex-direction: column; min-width: 0; }
-.sc-stat-num {
-  font-size: 22px; font-weight: 700; line-height: 1;
-  font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
-}
-.sc-stat-lbl {
-  margin-top: 2px;
-  font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em;
+table.pos thead th {
+  background: var(--surface-2);
+  font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--text-muted);
+  position: sticky; top: 0; z-index: 2;
 }
-.sc-types {
-  display: flex; flex-wrap: wrap; gap: 4px;
-  margin-top: 4px;
+table.pos th:first-child, table.pos td:first-child {
+  text-align: left; font-weight: 600;
+  position: sticky; left: 0;
+  background: var(--surface);
+  z-index: 1;
 }
-.type-chip {
-  display: inline-flex; align-items: center; gap: 4px;
-  background: var(--surface-2); border-radius: 6px;
-  padding: 3px 8px; font-size: 11px;
-  color: var(--text-dim);
+table.pos thead th:first-child {
+  background: var(--surface-2);
+  z-index: 3;
 }
-.type-chip strong { color: var(--text); font-weight: 600; }
-.type-chip.medical    { border-left: 2px solid #22c55e; }
-.type-chip.ambulance  { border-left: 2px solid #f59e0b; }
-.type-chip.foot       { border-left: 2px solid #3b82f6; }
-.type-chip.doctor     { border-left: 2px solid #ec4899; }
-.type-chip.other      { border-left: 2px solid #94a3b8; }
+table.pos tr:hover td { background: var(--surface-2); }
+table.pos tr.day-row   td:first-child { border-left: 3px solid var(--warning); }
+table.pos tr.night-row td:first-child { border-left: 3px solid #6366f1; }
+.mvt-chip {
+  display: inline-block; padding: 2px 8px; border-radius: 6px;
+  background: var(--surface-2); color: var(--text-dim);
+  font-size: 11px; font-weight: 500;
+}
+.mvt-chip.gap    { background: rgba(148,163,184,0.15); color: #cbd5e1; }
+.mvt-chip.preb   { background: rgba(99,102,241,0.18); color: #a5b4fc; }
+.mvt-chip.bn     { background: rgba(34,197,94,0.18);  color: #86efac; } /* boarding nights B1*,B2* */
+.mvt-chip.c, .mvt-chip.d, .mvt-chip.e1, .mvt-chip.e2, .mvt-chip.e3 {
+  background: rgba(245,158,11,0.18); color: #fde68a;
+}
+.mvt-chip.demob  { background: rgba(236,72,153,0.18); color: #f9a8d4; }
+
+td.metric-zero { color: var(--text-muted); opacity: 0.5; }
+td.metric-hi   { font-weight: 600; }
+
+/* Compact mode (mobile) */
+@media (max-width: 720px) {
+  table.pos th, table.pos td { padding: 6px 8px; font-size: 12px; }
+  table.pos th.optional, table.pos td.optional { display: none; }
+}
+
+/* Per-station expander */
+.station-detail {
+  display: none;
+  padding: 12px; margin-top: 8px;
+  background: var(--surface-2);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.station-detail.open { display: block; }
+.station-detail h3 {
+  margin: 0 0 8px; font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted);
+}
+.station-grid-mini {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(110px,1fr));
+  gap: 6px;
+}
+.station-grid-mini .mini {
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.station-grid-mini .mini .nm { font-weight:600; font-size:12px; }
+.station-grid-mini .mini .sub { font-size:10px; color: var(--text-muted); margin-top:2px; }
 
 .empty-banner {
   background: var(--surface); border: 1px dashed var(--border-soft);
@@ -152,13 +140,17 @@ body { background: var(--bg); }
 </style>
 </head>
 <body>
-<script src="assets/version.js?v=0.2.44"></script>
-<script src="assets/config.js?v=0.2.44"></script>
-<script src="assets/auth.js?v=0.2.44"></script>
-<script src="assets/topbar.js?v=0.2.44"></script>
+<script src="assets/version.js?v=0.2.45"></script>
+<script src="assets/config.js?v=0.2.45"></script>
+<script src="assets/auth.js?v=0.2.45"></script>
+<script src="assets/topbar.js?v=0.2.45"></script>
 
 <div class="content">
   <div class="picker">
+    <div class="field">
+      <label for="pickDH">Hajj day</label>
+      <select id="pickDH"></select>
+    </div>
     <div class="field">
       <label for="pickZone">Zone</label>
       <select id="pickZone">
@@ -169,157 +161,194 @@ body { background: var(--bg); }
         <option value="occ">OCC / Depot</option>
       </select>
     </div>
-    <div class="field">
-      <label for="pickDH">Hajj day</label>
-      <select id="pickDH"></select>
-    </div>
-    <div class="field">
-      <label for="pickHour">Hour</label>
-      <select id="pickHour"></select>
-    </div>
-    <div class="field">
-      <label for="pickMvt">Movement filter</label>
-      <select id="pickMvt"><option value="">Any movement</option></select>
-    </div>
-    <button class="now-btn" id="btnNow">Now</button>
+    <button class="now-btn" id="btnNow">Today</button>
   </div>
 
-  <div class="context" id="contextStrip"></div>
+  <div class="day-summary" id="daySummary"></div>
 
-  <div class="totals" id="totals"></div>
+  <div class="tbl-wrap">
+    <table class="pos" id="posTable">
+      <thead>
+        <tr>
+          <th>Hour</th>
+          <th>Movement</th>
+          <th>Units</th>
+          <th>Paras</th>
+          <th>Ambs</th>
+          <th>Doctors</th>
+          <th>Mike</th>
+          <th>Alpha</th>
+          <th>Romeo</th>
+        </tr>
+      </thead>
+      <tbody id="posBody">
+        <tr><td colspan="9" style="text-align:center; color:var(--text-muted); padding:24px;">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
 
-  <div id="grid" class="station-grid"></div>
+  <div class="station-detail" id="stationDetail"></div>
 </div>
 
 <script>
 (function () {
   HAJJ.requireSession();
-  CADTopbar.render({ title: "Positioning", subtitle: "schedule view" });
+  CADTopbar.render({ title: "Positioning", subtitle: "schedule day view" });
 
-  const ZONE_OF = {
-    ARF1:'Arafat',ARF2:'Arafat',ARF3:'Arafat',
-    MUZ1:'Muzdalifah',MUZ2:'Muzdalifah',MUZ3:'Muzdalifah',
-    MIN1:'Mina',MIN2:'Mina',MIN3:'Mina',
-    OCC:'OCC'
-  };
-  const TYPE_CSS = {
-    'Medical':'medical','Ambulance':'ambulance','Foot-Runner':'foot',
-    'Doctor':'doctor','Training':'other','Dispatch OCC':'other',
-    'PM':'other','Deputy PM':'other','Admin Lead':'other',
-    'Med Direction Lead':'other','Chief Paramedic':'other','Deputy Chief Paramedic':'other'
-  };
+  const $ = id => document.getElementById(id);
+  let _metaLoaded = false;
+  let _lastRows = [];
+  let _selectedHour = null;
 
-  let _meta = null;
+  // Hardcode DH days as a fallback before first response — populated for real after
+  $('pickDH').innerHTML = ['4','5','6','7','8','9','10','11','12','13','14']
+    .map(v => '<option value="' + v + '">DH ' + v + '</option>').join('');
+  $('pickDH').value = '9'; // sensible default
 
-  document.getElementById('pickZone').addEventListener('change', refresh);
-  document.getElementById('pickDH').addEventListener('change', refresh);
-  document.getElementById('pickHour').addEventListener('change', refresh);
-  document.getElementById('pickMvt').addEventListener('change', refresh);
-  document.getElementById('btnNow').addEventListener('click', jumpToNow);
+  $('pickDH').addEventListener('change', refresh);
+  $('pickZone').addEventListener('change', refresh);
+  $('btnNow').addEventListener('click', jumpToNow);
 
-  // First call with defaults to populate dropdowns + paint
   refresh();
 
   async function refresh() {
-    const zone = document.getElementById('pickZone').value || 'all';
-    const dh   = document.getElementById('pickDH').value  || '9';
-    const hour = document.getElementById('pickHour').value || '08:00';
-    const mvt  = document.getElementById('pickMvt').value || '';
-    const r = await HAJJ.authedCall('positioning_at', { zone, dh, hour, mvt });
-    if (!r || !r.ok) { renderEmpty('Sync failed'); return; }
+    const dh   = $('pickDH').value || '9';
+    const zone = $('pickZone').value || 'all';
+    setLoading();
 
-    // Populate dropdowns on first response (preserves current selections)
-    if (r.meta && !_meta) {
-      _meta = r.meta;
-      populateDropdown('pickDH', r.meta.dh_days, dh);
-      populateDropdown('pickHour', r.meta.hours, hour);
-      populateDropdown('pickMvt', [''].concat(r.meta.movements), mvt, true);
+    const r = await HAJJ.authedCall('positioning_day', { dh, zone });
+    if (!r || !r.ok) { renderError('Sync failed'); return; }
+
+    // Populate DH dropdown from meta on first response (uses what's actually in data)
+    if (r.meta && !_metaLoaded) {
+      _metaLoaded = true;
+      const cur = $('pickDH').value;
+      $('pickDH').innerHTML = (r.meta.dh_days || []).map(v =>
+        '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>DH ' + v + '</option>'
+      ).join('');
     }
 
-    paintContext(r);
-    paintTotals(r);
-    paintGrid(r);
+    _lastRows = r.rows || [];
+    paintSummary(r);
+    paintTable(r);
+    if (_selectedHour) {
+      const hit = _lastRows.find(x => x.hour === _selectedHour);
+      if (hit) paintStationDetail(hit, r.stations);
+      else hideDetail();
+    }
   }
 
-  function populateDropdown(id, values, current, includeAnyOption) {
-    const el = document.getElementById(id);
-    el.innerHTML = values.map(function(v) {
-      const label = (id === 'pickMvt' && !v) ? 'Any movement' : (id === 'pickDH' ? ('DH ' + v) : v);
-      const sel = (String(v) === String(current)) ? ' selected' : '';
-      return '<option value="' + v + '"' + sel + '>' + label + '</option>';
+  function setLoading() {
+    $('posBody').innerHTML = '<tr><td colspan="9" style="text-align:center; color:var(--text-muted); padding:24px;">Loading…</td></tr>';
+  }
+  function renderError(msg) {
+    $('posBody').innerHTML = '<tr><td colspan="9" style="text-align:center; color:var(--text-muted); padding:24px;">' + msg + '</td></tr>';
+  }
+
+  function paintSummary(r) {
+    const rows = r.rows || [];
+    const peak = rows.reduce((acc, x) => x.paras > acc.paras ? x : acc, { paras: 0, hour: '—' });
+    const peakAmb = rows.reduce((acc, x) => x.ambs > acc.ambs ? x : acc, { ambs: 0, hour: '—' });
+    const totalUnitHours = rows.reduce((sum, x) => sum + x.paras, 0);
+
+    $('daySummary').innerHTML = ''
+      + '<span class="ds-pill"><strong>' + r.dh + '</strong></span>'
+      + '<span class="ds-pill">Zone: <strong>' + (r.zone === 'all' ? 'All' : (r.zone.charAt(0).toUpperCase() + r.zone.slice(1))) + '</strong></span>'
+      + '<span class="ds-pill">Peak paras: <strong>' + peak.paras + '</strong> @ ' + peak.hour + '</span>'
+      + '<span class="ds-pill">Peak ambs: <strong>' + peakAmb.ambs + '</strong> @ ' + peakAmb.hour + '</span>'
+      + '<span class="ds-pill">Total para-hours: <strong>' + totalUnitHours + '</strong></span>';
+  }
+
+  function paintTable(r) {
+    const rows = r.rows || [];
+    if (!rows.length) {
+      $('posBody').innerHTML = '<tr><td colspan="9" style="text-align:center; color:var(--text-muted); padding:24px;">No hours in this day.</td></tr>';
+      return;
+    }
+    $('posBody').innerHTML = rows.map(x => {
+      const isNight = x.shift === 'NIGHT' || (parseInt(x.hour, 10) >= 18 || parseInt(x.hour, 10) < 6);
+      const cls = isNight ? 'night-row' : 'day-row';
+      const t = x.by_type || {};
+      const doctors = (t['Doctor'] || 0);
+      const mike    = (t['Medical'] || 0);
+      const alpha   = (t['Ambulance'] || 0);
+      const romeo   = (t['Foot-Runner'] || 0);
+      return ''
+        + '<tr class="' + cls + '" data-hour="' + x.hour + '">'
+        +   '<td>' + x.hour + '</td>'
+        +   '<td><span class="mvt-chip ' + mvtClass(x.mvt) + '">' + (x.mvt || '—') + '</span></td>'
+        +   cell(x.units)
+        +   cell(x.paras)
+        +   cell(x.ambs)
+        +   cell(doctors)
+        +   cell(mike)
+        +   cell(alpha)
+        +   cell(romeo)
+        + '</tr>';
     }).join('');
+
+    // Click a row → show station detail panel
+    Array.from(document.querySelectorAll('#posBody tr')).forEach(tr => {
+      tr.addEventListener('click', () => {
+        const hour = tr.getAttribute('data-hour');
+        const row = rows.find(x => x.hour === hour);
+        if (row) {
+          _selectedHour = hour;
+          paintStationDetail(row, r.stations);
+        }
+      });
+    });
+  }
+
+  function cell(n) {
+    const v = n || 0;
+    if (!v) return '<td class="metric-zero">' + v + '</td>';
+    if (v >= 20) return '<td class="metric-hi">' + v + '</td>';
+    return '<td>' + v + '</td>';
+  }
+
+  function mvtClass(mvt) {
+    if (!mvt) return 'gap';
+    const m = mvt.toLowerCase();
+    if (m === 'gap')   return 'gap';
+    if (m === 'pre-b') return 'preb';
+    if (m === 'demob') return 'demob';
+    if (m.startsWith('b1') || m.startsWith('b2')) return 'bn';
+    if (m === 'c') return 'c';
+    if (m === 'd') return 'd';
+    if (m === 'e1') return 'e1';
+    if (m === 'e2') return 'e2';
+    if (m === 'e3') return 'e3';
+    return '';
+  }
+
+  function paintStationDetail(row, stations) {
+    const ps = row.per_station || {};
+    const cards = (stations || []).map(st => {
+      const s = ps[st] || { paras: 0, ambs: 0 };
+      return ''
+        + '<div class="mini">'
+        +   '<div class="nm">' + st + '</div>'
+        +   '<div class="sub"><strong>' + s.paras + '</strong> paras · <strong>' + s.ambs + '</strong> ambs</div>'
+        + '</div>';
+    }).join('');
+    $('stationDetail').className = 'station-detail open';
+    $('stationDetail').innerHTML = '<h3>Per-station — ' + row.hour + ' · movement ' + (row.mvt || '—') + '</h3>'
+      + '<div class="station-grid-mini">' + cards + '</div>';
+  }
+
+  function hideDetail() {
+    $('stationDetail').className = 'station-detail';
+    $('stationDetail').innerHTML = '';
   }
 
   function jumpToNow() {
-    // Hajj DH1 = 2026-05-27 (Arabia Standard Time, UTC+3) — adjust if calendar shifts
     const DH1 = new Date('2026-05-27T00:00:00+03:00');
     const now = new Date();
     const days = Math.floor((now - DH1) / 86400000) + 1;
     const dh = String(Math.max(4, Math.min(14, days)));
-    const h  = String(now.getHours()).padStart(2,'0') + ':00';
-    document.getElementById('pickDH').value = dh;
-    document.getElementById('pickHour').value = h;
+    $('pickDH').value = dh;
     refresh();
-  }
-
-  function paintContext(r) {
-    const strip = document.getElementById('contextStrip');
-    const isDay = r.slot === 'slot1';
-    const parts = [
-      '<span class="ctx-pill"><span class="dot ' + (isDay ? 'day' : 'night') + '"></span><strong>' + (r.dh || '—') + ' · ' + (r.hour || '—') + '</strong></span>',
-      '<span class="ctx-pill">Shift: <strong>' + (r.shift || (isDay?'DAY':'NIGHT')) + '</strong></span>'
-    ];
-    if (r.mvt)  parts.push('<span class="ctx-pill">Movement: <strong>' + r.mvt + '</strong></span>');
-    if (r.zone && r.zone !== 'all') parts.push('<span class="ctx-pill">Zone: <strong>' + r.zone.charAt(0).toUpperCase() + r.zone.slice(1) + '</strong></span>');
-    strip.innerHTML = parts.join('');
-  }
-
-  function paintTotals(r) {
-    const t = r.totals || {};
-    const types = t.by_type || {};
-    const typeBits = Object.entries(types)
-      .sort(function(a,b){ return b[1]-a[1]; })
-      .map(function(kv){ return '<span class="type-chip ' + (TYPE_CSS[kv[0]]||'other') + '">' + kv[0] + ' <strong>' + kv[1] + '</strong></span>'; })
-      .join('');
-    document.getElementById('totals').innerHTML =
-      '<div class="tot-card units"><div class="tot-num">' + (t.units||0) + '</div><div class="tot-label">Units active</div></div>' +
-      '<div class="tot-card paras"><div class="tot-num">' + (t.paras||0) + '</div><div class="tot-label">Paramedics + GPs</div></div>' +
-      '<div class="tot-card ambs"><div class="tot-num">' + (t.ambulances||0) + '</div><div class="tot-label">Ambulances</div></div>' +
-      (typeBits ? '<div class="tot-card" style="grid-column: span 2;"><div class="sc-types">' + typeBits + '</div><div class="tot-label" style="margin-top:6px;">By unit type</div></div>' : '');
-  }
-
-  function paintGrid(r) {
-    const stations = r.by_station || [];
-    if (!stations.length || !r.found) {
-      document.getElementById('grid').innerHTML =
-        '<div class="empty-banner" style="grid-column: 1/-1;">' +
-        (r.reason === 'mvt_mismatch'
-           ? 'This hour does not fall in movement <strong>' + (document.getElementById('pickMvt').value || '—') + '</strong>. Try a different movement or set to <em>Any</em>.'
-           : 'No schedule entry found for this hour. Try a different DH day or hour.') +
-        '</div>';
-      return;
-    }
-    document.getElementById('grid').innerHTML = stations.map(function(s) {
-      const isEmpty = !s.units && !s.paras && !s.ambulances;
-      const typeBits = Object.entries(s.by_type || {})
-        .sort(function(a,b){ return b[1]-a[1]; })
-        .map(function(kv){ return '<span class="type-chip ' + (TYPE_CSS[kv[0]]||'other') + '">' + kv[0] + ' <strong>' + kv[1] + '</strong></span>'; })
-        .join('');
-      return '<div class="station-card ' + (isEmpty ? 'empty' : '') + '">'
-        + '<div class="sc-head"><div class="sc-name">' + s.station + '</div><div class="sc-zone">' + (ZONE_OF[s.station]||'') + '</div></div>'
-        + '<div class="sc-mainrow">'
-        +   '<div class="sc-stat"><div class="sc-stat-num">' + s.units + '</div><div class="sc-stat-lbl">Units</div></div>'
-        +   '<div class="sc-stat"><div class="sc-stat-num">' + s.paras + '</div><div class="sc-stat-lbl">Paras</div></div>'
-        +   '<div class="sc-stat"><div class="sc-stat-num">' + s.ambulances + '</div><div class="sc-stat-lbl">Ambs</div></div>'
-        + '</div>'
-        + (typeBits ? '<div class="sc-types">' + typeBits + '</div>' : '<div class="sc-types"><span class="type-chip other">— off-duty —</span></div>')
-        + '</div>';
-    }).join('');
-  }
-
-  function renderEmpty(msg) {
-    document.getElementById('grid').innerHTML =
-      '<div class="empty-banner" style="grid-column: 1/-1;">' + msg + '</div>';
   }
 })();
 </script>

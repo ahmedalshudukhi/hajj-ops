@@ -275,10 +275,11 @@ def compute_org_structure(units_rows):
                     "total":total_paras,"notes":f"{m['M']} Mike + {m['A']} Alpha + {m['R']} Romeo = {total_units} units"})
     return out
 
-def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows):
+def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_rows=None):
     shift_map = {s(r.get("Code")): (r.get("Start"), r.get("End")) for r in shifts_rows if s(r.get("Code"))}
     unit_size = {s(u.get("Unit ID")): int(num(u.get("Size", 2))) for u in units_rows}
     unit_home = {s(u.get("Unit ID")): s(u.get("Home Station")) for u in units_rows}
+    unit_type = {s(u.get("Unit ID")): s(u.get("Unit Type")) for u in units_rows}
     schedule = defaultdict(lambda: defaultdict(list))
     for r in schedule_rows:
         uid = s(r.get("Unit ID"))
@@ -288,13 +289,26 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows):
                 code = s(r.get(f"{dh}DH-S{slot}"))
                 if code: schedule[uid][dh].append(code)
 
-    DH_RANGE = list(range(4, 14))
+    # Index ambulances by home station for hourly active-amb counts
+    amb_by_home = defaultdict(list)
+    for a in (ambulance_rows or []):
+        home = s(a.get("Home Station"))
+        if not home: continue
+        amb_by_home[home].append({
+            "id": s(a.get("Ambulance ID")),
+            "day_crew": s(a.get("Day Alpha Crew")),
+            "night_crew": s(a.get("Night Alpha Crew")),
+        })
+
+    DH_RANGE = list(range(4, 15))  # DH 4 through DH 14 inclusive
     out_hours = []
     for dh in DH_RANGE:
+        # DH 4-7: pre-mob, day-hours only. DH 8-14: full 24h.
         start_hour = 6 if dh in [4,5,6,7] else 0
         end_hour = 18 if dh in [4,5,6,7] else 24
         for h in range(start_hour, end_hour):
-            mvt_code = "PRE-B"; shift_label = "DAY" if 6 <= h < 18 else "NIGHT"
+            # Default to "GAP" when no movement phase covers this hour (not "PRE-B")
+            mvt_code = "GAP"; shift_label = "DAY" if 6 <= h < 18 else "NIGHT"
             for ph in MOVEMENT_PHASES:
                 sd = int(ph["start_dh"].split()[0]); ed = int(ph["end_dh"].split()[0])
                 sh_p = int(ph["start_hour"].split(":")[0]); eh_p = int(ph["end_hour"].split(":")[0])
@@ -302,8 +316,13 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows):
                 if start <= cur <= end:
                     mvt_code = ph["mvt"]; shift_label = ph["shift"]
                     break
+
             zones = {"Arafat":0, "Muzdalifah":0, "Mina":0, "Support":0}
             stations = {st:0 for st in STATIONS}
+            stations_amb = {st:0 for st in STATIONS}
+            by_type = defaultdict(int)
+            active_units = set()
+
             for uid, day_shifts in schedule.items():
                 if dh not in day_shifts: continue
                 covers_hour = False
@@ -314,8 +333,11 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows):
                             covers_hour = True
                             break
                 if not covers_hour: continue
+                active_units.add(uid)
                 size = unit_size.get(uid, 2)
                 home = unit_home.get(uid, "")
+                utype = unit_type.get(uid, "") or "Other"
+                by_type[utype] += 1
                 if home.startswith("ARF"):
                     zones["Arafat"] += size
                     if home in stations: stations[home] += size
@@ -327,14 +349,33 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows):
                     if home in stations: stations[home] += size
                 else:
                     zones["Support"] += size
+
+            # Ambulance presence: amb is at its home if EITHER crew is on duty.
+            # Checking both crews handles shift boundary hours (06, 18) where the
+            # outgoing and incoming shifts overlap.
+            for st, ambs in amb_by_home.items():
+                if st not in stations_amb: continue
+                for a in ambs:
+                    day_crew = a["day_crew"]; night_crew = a["night_crew"]
+                    if (day_crew and day_crew in active_units) or (night_crew and night_crew in active_units):
+                        stations_amb[st] += 1
+
+            arf_a = stations_amb.get("ARF1",0)+stations_amb.get("ARF2",0)+stations_amb.get("ARF3",0)
+            muz_a = stations_amb.get("MUZ1",0)+stations_amb.get("MUZ2",0)+stations_amb.get("MUZ3",0)
+            min_a = stations_amb.get("MIN1",0)+stations_amb.get("MIN2",0)+stations_amb.get("MIN3",0)
+            grand_a = sum(stations_amb.values())
+
             out_hours.append({
                 "dh":f"{dh} DH","hour":f"{h:02d}:00","mvt":mvt_code,"shift":shift_label,
                 "label":f"{dh} DH {h:02d}:00",
                 "arf_s":zones["Arafat"],"muz_s":zones["Muzdalifah"],"min_s":zones["Mina"],
-                "arf_a":0,"muz_a":0,"min_a":0,"rov_c":0,"fwd_c":0,"dep_c":0,
+                "arf_a":arf_a,"muz_a":muz_a,"min_a":min_a,
+                "rov_c":0,"fwd_c":0,"dep_c":0,
                 "support":zones["Support"],"rov_a":0,"fwd_a":0,"dep_a":0,
-                "stations":stations, "stations_amb":{st:0 for st in STATIONS},
-                "grand_s":sum(zones.values()),"grand_a":0,
+                "stations":stations, "stations_amb":stations_amb,
+                "grand_s":sum(zones.values()),"grand_a":grand_a,
+                "by_type": dict(by_type),
+                "units_active": len(active_units),
             })
 
     return {
@@ -1020,7 +1061,7 @@ def main():
     org = compute_org_structure(units)
     aug = compute_augmentations(augs)
     status_counts = compute_status_counts(units)
-    hourly = build_hourly(staff, schedule, shifts, units)
+    hourly = build_hourly(staff, schedule, shifts, units, ambulances)
     stations_detail = compute_stations_detail(units, staff, unit_readiness)
     ambulance_roster, amb_by_station, amb_by_station_type = compute_ambulance_data(ambulances, units)
     units_detail = compute_units_detail(units, staff)

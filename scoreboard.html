@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Scoreboard</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.44">
+<link rel="stylesheet" href="assets/style.css?v=0.2.45">
 <style>
 body { background:#0a0e1a; color:#e7ecf7; font-family:Inter,system-ui,sans-serif; }
 .sc-shell { max-width:1280px; margin:0 auto; padding:20px; }
@@ -33,10 +33,10 @@ body { background:#0a0e1a; color:#e7ecf7; font-family:Inter,system-ui,sans-serif
   <div class="sc-board"><h2>By Cluster</h2><div class="sc-row head"><div>Rank</div><div>Cluster</div><div>Total</div><div>Closed (%)</div><div>Red</div><div>Cardiac</div><div>—</div></div><div id="scClusters"></div></div>
   <div class="sc-board"><h2>Top Units</h2><div class="sc-row head"><div>Rank</div><div>Unit</div><div>Total</div><div>Closed (%)</div><div>Red</div><div>—</div><div>—</div></div><div id="scUnits"></div></div>
 </div>
-<script src="assets/auth.js?v=0.2.44"></script>
-<script src="assets/shortcuts.js?v=0.2.44"></script>
-<script src="assets/topbar.js?v=0.2.44"></script>
-<script src="assets/version.js?v=0.2.44"></script>
+<script src="assets/auth.js?v=0.2.45"></script>
+<script src="assets/shortcuts.js?v=0.2.45"></script>
+<script src="assets/topbar.js?v=0.2.45"></script>
+<script src="assets/version.js?v=0.2.45"></script>
 <script>
 (async function() {
   if (!await HAJJ.requireRole(['cluster_supervisor','dispatcher','leadership','admin'])) return;
