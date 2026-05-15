@@ -384,6 +384,18 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
             "night_crew": s(a.get("Night Alpha Crew")),
         })
 
+    # Sites that get per-station detail (9 clinical + OCC depot).
+    SITES = STATIONS + ["OCC"]
+
+    # Static physical ambulance count per site: ambulances are parked at
+    # their home station 24/7, independent of which crew is currently on
+    # duty. The earlier "crewed count" hid 5+ ambulances during shift gaps,
+    # which was misleading — the vehicles never left.
+    static_amb_by_home = {st: 0 for st in SITES}
+    for st, ambs in amb_by_home.items():
+        if st in static_amb_by_home:
+            static_amb_by_home[st] = len(ambs)
+
     DH_RANGE = list(range(4, 15))  # DH 4 through DH 14 inclusive
     out_hours = []
     for dh in DH_RANGE:
@@ -391,19 +403,20 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
         start_hour = 6 if dh in [4,5,6,7] else 0
         end_hour = 18 if dh in [4,5,6,7] else 24
         for h in range(start_hour, end_hour):
-            # Default to "GAP" when no movement phase covers this hour (not "PRE-B")
+            # Movement window: half-open [start, end). So a phase that ends
+            # at end_hour does NOT cover end_hour itself — that hour belongs
+            # to whatever phase starts there (or GAP if none).
             mvt_code = "GAP"; shift_label = "DAY" if 6 <= h < 18 else "NIGHT"
             for ph in MOVEMENT_PHASES:
                 sd = int(ph["start_dh"].split()[0]); ed = int(ph["end_dh"].split()[0])
                 sh_p = int(ph["start_hour"].split(":")[0]); eh_p = int(ph["end_hour"].split(":")[0])
                 cur = dh*100 + h; start = sd*100 + sh_p; end = ed*100 + eh_p
-                if start <= cur <= end:
+                if start <= cur < end:
                     mvt_code = ph["mvt"]; shift_label = ph["shift"]
                     break
 
             zones = {"Arafat":0, "Muzdalifah":0, "Mina":0, "Support":0}
-            stations = {st:0 for st in STATIONS}
-            stations_amb = {st:0 for st in STATIONS}
+            stations = {st:0 for st in SITES}
             by_type = defaultdict(int)
             by_zone_type = {
                 "Arafat": defaultdict(int),
@@ -412,17 +425,23 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
                 "Support": defaultdict(int),
             }
             active_units = set()
+            # Per-site detail: track everything operationally useful.
+            sd_paras       = {st: 0 for st in SITES}
+            sd_by_type     = {st: defaultdict(int) for st in SITES}
+            sd_units       = {st: [] for st in SITES}
+            sd_shifts      = {st: set() for st in SITES}
+            sd_has_medical = {st: False for st in SITES}
 
             for uid, day_shifts in schedule.items():
                 if dh not in day_shifts: continue
-                covers_hour = False
+                matched_shift = None
                 for code in day_shifts[dh]:
                     if code in shift_map:
                         start_t, end_t = shift_map[code]
                         if shift_covers_hour(start_t, end_t, h):
-                            covers_hour = True
+                            matched_shift = code
                             break
-                if not covers_hour: continue
+                if not matched_shift: continue
                 active_units.add(uid)
                 size = unit_size.get(uid, 2)
                 home = unit_home.get(uid, "")
@@ -432,25 +451,59 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
                 by_zone_type[zone_name][utype] += 1
                 if home.startswith("ARF"):
                     zones["Arafat"] += size
-                    if home in stations: stations[home] += size
                 elif home.startswith("MUZ"):
                     zones["Muzdalifah"] += size
-                    if home in stations: stations[home] += size
                 elif home.startswith("MIN"):
                     zones["Mina"] += size
-                    if home in stations: stations[home] += size
                 else:
                     zones["Support"] += size
+                if home in stations:
+                    stations[home] += size
+                    sd_paras[home] += size
+                    sd_by_type[home][utype] += 1
+                    sd_units[home].append(uid)
+                    sd_shifts[home].add(matched_shift)
+                    if utype == "Medical":
+                        sd_has_medical[home] = True
 
-            # Ambulance presence: amb is at its home if EITHER crew is on duty.
-            # Checking both crews handles shift boundary hours (06, 18) where the
-            # outgoing and incoming shifts overlap.
+            # Crewed ambulance presence at each station (kept as a secondary
+            # metric — the "currently has a crew on duty" view). The main
+            # `stations_amb` field below uses the static physical count.
+            stations_amb_crewed = {st: 0 for st in SITES}
             for st, ambs in amb_by_home.items():
-                if st not in stations_amb: continue
+                if st not in stations_amb_crewed: continue
                 for a in ambs:
                     day_crew = a["day_crew"]; night_crew = a["night_crew"]
                     if (day_crew and day_crew in active_units) or (night_crew and night_crew in active_units):
-                        stations_amb[st] += 1
+                        stations_amb_crewed[st] += 1
+
+            # Physical ambulance count per site (constant across hours).
+            stations_amb = dict(static_amb_by_home)
+
+            # Doctors per station: each clinical site has a day GP and a
+            # night GP assigned (see GP_COVERAGE). A doctor counts as
+            # "on duty at hour h at station s" when any Medical unit is
+            # active at s — i.e. the GP is paired with the active Mike unit.
+            stations_doctors = {st: (1 if sd_has_medical.get(st) else 0) for st in SITES}
+            # OCC has GP-10 day / GP-20 night even if there's no Medical
+            # "unit" object — depot ops, surveillance role.
+            if "OCC" in stations_doctors and stations_doctors["OCC"] == 0:
+                # Active during ops days regardless; standing presence rule.
+                if dh >= 7: stations_doctors["OCC"] = 1
+            total_doctors = sum(stations_doctors.values())
+
+            # Build per-site detail blob for the positioning view's expander.
+            stations_detail = {}
+            for st in SITES:
+                stations_detail[st] = {
+                    "paras":          sd_paras[st],
+                    "by_type":        dict(sd_by_type[st]),
+                    "doctors":        stations_doctors[st],
+                    "amb_present":    static_amb_by_home.get(st, 0),
+                    "amb_crewed":     stations_amb_crewed[st],
+                    "active_units":   sorted(sd_units[st]),
+                    "active_shifts":  sorted(sd_shifts[st]),
+                }
 
             arf_a = stations_amb.get("ARF1",0)+stations_amb.get("ARF2",0)+stations_amb.get("ARF3",0)
             muz_a = stations_amb.get("MUZ1",0)+stations_amb.get("MUZ2",0)+stations_amb.get("MUZ3",0)
@@ -465,6 +518,10 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
                 "rov_c":0,"fwd_c":0,"dep_c":0,
                 "support":zones["Support"],"rov_a":0,"fwd_a":0,"dep_a":0,
                 "stations":stations, "stations_amb":stations_amb,
+                "stations_amb_crewed": stations_amb_crewed,
+                "stations_doctors":    stations_doctors,
+                "stations_detail":     stations_detail,
+                "doctors":             total_doctors,
                 "grand_s":sum(zones.values()),"grand_a":grand_a,
                 "by_type": dict(by_type),
                 "by_zone_type": {z: dict(d) for z, d in by_zone_type.items()},

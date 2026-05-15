@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Positioning · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.47">
+<link rel="stylesheet" href="assets/style.css?v=0.2.49">
 <style>
 body { background: var(--bg); }
 .content { padding: 12px 14px 80px; max-width: 1280px; margin: 0 auto; }
@@ -132,6 +132,23 @@ td.off-duty    { color: var(--text-muted); font-style: italic; }
 }
 .station-grid-mini .mini .nm { font-weight:600; font-size:12px; }
 .station-grid-mini .mini .sub { font-size:10px; color: var(--text-muted); margin-top:2px; }
+.station-grid-mini .mini .sub-types {
+  display: flex; gap: 6px; margin-top: 6px;
+  font-size: 10px; color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.station-grid-mini .mini .sub-types span {
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 4px; padding: 1px 5px;
+}
+.station-grid-mini .mini .sub-shifts {
+  font-size: 9px; color: var(--text-muted);
+  margin-top: 4px; opacity: 0.7;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: -0.02em;
+}
+.station-grid-mini .mini.mini-empty { opacity: 0.45; }
 
 .empty-banner {
   background: var(--surface); border: 1px dashed var(--border-soft);
@@ -141,10 +158,10 @@ td.off-duty    { color: var(--text-muted); font-style: italic; }
 </style>
 </head>
 <body>
-<script src="assets/version.js?v=0.2.47"></script>
-<script src="assets/config.js?v=0.2.47"></script>
-<script src="assets/auth.js?v=0.2.47"></script>
-<script src="assets/topbar.js?v=0.2.47"></script>
+<script src="assets/version.js?v=0.2.49"></script>
+<script src="assets/config.js?v=0.2.49"></script>
+<script src="assets/auth.js?v=0.2.49"></script>
+<script src="assets/topbar.js?v=0.2.49"></script>
 
 <div class="content">
   <div class="picker">
@@ -342,15 +359,37 @@ td.off-duty    { color: var(--text-muted); font-style: italic; }
   function paintStationDetail(row, stations) {
     const ps = row.per_station || {};
     const cards = (stations || []).map(st => {
-      const s = ps[st] || { paras: 0, ambs: 0 };
+      const s = ps[st] || { paras: 0, ambs: 0, ambs_crewed: 0, doctors: 0, by_type: {}, active_units: [], active_shifts: [] };
+      const bt = s.by_type || {};
+      const mike  = bt['Medical']     || 0;
+      const alpha = bt['Ambulance']   || 0;
+      const romeo = bt['Foot-Runner'] || 0;
+      const other = Object.entries(bt)
+        .filter(([k]) => !['Medical','Ambulance','Foot-Runner'].includes(k))
+        .reduce((a, [,v]) => a + v, 0);
+      const ambCrewedTxt = (s.ambs_crewed === s.ambs)
+        ? String(s.ambs)
+        : (s.ambs + ' (' + s.ambs_crewed + ' crewed)');
+      const docDot = s.doctors > 0 ? '🩺 ' : '';
+      const shiftsTxt = (s.active_shifts || []).join(', ') || '—';
+      const empty = s.paras === 0 && s.ambs === 0;
       return ''
-        + '<div class="mini">'
-        +   '<div class="nm">' + st + '</div>'
-        +   '<div class="sub"><strong>' + s.paras + '</strong> paras · <strong>' + s.ambs + '</strong> ambs</div>'
+        + '<div class="mini' + (empty ? ' mini-empty' : '') + '">'
+        +   '<div class="nm">' + st + ' <span class="sub">· ' + docDot + (s.doctors||0) + ' GP</span></div>'
+        +   '<div class="sub"><strong>' + s.paras + '</strong> paras · <strong>' + ambCrewedTxt + '</strong> amb</div>'
+        +   '<div class="sub-types">'
+        +     '<span title="Mike">M ' + mike + '</span>'
+        +     '<span title="Alpha">A ' + alpha + '</span>'
+        +     '<span title="Romeo">R ' + romeo + '</span>'
+        +     (other ? '<span title="Other">+' + other + '</span>' : '')
+        +   '</div>'
+        +   '<div class="sub-shifts" title="Active shift codes at this hour">shifts: ' + shiftsTxt + '</div>'
         + '</div>';
     }).join('');
     $('stationDetail').className = 'station-detail open';
-    $('stationDetail').innerHTML = '<h3>Per-station — ' + row.hour + ' · movement ' + (row.mvt || '—') + '</h3>'
+    $('stationDetail').innerHTML = ''
+      + '<h3>Per-station — ' + row.hour + ' · movement ' + (row.mvt || '—') + ' · '
+      +   row.paras + ' paras · ' + row.ambs + ' amb · ' + row.doctors + ' doctors</h3>'
       + '<div class="station-grid-mini">' + cards + '</div>';
   }
 

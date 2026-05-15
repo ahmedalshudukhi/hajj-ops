@@ -1208,10 +1208,12 @@ const ACTIONS = {
     dayRows.sort((a,b) => a.hour.localeCompare(b.hour));
 
     const rows = dayRows.map(r => {
-      let paras = 0, ambs = 0;
+      let paras = 0, ambs = 0, ambs_crewed = 0, doctors = 0;
       stations.forEach(st => {
-        paras += (r.stations && r.stations[st]) || 0;
-        ambs  += (r.stations_amb && r.stations_amb[st]) || 0;
+        paras       += (r.stations && r.stations[st]) || 0;
+        ambs        += (r.stations_amb && r.stations_amb[st]) || 0;
+        ambs_crewed += (r.stations_amb_crewed && r.stations_amb_crewed[st]) || 0;
+        doctors     += (r.stations_doctors && r.stations_doctors[st]) || 0;
       });
 
       // Compute zone-scoped by_type using r.by_zone_type when available, else fall back
@@ -1225,12 +1227,21 @@ const ACTIONS = {
         // Older data.json without by_zone_type — use unscoped by_type
         by_type = r.by_type || {};
       }
+      // Surface doctor count as a synthetic by_type key so the table picks
+      // it up alongside Mike/Alpha/Romeo.
+      by_type['Doctor'] = doctors;
 
       const perStation = {};
       stations.forEach(st => {
+        const detail = (r.stations_detail && r.stations_detail[st]) || null;
         perStation[st] = {
           paras: (r.stations && r.stations[st]) || 0,
-          ambs:  (r.stations_amb && r.stations_amb[st]) || 0
+          ambs:  (r.stations_amb && r.stations_amb[st]) || 0,
+          ambs_crewed:  (r.stations_amb_crewed && r.stations_amb_crewed[st]) || 0,
+          doctors:      (r.stations_doctors && r.stations_doctors[st]) || 0,
+          by_type:      (detail && detail.by_type) || {},
+          active_units: (detail && detail.active_units) || [],
+          active_shifts:(detail && detail.active_shifts) || [],
         };
       });
 
@@ -1241,6 +1252,8 @@ const ACTIONS = {
         units: r.units_active || 0,
         paras,
         ambs,
+        ambs_crewed,
+        doctors,
         off_duty: Math.max(0, scopedRoster - paras),
         by_type,
         per_station: perStation,
