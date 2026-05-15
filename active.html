@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Active Insights · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.47">
+<link rel="stylesheet" href="assets/style.css?v=0.2.51">
 
 <style>
   body { background: var(--bg); }
@@ -384,12 +384,12 @@
 
 </div>
 
-<script src="assets/config.js?v=0.2.47"></script>
-<script src="assets/tempo.js?v=0.2.47"></script>
-<script src="assets/auth.js?v=0.2.47"></script>
-<script src="assets/shortcuts.js?v=0.2.47"></script>
-<script src="assets/topbar.js?v=0.2.47"></script>
-<script src="assets/dateBar.js?v=0.2.47"></script>
+<script src="assets/config.js?v=0.2.51"></script>
+<script src="assets/tempo.js?v=0.2.51"></script>
+<script src="assets/auth.js?v=0.2.51"></script>
+<script src="assets/shortcuts.js?v=0.2.51"></script>
+<script src="assets/topbar.js?v=0.2.51"></script>
+<script src="assets/dateBar.js?v=0.2.51"></script>
 <script>
 (function () {
 
@@ -407,6 +407,16 @@
   } catch (_) {}
 
   // logoutBtn handled by topbar.js (cadSignOut)
+
+  // Date-bar state: declared HERE (before refresh() is called) to avoid
+  // temporal dead zone — the initial refresh() reads these synchronously
+  // before its first await. Previously these were declared near the
+  // date-bar widget setup, causing refresh() to throw ReferenceError on
+  // page load, which is why nothing painted until the user clicked Today.
+  let _selectedDate = (new Date()).toISOString().slice(0,10);
+  let _endDate = _selectedDate;
+  let _isRange = false;
+  let _selectedMovement = '';
 
   let lastOk = null;
   refresh();
@@ -920,10 +930,8 @@
 
   // ===== Filter strip =====
   let _allAugRows = [];
-  let _selectedDate = (new Date()).toISOString().slice(0,10);
-  let _endDate = _selectedDate;
-  let _isRange = false;
-  let _selectedMovement = '';
+  // _selectedDate / _endDate / _isRange / _selectedMovement declared at top
+  // of IIFE (above the initial refresh()) to avoid temporal dead zone.
 
   function dhDayFromDate(yyyy_mm_dd) {
     if (!yyyy_mm_dd) return null;
@@ -1128,6 +1136,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.47"></script>
+<script src="assets/version.js?v=0.2.51"></script>
 </body>
 </html>

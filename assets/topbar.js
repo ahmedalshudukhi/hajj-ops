@@ -66,10 +66,11 @@
       .shudukhi-labs-footer {
         position: fixed; right: 10px; bottom: 6px;
         font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
-        color: rgba(148, 163, 184, 0.45);
-        opacity: 0.55; pointer-events: none; user-select: none;
+        color: rgba(203, 213, 225, 0.55);
+        pointer-events: none; user-select: none;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        z-index: 1; mix-blend-mode: difference;
+        z-index: 9000;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.4);
       }
       @media (max-width: 480px) { .shudukhi-labs-footer { font-size: 8px; right: 6px; bottom: 4px; } }
     `;

@@ -403,22 +403,22 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
         start_hour = 6 if dh in [4,5,6,7] else 0
         end_hour = 18 if dh in [4,5,6,7] else 24
         for h in range(start_hour, end_hour):
-            # Movement label: each hour belongs to the movement most recently
-            # started at or before that hour — phases roll forward until the
-            # NEXT phase starts (no "GAP holes" between defined phases).
-            # GAP itself is an explicit phase from 13:00-19:00 on DH 9, and
-            # also the default before PRE-B starts on 4 DH 06:00.
+            # Movement label — strict membership: an hour is labeled with a
+            # movement ONLY when it falls inside that movement's declared
+            # window [start, end). Hours outside any defined window get "—"
+            # (not GAP — GAP is itself an explicit movement window). This
+            # matches operational reality: gaps between movements (e.g.
+            # 11:00-12:00 on DH 9, 20:00-21:00 on DH 9) are TRANSITION
+            # periods, not part of the prior or next phase.
             cur = dh*100 + h
-            best_ph = None; best_start = -1
+            mvt_code = "—"; shift_label = "DAY" if 6 <= h < 18 else "NIGHT"
             for ph in MOVEMENT_PHASES:
-                sd = int(ph["start_dh"].split()[0]); sh_p = int(ph["start_hour"].split(":")[0])
-                start = sd*100 + sh_p
-                if start <= cur and start > best_start:
-                    best_ph = ph; best_start = start
-            if best_ph is not None:
-                mvt_code = best_ph["mvt"]; shift_label = best_ph["shift"]
-            else:
-                mvt_code = "GAP"; shift_label = "DAY" if 6 <= h < 18 else "NIGHT"
+                sd = int(ph["start_dh"].split()[0]); ed = int(ph["end_dh"].split()[0])
+                sh_p = int(ph["start_hour"].split(":")[0]); eh_p = int(ph["end_hour"].split(":")[0])
+                start = sd*100 + sh_p; end = ed*100 + eh_p
+                if start <= cur < end:
+                    mvt_code = ph["mvt"]; shift_label = ph["shift"]
+                    break
 
             zones = {"Arafat":0, "Muzdalifah":0, "Mina":0, "Support":0}
             stations = {st:0 for st in SITES}

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Positioning · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.50">
+<link rel="stylesheet" href="assets/style.css?v=0.2.51">
 <style>
 body { background: var(--bg); }
 .content { padding: 12px 14px 80px; max-width: 1280px; margin: 0 auto; }
@@ -220,10 +220,10 @@ table.heatmap-tbl td.hm-total { font-weight: 700; background: var(--surface-2); 
 </style>
 </head>
 <body>
-<script src="assets/version.js?v=0.2.50"></script>
-<script src="assets/config.js?v=0.2.50"></script>
-<script src="assets/auth.js?v=0.2.50"></script>
-<script src="assets/topbar.js?v=0.2.50"></script>
+<script src="assets/version.js?v=0.2.51"></script>
+<script src="assets/config.js?v=0.2.51"></script>
+<script src="assets/auth.js?v=0.2.51"></script>
+<script src="assets/topbar.js?v=0.2.51"></script>
 
 <div class="content">
   <div class="picker">
@@ -396,10 +396,12 @@ table.heatmap-tbl td.hm-total { font-weight: 700; background: var(--surface-2); 
       const alpha   = (t['Ambulance'] || 0);
       const romeo   = (t['Foot-Runner'] || 0);
       const offDuty = (typeof x.off_duty === 'number') ? x.off_duty : 0;
-      // Show ambs as "crewed / total" when they differ, else just one number.
-      const ambCell = (x.ambs_total && x.ambs_total !== x.ambs)
-        ? (x.ambs + '<span style="opacity:.45"> / ' + x.ambs_total + '</span>')
-        : String(x.ambs || 0);
+      // Always show as "crewed / total" so the meaning is unambiguous.
+      // Earlier collapsed to a single number when equal, but that was
+      // confusing (looked like a constant fleet count).
+      const ambC = x.ambs || 0;
+      const ambT = x.ambs_total || 0;
+      const ambCell = ambC + '<span style="opacity:.45"> / ' + ambT + '</span>';
       return ''
         + '<tr class="' + cls + '" data-hour="' + x.hour + '">'
         +   '<td>' + x.hour + '</td>'
