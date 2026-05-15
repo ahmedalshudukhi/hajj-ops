@@ -349,6 +349,7 @@ const ROLE_GATE = {
   ambulances_list: null,
   ambulance_set_status: ['cluster_supervisor','dispatcher','leadership','admin'],
   overview_summary: null,                               // anyone signed in can read
+  positioning_at: null,                                  // anyone signed in can read
   card_get: null,
   cards_get_bulk: null,
   station_status_list: ['cluster_supervisor','dispatcher','leadership','admin','sar'],
@@ -459,7 +460,7 @@ const NEEDS_JSON = new Set([
   'augmentations','mobilization_plan','roster_fill','unit_availability',
   'units_list','unit_positions','active_summary','dashboard_active',
   'dashboard_dispatch','dashboard_sv','sar_summary','roster','station_status_list',
-  'unit_suggest','units_status_grid','ambulances_list','overview_summary'
+  'unit_suggest','units_status_grid','ambulances_list','overview_summary','positioning_at'
 ]);
 
 const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
@@ -1089,6 +1090,79 @@ const ACTIONS = {
     });
 
     return { ok: true, zone, stations, by_station: Object.values(byStation), totals };
+  },
+
+  // ==============================================================
+  // positioning_at — schedule-driven view of unit positioning per
+  // (DH day, hour, zone). Reads pre-computed hourly + schedule_grid
+  // from data.json (built from the Schedule tab).
+  // ==============================================================
+  async positioning_at(user, env, params, dj) {
+    const dh   = String(params.dh   || '9').replace(/[^0-9]/g, '') || '9';
+    const hour = String(params.hour || '08:00');
+    const zone = String(params.zone || 'all').toLowerCase();
+    const mvtFilter = String(params.mvt || '').toUpperCase();
+
+    const ZONE_STATIONS = {
+      arafat:     ['ARF1','ARF2','ARF3'],
+      muzdalifah: ['MUZ1','MUZ2','MUZ3'],
+      mina:       ['MIN1','MIN2','MIN3'],
+      occ:        ['OCC']
+    };
+    const ALL_STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3','OCC'];
+    const stations = (zone === 'all') ? ALL_STATIONS : (ZONE_STATIONS[zone] || ALL_STATIONS);
+
+    const hourly = (dj && dj.hourly && dj.hourly.hours) || [];
+    const allDH    = Array.from(new Set(hourly.map(r => String(r.dh).replace(' DH','')))).sort((a,b) => +a - +b);
+    const allHours = Array.from(new Set(hourly.map(r => r.hour))).sort();
+    const allMvts  = Array.from(new Set(hourly.map(r => r.mvt))).sort();
+    const meta = { dh_days: allDH, hours: allHours, movements: allMvts };
+
+    const entry = hourly.find(r => String(r.dh) === (dh + ' DH') && r.hour === hour);
+
+    if (entry && mvtFilter && String(entry.mvt || '').toUpperCase() !== mvtFilter) {
+      return { ok: true, dh: dh + ' DH', hour, zone, mvt: entry.mvt, shift: entry.shift,
+               found: false, reason: 'mvt_mismatch', stations, by_station: [],
+               totals: { paras: 0, ambulances: 0, units: 0, by_type: {} }, meta };
+    }
+    if (!entry) {
+      return { ok: true, dh: dh + ' DH', hour, zone, found: false,
+               stations, by_station: [], totals: { paras: 0, ambulances: 0, units: 0, by_type: {} }, meta };
+    }
+
+    // schedule_grid slot picker: 06:00-17:59 = slot1 (day), else slot2 (night)
+    const h = parseInt(hour.split(':')[0], 10) || 0;
+    const slotKey = (h >= 6 && h < 18) ? 'slot1' : 'slot2';
+    const sg = (dj && dj.schedule_grid && dj.schedule_grid[dh]) || {};
+    const slotGrid = sg[slotKey] || {};
+
+    const byStation = stations.map(st => {
+      const paras  = (entry.stations && entry.stations[st]) || 0;
+      const ambs   = (entry.stations_amb && entry.stations_amb[st]) || 0;
+      const gridSt = slotGrid[st] || {};
+      return {
+        station: st,
+        units:   gridSt.units || 0,
+        paras,
+        ambulances: ambs,
+        by_type: gridSt.by_type || {}
+      };
+    });
+
+    let tParas=0, tAmbs=0, tUnits=0;
+    const tType = {};
+    byStation.forEach(s => {
+      tParas += s.paras; tAmbs += s.ambulances; tUnits += s.units;
+      Object.entries(s.by_type).forEach(([k,n]) => { tType[k] = (tType[k]||0) + n; });
+    });
+
+    return {
+      ok: true, dh: dh + ' DH', hour, zone,
+      mvt: entry.mvt || '', shift: entry.shift || '', slot: slotKey,
+      found: true, stations, by_station: byStation,
+      totals: { paras: tParas, ambulances: tAmbs, units: tUnits, by_type: tType },
+      meta
+    };
   },
 
   // ==============================================================
