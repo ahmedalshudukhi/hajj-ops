@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Positioning · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.62">
+<link rel="stylesheet" href="assets/style.css?v=0.2.63">
 <style>
 body { background: var(--bg); }
 .content { padding: 12px 14px 80px; max-width: 1280px; margin: 0 auto; }
@@ -878,9 +878,9 @@ table.heatmap-tbl td.hm-cell.handover-cell {
 </style>
 </head>
 <body>
-<script src="assets/version.js?v=0.2.62"></script>
+<script src="assets/version.js?v=0.2.63"></script>
 <script src="assets/config.js?v=0.2.60"></script>
-<script src="assets/auth.js?v=0.2.61"></script>
+<script src="assets/auth.js?v=0.2.63"></script>
 <script src="assets/topbar.js?v=0.2.60"></script>
 
 <div class="content">
@@ -1518,13 +1518,15 @@ table.heatmap-tbl td.hm-cell.handover-cell {
 
   async function refreshUnitGantt() {
     const wrap = $('unitGanttWrap'); if (!wrap) return;
-    if (!_ganttDays) {
-      _ganttDays = {
-        from: parseInt($('ugSliderFrom').value, 10),
-        to:   parseInt($('ugSliderTo').value, 10)
-      };
-    }
-    const { from, to } = _ganttDays;
+    // ALWAYS read slider state fresh from DOM. Trusting _ganttDays cache caused
+    // stale day-strip rendering when the user slid quickly between ranges.
+    const fromEl = $('ugSliderFrom');
+    const toEl   = $('ugSliderTo');
+    if (!fromEl || !toEl) return;
+    const from = parseInt(fromEl.value, 10);
+    const to   = parseInt(toEl.value, 10);
+    _ganttDays = { from, to };
+    console.log('[Gantt] refresh: DH ' + from + ' → ' + to + ' (zone=' + _ganttZone + ')');
     wrap.innerHTML = '<div class="cov-loading">Loading ' + (to - from + 1) + ' day(s) of unit data…</div>';
     try {
       const days = [];
@@ -1542,6 +1544,7 @@ table.heatmap-tbl td.hm-cell.handover-cell {
 
   function paintUnitGanttRange(dataByDh, days) {
     const wrap = $('unitGanttWrap'); if (!wrap) return;
+    console.log('[Gantt] paint: days=' + JSON.stringify(days) + ' (' + days.length + ' days, ' + days.length*24 + ' hour-cells per unit)');
     // Use the first available response to pull station list
     const sample = days.map(d => dataByDh[d]).find(r => r && r.ok);
     if (!sample) { wrap.innerHTML = '<div class="cov-loading">No data.</div>'; return; }
@@ -1573,6 +1576,14 @@ table.heatmap-tbl td.hm-cell.handover-cell {
     const stationData = {};
     stations.forEach(st => { stationData[st] = {}; });
 
+    // First pass: collect family votes across all hours/days so a unit gets
+    // the family it was on for the majority of its active hours. Defends
+    // against single-hour misclassification (e.g. a unit on D3-12 will mostly
+    // be in units_day, but if one hour entry happened to drop it before the
+    // build picked it up, we still vote correctly).
+    const famVotes = {}; // {st: {uid: {D:0, N:0, A:0}}}
+    stations.forEach(st => { famVotes[st] = {}; });
+
     days.forEach(dh => {
       const r = dataByDh[dh];
       if (!r || !r.ok) return;
@@ -1588,19 +1599,37 @@ table.heatmap-tbl td.hm-cell.handover-cell {
           (sd.active_units || []).forEach(uid => {
             const cellKey = dh + '-' + hour;
             if (!stationData[st][uid]) {
-              let fam = 'A';
-              if (day.has(uid))      fam = 'D';
-              else if (ngt.has(uid)) fam = 'N';
-              else if (alw.has(uid)) fam = 'A';
-              else {
-                const m2 = uid.match(/-(\d+)$/);
-                if (m2) fam = (parseInt(m2[1], 10) % 2 === 1) ? 'D' : 'N';
-              }
-              stationData[st][uid] = { hours: new Set(), family: fam };
+              stationData[st][uid] = { hours: new Set(), family: null };
+              famVotes[st][uid] = { D: 0, N: 0, A: 0 };
             }
             stationData[st][uid].hours.add(cellKey);
+            // Tally votes
+            if (day.has(uid))      famVotes[st][uid].D++;
+            else if (ngt.has(uid)) famVotes[st][uid].N++;
+            else if (alw.has(uid)) famVotes[st][uid].A++;
+            // If not in any list at this hour, parity heuristic adds a soft vote
+            else {
+              const m2 = uid.match(/-(\d+)$/);
+              if (m2) {
+                if (parseInt(m2[1], 10) % 2 === 1) famVotes[st][uid].D += 0.1;
+                else famVotes[st][uid].N += 0.1;
+              } else {
+                famVotes[st][uid].A += 0.1;
+              }
+            }
           });
         });
+      });
+    });
+
+    // Pick the winning family per unit (most-voted across all active hours).
+    stations.forEach(st => {
+      Object.keys(stationData[st]).forEach(uid => {
+        const v = famVotes[st][uid] || {D:0, N:0, A:0};
+        let fam = 'A', best = v.A;
+        if (v.D > best) { fam = 'D'; best = v.D; }
+        if (v.N > best) { fam = 'N'; best = v.N; }
+        stationData[st][uid].family = fam;
       });
     });
 
@@ -1763,11 +1792,11 @@ table.heatmap-tbl td.hm-cell.handover-cell {
 
   // (no-op kept so older calls from refresh() don't throw)
   function paintUnitGantt(r) {
-    // The multi-day gantt has its own refresh path triggered by the slider.
-    // When the DH picker changes (refresh() above), invalidate cache for the
-    // single-day if the user wants stale data refreshed.
-    _ganttCache = {};
-    refreshUnitGantt();
+    // No-op. The multi-day Gantt has its own lifecycle:
+    //   • initial render done by wireUgSlider IIFE on page load
+    //   • slider input events trigger refreshUnitGantt directly
+    //   • zone changes are wired separately to refreshUnitGantt
+    // Touching cache here was racing with user slider input.
   }
 
   // Zone-filter buttons for the Gantt section
