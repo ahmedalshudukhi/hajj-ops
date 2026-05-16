@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Metro · SAR Movements · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.55">
+<link rel="stylesheet" href="assets/style.css?v=0.2.56">
 <style>
 body { background: var(--bg); }
 .content { padding: 12px 14px 80px; max-width: 1280px; margin: 0 auto; }
@@ -263,16 +263,65 @@ table.plat-tbl td.st-cell {
 }
 .active-banner.handover .ab-code { background: linear-gradient(180deg,#bae6fd,#0ea5e9); -webkit-background-clip:text; background-clip:text; color: transparent; }
 
-/* Shift-change marker between adjacent bands of different shifts (no gap, just visual cue) */
-.band.shift-change-before {
+/* Slim connector for short (≤45 min) handover/transition gaps — used in
+   place of a full band card. Compact, doesn't waste strip width. */
+.band-connector {
+  flex: 0 0 28px;
+  align-self: stretch;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; padding: 8px 2px;
+  background: rgba(56,189,248,0.10);
+  border-left: 1px dashed rgba(56,189,248,0.45);
+  border-right: 1px dashed rgba(56,189,248,0.45);
+  cursor: pointer;
+  transition: background 0.1s;
   position: relative;
 }
-.band.shift-change-before::before {
-  content: ''; position: absolute; top: 8px; bottom: 8px; left: -6px; width: 4px;
-  background: linear-gradient(180deg, #fbbf24, #6366f1);
-  border-radius: 2px;
-  box-shadow: 0 0 8px rgba(251,191,36,0.6);
-  z-index: 5;
+.band-connector:hover { background: rgba(56,189,248,0.20); }
+.band-connector.now { box-shadow: inset 0 0 0 2px #fbbf24; }
+.band-connector.selected { background: rgba(56,189,248,0.25); border-color: #93c5fd; }
+.band-connector .bc-icon {
+  font-size: 14px; font-weight: 800; color: #7dd3fc;
+  letter-spacing: 0;
+}
+.band-connector .bc-times {
+  font-size: 9px; font-family: ui-monospace, Menlo, monospace;
+  color: var(--text-muted);
+}
+
+/* Visible labelled shift-change chip between adjacent bands of different
+   shifts — DH 11/12 17:00 boundary, etc. */
+.shift-change-chip {
+  flex: 0 0 50px;
+  align-self: stretch;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; padding: 6px 4px;
+  background: linear-gradient(180deg, rgba(99,102,241,0.18), rgba(245,158,11,0.18));
+  border: 1px solid rgba(251,191,36,0.4);
+  border-radius: 6px;
+  font-size: 9px; cursor: help;
+}
+.shift-change-chip .scc-from,
+.shift-change-chip .scc-to {
+  font-size: 11px; font-weight: 800;
+  padding: 1px 6px; border-radius: 3px;
+  letter-spacing: 0.04em;
+  font-family: ui-monospace, Menlo, monospace;
+}
+.shift-change-chip .scc-from.NIGHT,
+.shift-change-chip .scc-to.NIGHT { background: rgba(99,102,241,0.4); color: #e0e7ff; }
+.shift-change-chip .scc-from.DAY,
+.shift-change-chip .scc-to.DAY { background: rgba(245,158,11,0.4); color: #fef3c7; }
+.shift-change-chip .scc-from.MIXED,
+.shift-change-chip .scc-to.MIXED { background: rgba(168,85,247,0.4); color: #e9d5ff; }
+.shift-change-chip .scc-arrow {
+  font-size: 11px; color: #fbbf24; font-weight: 700;
+  margin: 1px 0;
+}
+.shift-change-chip .scc-time {
+  font-size: 9px; color: var(--text-muted);
+  font-family: ui-monospace, Menlo, monospace;
+  margin-top: 2px;
 }
 
 /* Shift badge inside each active band */
@@ -399,10 +448,10 @@ table.plat-tbl td.st-cell {
 </style>
 </head>
 <body>
-<script src="assets/version.js?v=0.2.55"></script>
-<script src="assets/config.js?v=0.2.55"></script>
-<script src="assets/auth.js?v=0.2.55"></script>
-<script src="assets/topbar.js?v=0.2.55"></script>
+<script src="assets/version.js?v=0.2.56"></script>
+<script src="assets/config.js?v=0.2.56"></script>
+<script src="assets/auth.js?v=0.2.56"></script>
+<script src="assets/topbar.js?v=0.2.56"></script>
 
 <div class="content">
   <div class="picker">
@@ -614,38 +663,68 @@ table.plat-tbl td.st-cell {
     }
     const nowMin = currentMinutesIfMatchingDH(r.dh);
 
-    // Use flex-grow proportional to duration so longer periods take more space.
-    // Detect shift-change boundaries: when two adjacent bands have different
-    // shifts (and no gap between them), mark the second band with a visual cue.
-    $('bandStrip').innerHTML = bands.map((b, i) => {
+    // Render: full cards for movement bands and long gaps; slim connectors
+    // for short (<=45 min) handover/transition gaps. This kills the "tiny
+    // weird sliver" glitch at DH 9 05:00 and DH 10 00:30 — they become
+    // 🔁 connectors between the adjacent bands, not separate cards.
+    // ALSO: insert a labelled shift-change chip between adjacent bands of
+    // different shifts (DH 11/12 17:00 transition becomes visible).
+    let html = '';
+    bands.forEach((b, i) => {
       const dur = b.end_min - b.start_min;
       const isNow = nowMin !== null && b.start_min <= nowMin && nowMin < b.end_min;
       const isSel = i === _selectedIdx;
       const isGap = b.type === 'gap';
-      // Shift-change detection: previous band exists, both have shifts, both shifts differ
       const prev = i > 0 ? bands[i-1] : null;
-      const shiftChange = !isGap && prev && !prev.type==='gap' && prev.shift && b.shift && prev.shift !== b.shift && prev.end_min === b.start_min;
+      const prevIsBand = prev && prev.type !== 'gap';
+
+      // ─── Slim connector for short handover gaps ───
+      if (isGap && (b.kind === 'handover' || (b.kind === 'transition' && dur <= 60)) && dur <= 90) {
+        const next = bands[i+1];
+        const fromMvt = prevIsBand ? prev.mvt : '';
+        const toMvt = next && next.type !== 'gap' ? next.mvt : '';
+        const shiftChange = prev && next && prev.shift && next.shift && prev.shift !== next.shift;
+        const conLabel = shiftChange ? (prev.shift.charAt(0) + '→' + next.shift.charAt(0)) : (b.kind === 'handover' ? '🔁' : '⇄');
+        html += '<div class="band-connector ' + (isNow ? ' now' : '') + (isSel ? ' selected' : '') + '" '
+              + 'data-idx="' + i + '" '
+              + 'title="' + (b.reason || '') + ' · ' + b.start + ' → ' + b.end + ' (' + dur + ' min)">'
+              + '<div class="bc-icon">' + conLabel + '</div>'
+              + '<div class="bc-times">' + b.start + '</div>'
+              + '</div>';
+        return;
+      }
+
+      // ─── Shift-change chip between two adjacent band cards of different shifts ───
+      if (!isGap && prevIsBand && prev.shift && b.shift && prev.shift !== b.shift && prev.end_min === b.start_min) {
+        html += '<div class="shift-change-chip" title="Shift change: ' + prev.shift.toLowerCase() + ' → ' + b.shift.toLowerCase() + ' at ' + b.start + '">'
+              + '<span class="scc-from ' + prev.shift + '">' + prev.shift.charAt(0) + '</span>'
+              + '<span class="scc-arrow">→</span>'
+              + '<span class="scc-to ' + b.shift + '">' + b.shift.charAt(0) + '</span>'
+              + '<div class="scc-time">' + b.start + '</div>'
+              + '</div>';
+      }
+
+      // ─── Full band/gap card ───
       const cls = 'band ' + (isGap ? 'gap ' + (b.kind || 'idle') : mvFamily(b.mvt)) +
-                  (isNow ? ' now' : '') + (isSel ? ' selected' : '') +
-                  (shiftChange ? ' shift-change-before' : '');
-      const grow = Math.max(15, dur); // real duration ratio; CSS min-width protects readability
+                  (isNow ? ' now' : '') + (isSel ? ' selected' : '');
+      const grow = Math.max(15, dur);
       const mvLabel = isGap ? (b.kind === 'ritual' ? 'WUQŪF' : b.kind === 'maintenance' ? 'MAINT' : b.kind === 'transition' ? 'TRANS' : b.kind === 'boarding' ? 'BOARDING' : b.kind === 'handover' ? 'HANDOVER' : 'IDLE') : b.mvt;
       const sub = isGap
         ? '<div class="b-reason">' + (b.reason || '') + '</div>'
         : '<div class="b-trains">' + (b.trains || 0) + ' trains</div>';
-      // Shift badge in upper-right of active bands
       const shiftBadge = (!isGap && b.shift)
         ? '<div class="b-shift ' + b.shift + '" title="' + b.shift.toLowerCase() + ' shift">' + b.shift.charAt(0) + '</div>'
         : '';
-      return '<div class="' + cls + '" style="flex-grow:' + grow + ';" data-idx="' + i + '" title="' + (isGap ? (b.reason || '') : (b.desc || b.mvt)) + '">'
-        + shiftBadge
-        + '<div class="b-times">' + b.start + ' → ' + b.end + '</div>'
-        + '<div class="b-mvt">' + mvLabel + '</div>'
-        + sub
-        + '</div>';
-    }).join('');
+      html += '<div class="' + cls + '" style="flex-grow:' + grow + ';" data-idx="' + i + '" title="' + (isGap ? (b.reason || '') : (b.desc || b.mvt)) + '">'
+            + shiftBadge
+            + '<div class="b-times">' + b.start + ' → ' + b.end + '</div>'
+            + '<div class="b-mvt">' + mvLabel + '</div>'
+            + sub
+            + '</div>';
+    });
+    $('bandStrip').innerHTML = html;
 
-    Array.from(document.querySelectorAll('#bandStrip .band')).forEach(el => {
+    Array.from(document.querySelectorAll('#bandStrip .band, #bandStrip .band-connector')).forEach(el => {
       el.addEventListener('click', () => {
         _selectedIdx = parseInt(el.getAttribute('data-idx'), 10);
         paintSelectedBand(_data);
