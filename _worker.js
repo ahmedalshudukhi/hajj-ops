@@ -351,6 +351,7 @@ const ROLE_GATE = {
   overview_summary: null,                               // anyone signed in can read
   positioning_at: null,                                  // anyone signed in can read
   positioning_day: null,                                 // anyone signed in can read
+  coverage_range: null,                                  // anyone signed in can read — multi-day station coverage
   metro_data: null,                                      // anyone signed in can read — SAR train movements
   card_get: null,
   cards_get_bulk: null,
@@ -462,7 +463,7 @@ const NEEDS_JSON = new Set([
   'augmentations','mobilization_plan','roster_fill','unit_availability',
   'units_list','unit_positions','active_summary','dashboard_active',
   'dashboard_dispatch','dashboard_sv','sar_summary','roster','station_status_list',
-  'unit_suggest','units_status_grid','ambulances_list','overview_summary','positioning_at','positioning_day','metro_data'
+  'unit_suggest','units_status_grid','ambulances_list','overview_summary','positioning_at','positioning_day','coverage_range','metro_data'
 ]);
 
 const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
@@ -1280,6 +1281,103 @@ const ACTIONS = {
       total_roster: scopedRoster,
       rows,
       meta: { dh_days: allDH, movements: allMvts }
+    };
+  },
+
+  // ==============================================================
+  // coverage_range — multi-day station coverage summary. For each station
+  // and each DH in [dh_from..dh_to], computes peak / min / avg paras,
+  // peak ambulance crewed count, distinct units count, and active hours.
+  // The positioning page uses this to power the day-range slider grid.
+  // ==============================================================
+  async coverage_range(user, env, params, dj) {
+    const dhFrom = Math.max(4, Math.min(14, parseInt(params.dh_from || '4', 10) || 4));
+    const dhTo   = Math.max(dhFrom, Math.min(14, parseInt(params.dh_to || '14', 10) || 14));
+    const zone   = String(params.zone || 'all').toLowerCase();
+
+    const ZONE_STATIONS = {
+      arafat:     ['ARF1','ARF2','ARF3'],
+      muzdalifah: ['MUZ1','MUZ2','MUZ3'],
+      mina:       ['MIN1','MIN2','MIN3'],
+      occ:        ['OCC']
+    };
+    const ALL_STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3','OCC'];
+    const stations = (zone === 'all') ? ALL_STATIONS : (ZONE_STATIONS[zone] || ALL_STATIONS);
+
+    const hourly = (dj && dj.hourly && dj.hourly.hours) || [];
+    const days = [];
+    for (let d = dhFrom; d <= dhTo; d++) days.push(d);
+
+    // Build matrix[station][dh] = { paras_peak, paras_min, paras_avg, ambs_peak, doctors_peak, unit_count, active_hours }
+    const matrix = {};
+    stations.forEach(st => { matrix[st] = {}; });
+
+    days.forEach(dh => {
+      const dayRows = hourly.filter(r => String(r.dh) === (dh + ' DH'));
+      stations.forEach(st => {
+        if (dayRows.length === 0) {
+          matrix[st][dh] = {
+            paras_peak: 0, paras_min: 0, paras_avg: 0,
+            ambs_peak: 0, doctors_peak: 0, unit_count: 0, active_hours: 0,
+            no_data: true
+          };
+          return;
+        }
+        let paras_peak = 0, paras_min = Infinity, paras_sum = 0, n = 0, active_h = 0;
+        let ambs_peak = 0, doctors_peak = 0;
+        const unitSet = new Set();
+        dayRows.forEach(r => {
+          const p = (r.stations && r.stations[st]) || 0;
+          const a = (r.stations_amb && r.stations_amb[st]) || 0;
+          const d = (r.stations_doctors && r.stations_doctors[st]) || 0;
+          if (p > paras_peak) paras_peak = p;
+          if (p < paras_min) paras_min = p;
+          if (p > 0) active_h++;
+          if (a > ambs_peak) ambs_peak = a;
+          if (d > doctors_peak) doctors_peak = d;
+          paras_sum += p;
+          n++;
+          const sd = r.stations_detail && r.stations_detail[st];
+          (sd && sd.active_units || []).forEach(u => unitSet.add(u));
+        });
+        matrix[st][dh] = {
+          paras_peak,
+          paras_min: paras_min === Infinity ? 0 : paras_min,
+          paras_avg: n ? Math.round(paras_sum / n) : 0,
+          ambs_peak,
+          doctors_peak,
+          unit_count: unitSet.size,
+          active_hours: active_h,
+          no_data: false
+        };
+      });
+    });
+
+    // Per-station summary across the range (totals row, optional)
+    const stationTotals = {};
+    stations.forEach(st => {
+      const cells = days.map(d => matrix[st][d]);
+      stationTotals[st] = {
+        paras_peak_max: Math.max(...cells.map(c => c.paras_peak)),
+        paras_avg_avg: Math.round(cells.reduce((s,c) => s + c.paras_avg, 0) / Math.max(cells.length, 1)),
+        unit_count_max: Math.max(...cells.map(c => c.unit_count)),
+        ambs_peak_max: Math.max(...cells.map(c => c.ambs_peak))
+      };
+    });
+
+    // Available DH days in data (for the slider min/max)
+    const allDH = Array.from(new Set(hourly.map(r => String(r.dh).replace(' DH','')))).sort((a,b) => +a - +b);
+
+    return {
+      ok: true,
+      dh_from: dhFrom,
+      dh_to: dhTo,
+      zone,
+      stations,
+      days,
+      matrix,
+      station_totals: stationTotals,
+      meta: { dh_days: allDH }
     };
   },
 

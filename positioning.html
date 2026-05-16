@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Positioning · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.59">
+<link rel="stylesheet" href="assets/style.css?v=0.2.60">
 <style>
 body { background: var(--bg); }
 .content { padding: 12px 14px 80px; max-width: 1280px; margin: 0 auto; }
@@ -456,13 +456,244 @@ table.heatmap-tbl td.hm-cell.handover-cell {
   margin: 8px 0 14px;
 }
 .handover-note strong { color: #fcd34d; }
+
+
+/* ──────── Coverage-by-day-range slider (v0.2.60) ──────── */
+.cov-range-section { margin-top: 28px; }
+.cov-range-head {
+  display: flex; flex-wrap: wrap; gap: 14px; align-items: center;
+  margin-bottom: 6px;
+}
+.cov-range-head h2 {
+  margin: 0; font-size: 16px; font-weight: 600; color: var(--text);
+}
+.cov-range-metric { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cov-metric-btn {
+  background: var(--surface-2); color: var(--text-muted);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px; padding: 5px 12px;
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  transition: all 0.15s;
+}
+.cov-metric-btn:hover { color: var(--text); }
+.cov-metric-btn.active {
+  background: rgba(59,130,246,0.18); color: #93c5fd;
+  border-color: rgba(59,130,246,0.4);
+}
+.cov-range-intro {
+  font-size: 12px; color: var(--text-muted); line-height: 1.55;
+  margin: 4px 0 14px; max-width: 850px;
+}
+.cov-range-intro strong { color: var(--text); font-weight: 600; }
+
+/* ── Dual-handle slider ── */
+.cov-slider-wrap {
+  background: var(--surface); border: 1px solid var(--border-soft);
+  border-radius: var(--radius); padding: 14px 22px 22px;
+  margin-bottom: 14px;
+}
+.cov-slider-labels {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 12px; color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.cov-slider-labels strong {
+  color: var(--text); font-weight: 700; font-size: 14px;
+  font-family: ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums;
+}
+.cov-slider-rangetxt {
+  background: rgba(59,130,246,0.16);
+  color: #93c5fd;
+  padding: 3px 10px; border-radius: 999px;
+  font-weight: 600; font-size: 11px;
+}
+.cov-slider-rangetxt strong { color: #93c5fd; font-size: 11px; }
+
+.cov-slider-track-wrap {
+  position: relative;
+  height: 32px;
+  margin: 0 8px;
+}
+.cov-slider-track {
+  position: absolute;
+  top: 14px; left: 0; right: 0; height: 4px;
+  background: var(--surface-2);
+  border-radius: 999px;
+}
+.cov-slider-fill {
+  position: absolute;
+  top: 14px; height: 4px;
+  background: linear-gradient(90deg, rgba(59,130,246,0.6), rgba(99,102,241,0.6));
+  border-radius: 999px;
+  pointer-events: none;
+}
+.cov-slider-input {
+  position: absolute;
+  top: 0; left: 0; width: 100%;
+  height: 32px;
+  appearance: none; -webkit-appearance: none; background: transparent;
+  pointer-events: none;
+  outline: none;
+  margin: 0;
+}
+.cov-slider-input::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #fff;
+  border: 2px solid #3b82f6;
+  cursor: grab;
+  pointer-events: auto;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  transition: transform 0.1s;
+}
+.cov-slider-input::-webkit-slider-thumb:active { cursor: grabbing; transform: scale(1.15); }
+.cov-slider-input::-moz-range-thumb {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #fff;
+  border: 2px solid #3b82f6;
+  cursor: grab;
+  pointer-events: auto;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+.cov-slider-from { z-index: 3; }
+.cov-slider-to { z-index: 4; }
+
+.cov-slider-ticks {
+  position: absolute;
+  top: 28px; left: 0; right: 0;
+  display: flex; justify-content: space-between;
+  font-size: 9px; font-family: ui-monospace, Menlo, monospace;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.cov-slider-ticks .tick {
+  flex: 1; text-align: center;
+  position: relative;
+}
+.cov-slider-ticks .tick::before {
+  content: '';
+  position: absolute; top: -8px; left: 50%;
+  width: 1px; height: 4px; background: var(--border-soft);
+  transform: translateX(-50%);
+}
+.cov-slider-ticks .tick.in-range { color: #93c5fd; font-weight: 600; }
+
+/* ── Station × day heatmap grid ── */
+.cov-grid-wrap {
+  background: var(--surface); border: 1px solid var(--border-soft);
+  border-radius: var(--radius); overflow: auto;
+}
+.cov-loading { padding: 30px; text-align: center; color: var(--text-muted); font-size: 12px; }
+.cov-grid {
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  font-size: 11px; font-variant-numeric: tabular-nums;
+  min-width: 600px;
+}
+.cov-corner {
+  font-size: 9px; color: var(--text-muted);
+  padding: 6px 8px; text-transform: uppercase; letter-spacing: 0.06em;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-soft);
+  position: sticky; left: 0; background: var(--surface); z-index: 3;
+}
+.cov-dh-head {
+  text-align: center; padding: 6px 0;
+  font-size: 10px; color: var(--text-muted);
+  font-family: ui-monospace, Menlo, monospace;
+  border-bottom: 1px solid var(--border-soft);
+}
+.cov-dh-head strong { color: var(--text); font-weight: 700; }
+.cov-dh-head .dh-date { font-size: 8px; color: var(--text-muted); display: block; line-height: 1; margin-top: 2px; }
+.cov-row-label {
+  font-weight: 700; font-family: ui-monospace, Menlo, monospace;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 12px;
+  position: sticky; left: 0; background: var(--surface); z-index: 2;
+  border-right: 1px solid var(--border-soft);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.cov-row-label .cov-row-sum {
+  font-size: 9px; color: var(--text-muted); font-weight: 500;
+}
+.cov-cell {
+  padding: 8px 4px;
+  text-align: center;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: filter 0.1s, transform 0.1s;
+  background: rgba(148,163,184,0.06);
+  color: var(--text);
+  font-weight: 600;
+  position: relative;
+  min-height: 32px;
+  display: flex; align-items: center; justify-content: center;
+}
+.cov-cell:hover {
+  filter: brightness(1.25);
+  outline: 1px solid var(--text);
+  z-index: 1;
+}
+.cov-cell.selected {
+  outline: 2px solid #fcd34d;
+  outline-offset: -2px;
+  z-index: 2;
+}
+.cov-cell.zero { color: var(--text-muted); opacity: 0.4; }
+.cov-cell .cov-cell-sub {
+  font-size: 8px; color: var(--text-muted); font-weight: 500;
+  position: absolute; bottom: 2px; right: 4px;
+}
+
+/* ── Inline mini-Gantt for a (station × day) cell ── */
+.cov-mini-gantt {
+  background: var(--surface);
+  border: 1px solid rgba(252,211,77,0.4);
+  border-radius: var(--radius);
+  margin-top: 14px;
+  padding: 14px;
+  position: relative;
+}
+.cov-mini-gantt .cov-mg-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 10px;
+}
+.cov-mini-gantt .cov-mg-title {
+  font-weight: 700; font-size: 14px; color: var(--text);
+  font-family: ui-monospace, Menlo, monospace;
+}
+.cov-mini-gantt .cov-mg-subtitle {
+  font-size: 11px; color: var(--text-muted);
+}
+.cov-mini-gantt .cov-mg-close {
+  background: var(--surface-2); border: 1px solid var(--border-soft);
+  color: var(--text-muted);
+  border-radius: 6px; padding: 4px 10px;
+  font-size: 11px; cursor: pointer;
+}
+.cov-mini-gantt .cov-mg-close:hover { color: var(--text); }
+.cov-mini-gantt .cov-mg-loading {
+  padding: 20px; text-align: center; color: var(--text-muted); font-size: 11px;
+}
+.cov-mini-gantt .cov-mg-grid {
+  display: grid;
+  grid-template-columns: 130px 30px repeat(24, minmax(22px, 1fr));
+  gap: 1px;
+  font-size: 10px; font-variant-numeric: tabular-nums;
+}
+.cov-mini-gantt .cov-mg-grid > * {
+  /* re-use the .ug-* styling below by aliasing class names in JS */
+}
+
 </style>
 </head>
 <body>
-<script src="assets/version.js?v=0.2.59"></script>
-<script src="assets/config.js?v=0.2.59"></script>
-<script src="assets/auth.js?v=0.2.59"></script>
-<script src="assets/topbar.js?v=0.2.59"></script>
+<script src="assets/version.js?v=0.2.60"></script>
+<script src="assets/config.js?v=0.2.60"></script>
+<script src="assets/auth.js?v=0.2.60"></script>
+<script src="assets/topbar.js?v=0.2.60"></script>
 
 <div class="content">
   <div class="picker">
@@ -571,6 +802,52 @@ table.heatmap-tbl td.hm-cell.handover-cell {
       Hover any bar to see the unit's shift code, size, and crew names if available.
     </div>
     <div class="unit-gantt-wrap" id="unitGanttWrap"></div>
+  </div>
+
+  <!-- ─── Multi-day coverage range slider (NEW v0.2.60) ─── -->
+  <div class="cov-range-section">
+    <div class="cov-range-head">
+      <h2>Coverage by day range</h2>
+      <div class="cov-range-metric">
+        <span class="ug-label">Metric:</span>
+        <button class="cov-metric-btn active" data-metric="paras_peak">Paras peak</button>
+        <button class="cov-metric-btn" data-metric="paras_avg">Paras avg</button>
+        <button class="cov-metric-btn" data-metric="unit_count">Unit count</button>
+        <button class="cov-metric-btn" data-metric="ambs_peak">Ambs peak</button>
+        <button class="cov-metric-btn" data-metric="doctors_peak">Doctors</button>
+        <button class="cov-metric-btn" data-metric="active_hours">Active hrs</button>
+      </div>
+    </div>
+
+    <div class="cov-range-intro">
+      Slide the handles to pick a DH range. The grid below shows every station's
+      coverage across the selected days. Cells colour by the chosen metric.
+      Click any cell to drop a mini-Gantt for that station × day below the grid.
+    </div>
+
+    <!-- Dual-handle range slider -->
+    <div class="cov-slider-wrap">
+      <div class="cov-slider-labels">
+        <span>DH <strong id="covLabelFrom">7</strong></span>
+        <span class="cov-slider-rangetxt"><span id="covRangeDur">5</span> days</span>
+        <span>DH <strong id="covLabelTo">11</strong></span>
+      </div>
+      <div class="cov-slider-track-wrap">
+        <div class="cov-slider-track" id="covSliderTrack"></div>
+        <div class="cov-slider-fill" id="covSliderFill"></div>
+        <input type="range" id="covSliderFrom" min="4" max="14" value="7" step="1" class="cov-slider-input cov-slider-from">
+        <input type="range" id="covSliderTo"   min="4" max="14" value="11" step="1" class="cov-slider-input cov-slider-to">
+        <!-- Tick labels under the track -->
+        <div class="cov-slider-ticks" id="covSliderTicks"></div>
+      </div>
+    </div>
+
+    <div class="cov-grid-wrap" id="covGridWrap">
+      <div class="cov-loading">Loading coverage data…</div>
+    </div>
+
+    <!-- Inline mini-Gantt that appears when a cell is clicked -->
+    <div class="cov-mini-gantt" id="covMiniGantt" style="display:none;"></div>
   </div>
 </div>
 
@@ -1133,6 +1410,313 @@ table.heatmap-tbl td.hm-cell.handover-cell {
       if (_lastResponse) paintUnitGantt(_lastResponse);
     });
   });
+
+    // ─── Coverage by day-range slider (NEW v0.2.60) ───────────────
+  // Two-handle range slider over DH 4..14 picks a window; a grid below
+  // shows each station's coverage for each day in the window, colored by
+  // the chosen metric. Click any cell → mini-Gantt for that station × day.
+  //
+  // DH→Gregorian date mapping. DH 1 = 22 May 2026 per the SAR plan.
+  const DH_DATES = {
+    4: 'May 25',  5: 'May 26',  6: 'May 27',  7: 'May 28',
+    8: 'May 29',  9: 'May 30 (Arafah)',
+    10: 'May 31 (Eid)', 11: 'Jun 1', 12: 'Jun 2',
+    13: 'Jun 3',  14: 'Jun 4'
+  };
+  let _covRangeMetric = 'paras_peak';
+  let _covRangeData = null;
+  let _covSelected = null;  // { station, dh } when a cell is selected
+
+  function _covPercentInside(value, min, max) {
+    if (max === min) return 0;
+    return ((value - min) / (max - min)) * 100;
+  }
+
+  function paintCovSlider() {
+    const fromEl = $('covSliderFrom');
+    const toEl   = $('covSliderTo');
+    if (!fromEl || !toEl) return;
+    let from = parseInt(fromEl.value, 10);
+    let to   = parseInt(toEl.value, 10);
+    // Enforce from <= to with a 0-day minimum (single-day allowed)
+    if (from > to) {
+      // Whichever moved last gets pushed
+      if (fromEl === document.activeElement) toEl.value = from;
+      else fromEl.value = to;
+      from = parseInt(fromEl.value, 10);
+      to = parseInt(toEl.value, 10);
+    }
+    $('covLabelFrom').textContent = String(from);
+    $('covLabelTo').textContent   = String(to);
+    $('covRangeDur').textContent  = String(to - from + 1);
+
+    // Update fill bar position (between handles).
+    const MIN = parseInt(fromEl.min, 10);
+    const MAX = parseInt(fromEl.max, 10);
+    const leftPct  = _covPercentInside(from, MIN, MAX);
+    const rightPct = _covPercentInside(to, MIN, MAX);
+    const fill = $('covSliderFill');
+    if (fill) {
+      fill.style.left  = leftPct + '%';
+      fill.style.width = (rightPct - leftPct) + '%';
+    }
+
+    // Tick labels under track
+    const ticks = $('covSliderTicks');
+    if (ticks) {
+      let html = '';
+      for (let d = MIN; d <= MAX; d++) {
+        const inRange = (d >= from && d <= to);
+        html += '<div class="tick' + (inRange ? ' in-range' : '') + '">' + d + '</div>';
+      }
+      ticks.innerHTML = html;
+    }
+  }
+
+  async function refreshCovRange() {
+    const fromEl = $('covSliderFrom');
+    const toEl   = $('covSliderTo');
+    if (!fromEl || !toEl) return;
+    const from = parseInt(fromEl.value, 10);
+    const to   = parseInt(toEl.value, 10);
+    const zone = $('pickZone').value || 'all';
+    $('covGridWrap').innerHTML = '<div class="cov-loading">Loading coverage data…</div>';
+    try {
+      const r = await HAJJ.authedCall('coverage_range', {
+        dh_from: String(from), dh_to: String(to), zone: zone
+      });
+      if (!r || !r.ok) {
+        $('covGridWrap').innerHTML = '<div class="cov-loading" style="color:#fca5a5;">Failed to load coverage data.</div>';
+        return;
+      }
+      _covRangeData = r;
+      paintCovGrid();
+    } catch (e) {
+      console.error('coverage_range fetch failed:', e);
+      $('covGridWrap').innerHTML = '<div class="cov-loading" style="color:#fca5a5;">Error: ' + (e.message || e) + '</div>';
+    }
+  }
+
+  function paintCovGrid() {
+    const wrap = $('covGridWrap');
+    if (!wrap || !_covRangeData) return;
+    const { matrix, stations, days, station_totals } = _covRangeData;
+    if (!stations.length || !days.length) {
+      wrap.innerHTML = '<div class="cov-loading">No data in this range.</div>';
+      return;
+    }
+
+    // Compute max value across visible cells for color intensity
+    let maxVal = 1;
+    stations.forEach(st => days.forEach(d => {
+      const v = (matrix[st] && matrix[st][d] && matrix[st][d][_covRangeMetric]) || 0;
+      if (v > maxVal) maxVal = v;
+    }));
+
+    function cellColor(v) {
+      if (!v) return 'rgba(148,163,184,0.06)';
+      const a = 0.18 + (v / Math.max(maxVal, 1)) * 0.6;
+      // Blue-purple gradient for any metric
+      return 'rgba(59,130,246,' + a.toFixed(2) + ')';
+    }
+
+    let html = '<div class="cov-grid" style="grid-template-columns: 130px repeat(' + days.length + ', minmax(70px, 1fr));">';
+    // Header row
+    html += '<div class="cov-corner">Station ↓ / DH →</div>';
+    days.forEach(d => {
+      const date = DH_DATES[d] || '';
+      html += '<div class="cov-dh-head"><strong>DH ' + d + '</strong>'
+            + (date ? '<span class="dh-date">' + date + '</span>' : '')
+            + '</div>';
+    });
+
+    // Station rows
+    stations.forEach(st => {
+      const totals = (station_totals && station_totals[st]) || {};
+      let sumLabel = '';
+      if (_covRangeMetric === 'paras_peak')   sumLabel = 'max ' + (totals.paras_peak_max || 0);
+      else if (_covRangeMetric === 'paras_avg')    sumLabel = 'avg ' + (totals.paras_avg_avg || 0);
+      else if (_covRangeMetric === 'unit_count')   sumLabel = 'max ' + (totals.unit_count_max || 0);
+      else if (_covRangeMetric === 'ambs_peak')    sumLabel = 'max ' + (totals.ambs_peak_max || 0);
+      else                                          sumLabel = '';
+      html += '<div class="cov-row-label">'
+            + '<span>' + st + '</span>'
+            + (sumLabel ? '<span class="cov-row-sum">' + sumLabel + '</span>' : '')
+            + '</div>';
+      days.forEach(d => {
+        const cell = (matrix[st] && matrix[st][d]) || { paras_peak:0, paras_avg:0, unit_count:0, ambs_peak:0, doctors_peak:0, active_hours:0 };
+        const v = cell[_covRangeMetric] || 0;
+        const selected = (_covSelected && _covSelected.station === st && _covSelected.dh === d) ? ' selected' : '';
+        const zero = (v === 0) ? ' zero' : '';
+        const sub = (_covRangeMetric === 'paras_peak' && cell.active_hours !== undefined)
+                    ? cell.active_hours + 'h' : '';
+        const tip = st + ' · DH ' + d
+                  + ' · paras peak ' + cell.paras_peak
+                  + ' / avg ' + cell.paras_avg
+                  + ' · ' + cell.unit_count + ' units'
+                  + ' · ' + cell.ambs_peak + ' ambs peak'
+                  + ' · ' + cell.active_hours + ' active hrs';
+        html += '<div class="cov-cell' + selected + zero + '" '
+              + 'style="background:' + cellColor(v) + ';" '
+              + 'title="' + tip + '" '
+              + 'data-st="' + st + '" data-dh="' + d + '">'
+              + '<span class="cov-cell-main">' + (v || '·') + '</span>'
+              + (sub ? '<span class="cov-cell-sub">' + sub + '</span>' : '')
+              + '</div>';
+      });
+    });
+    html += '</div>';
+    wrap.innerHTML = html;
+
+    // Wire cell clicks
+    Array.from(wrap.querySelectorAll('.cov-cell')).forEach(td => {
+      td.addEventListener('click', () => {
+        const st = td.getAttribute('data-st');
+        const dh = parseInt(td.getAttribute('data-dh'), 10);
+        _covSelected = { station: st, dh: dh };
+        paintCovGrid();             // re-render to show selection outline
+        loadCovMiniGantt(st, dh);   // fetch and render the mini-Gantt
+      });
+    });
+  }
+
+  async function loadCovMiniGantt(station, dh) {
+    const mg = $('covMiniGantt');
+    if (!mg) return;
+    mg.style.display = 'block';
+    mg.innerHTML = '<div class="cov-mg-loading">Loading hour-by-hour Gantt for ' + station + ' · DH ' + dh + '…</div>';
+    mg.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    try {
+      // Re-use positioning_day for that DH, then extract just this station.
+      const r = await HAJJ.authedCall('positioning_day', { dh: String(dh), zone: 'all' });
+      if (!r || !r.ok) {
+        mg.innerHTML = '<div class="cov-mg-loading" style="color:#fca5a5;">Failed to load.</div>';
+        return;
+      }
+      paintCovMiniGantt(mg, r, station, dh);
+    } catch (e) {
+      mg.innerHTML = '<div class="cov-mg-loading" style="color:#fca5a5;">Error: ' + (e.message || e) + '</div>';
+    }
+  }
+
+  function paintCovMiniGantt(container, r, station, dh) {
+    const rows = r.rows || [];
+    // Build unit -> hours map for this station
+    const units = {};
+    rows.forEach(row => {
+      const ps = row.per_station && row.per_station[station];
+      if (!ps) return;
+      const day  = new Set(ps.units_day || []);
+      const ngt  = new Set(ps.units_night || []);
+      const alw  = new Set(ps.units_always || []);
+      (ps.active_units || []).forEach(uid => {
+        if (!units[uid]) {
+          let fam = 'A';
+          if (day.has(uid))      fam = 'D';
+          else if (ngt.has(uid)) fam = 'N';
+          else if (alw.has(uid)) fam = 'A';
+          else {
+            const m = uid.match(/-(\d+)$/);
+            if (m) fam = (parseInt(m[1], 10) % 2 === 1) ? 'D' : 'N';
+          }
+          units[uid] = { hours: new Set(), family: fam };
+        }
+        units[uid].hours.add(row.hour);
+      });
+    });
+
+    const uids = Object.keys(units).sort((a, b) => {
+      const fa = units[a].family, fb = units[b].family;
+      if (fa !== fb) return ('DNA'.indexOf(fa)) - ('DNA'.indexOf(fb));
+      return a.localeCompare(b, undefined, { numeric: true });
+    });
+    const dCount = uids.filter(u => units[u].family === 'D').length;
+    const nCount = uids.filter(u => units[u].family === 'N').length;
+    const aCount = uids.filter(u => units[u].family === 'A').length;
+
+    let html = '';
+    html += '<div class="cov-mg-head">';
+    html += '<div>';
+    html += '<div class="cov-mg-title">' + station + ' · DH ' + dh + '</div>';
+    html += '<div class="cov-mg-subtitle">' + uids.length + ' units · '
+          + dCount + ' day · ' + nCount + ' night · ' + aCount + ' 24/7'
+          + (DH_DATES[dh] ? ' · ' + DH_DATES[dh] : '')
+          + '</div>';
+    html += '</div>';
+    html += '<button class="cov-mg-close" id="covMgClose">Close</button>';
+    html += '</div>';
+
+    if (uids.length === 0) {
+      html += '<div class="cov-mg-loading">No units on duty.</div>';
+      container.innerHTML = html;
+      $('covMgClose').addEventListener('click', () => { container.style.display = 'none'; _covSelected = null; paintCovGrid(); });
+      return;
+    }
+
+    // Reuse the .ug-grid styling (already in the stylesheet)
+    html += '<div class="ug-grid" style="background:transparent; padding:0; min-width:760px;">';
+    html += '<div class="ug-grid-corner1">Unit</div>';
+    html += '<div class="ug-grid-corner2">Fam</div>';
+    for (let h = 0; h < 24; h++) {
+      html += '<div class="ug-grid-hour">' + String(h).padStart(2,'0') + '</div>';
+    }
+    const familyClass = { D: 'fam-D', N: 'fam-N', A: 'fam-A' };
+    uids.forEach(uid => {
+      const u = units[uid];
+      const fam = u.family;
+      html += '<div class="ug-unit-name" title="' + uid + '">' + uid + '</div>';
+      html += '<div class="ug-unit-size">' + fam + '</div>';
+      for (let h = 0; h < 24; h++) {
+        const hStr = String(h).padStart(2,'0') + ':00';
+        const on = u.hours.has(hStr);
+        if (on) {
+          html += '<div class="ug-bar ' + familyClass[fam] + '" title="' + uid + ' · ' + hStr + ' · ' + station + '"></div>';
+        } else {
+          html += '<div class="ug-bar fam-empty"></div>';
+        }
+      }
+    });
+    html += '</div>';
+
+    container.innerHTML = html;
+    $('covMgClose').addEventListener('click', () => {
+      container.style.display = 'none';
+      _covSelected = null;
+      paintCovGrid();
+    });
+  }
+
+  // Wire slider events
+  (function wireCovSlider() {
+    const f = $('covSliderFrom');
+    const t = $('covSliderTo');
+    if (!f || !t) return;
+    let debounceTimer = null;
+    function onSlide() {
+      paintCovSlider();
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(refreshCovRange, 300);
+    }
+    f.addEventListener('input', onSlide);
+    t.addEventListener('input', onSlide);
+
+    // Metric buttons
+    Array.from(document.querySelectorAll('.cov-metric-btn')).forEach(b => {
+      b.addEventListener('click', () => {
+        _covRangeMetric = b.dataset.metric;
+        document.querySelectorAll('.cov-metric-btn').forEach(x => x.classList.toggle('active', x === b));
+        if (_covRangeData) paintCovGrid();
+      });
+    });
+
+    // Zone change should also reload the range
+    $('pickZone').addEventListener('change', refreshCovRange);
+
+    // Initial paint + load
+    paintCovSlider();
+    refreshCovRange();
+  })();
 
     // Wire heatmap metric tabs (once, at startup).
   Array.from(document.querySelectorAll('.hm-tab')).forEach(t => {
