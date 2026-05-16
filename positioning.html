@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Positioning · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.64">
+<link rel="stylesheet" href="assets/style.css?v=0.2.65">
 <style>
 body { background: var(--bg); }
 .content { padding: 12px 14px 80px; max-width: 1280px; margin: 0 auto; }
@@ -390,14 +390,16 @@ table.heatmap-tbl td.hm-cell.handover-cell {
 .ug-station-head .ug-st-summary strong {
   color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums;
 }
+.ug-station-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
 .ug-grid {
   display: grid;
   grid-template-columns: 130px 28px repeat(var(--ug-hour-count, 24), minmax(13px, 1fr));
   gap: 1px;
   padding: 8px;
   font-size: 10px; font-variant-numeric: tabular-nums;
-  min-width: 800px;
-  overflow-x: auto;
 }
 .ug-grid-hour {
   text-align: center; padding: 3px 0;
@@ -419,6 +421,7 @@ table.heatmap-tbl td.hm-cell.handover-cell {
   font-size: 11px; color: var(--text);
   padding: 4px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   border-right: 1px solid var(--border-soft);
+  position: sticky; left: 0; background: var(--surface); z-index: 2;
 }
 .ug-unit-size {
   text-align: center; padding: 4px 0;
@@ -765,6 +768,18 @@ table.heatmap-tbl td.hm-cell.handover-cell {
   border-bottom: 1px solid var(--border-soft);
   align-items: stretch;
 }
+.ug-day-strip-sticky1, .ug-day-strip-sticky2 {
+  position: sticky; left: 0; background: var(--surface); z-index: 3;
+}
+.ug-day-strip-sticky2 { left: 130px; }
+.ug-grid-corner1, .ug-grid-corner2 {
+  position: sticky; background: var(--surface-2); z-index: 3;
+}
+.ug-grid-corner1 { left: 0; }
+.ug-grid-corner2 { left: 130px; }
+.ug-unit-size {
+  position: sticky; left: 130px; background: var(--surface); z-index: 2;
+}
 .ug-day-cell {
   padding: 5px 6px;
   text-align: center;
@@ -784,7 +799,6 @@ table.heatmap-tbl td.hm-cell.handover-cell {
 .ug-grid {
   padding: 4px 8px 8px;
   font-size: 9px;
-  min-width: 800px;
 }
 .ug-grid-hour {
   padding: 2px 0;
@@ -878,9 +892,9 @@ table.heatmap-tbl td.hm-cell.handover-cell {
 </style>
 </head>
 <body>
-<script src="assets/version.js?v=0.2.64"></script>
+<script src="assets/version.js?v=0.2.65"></script>
 <script src="assets/config.js?v=0.2.60"></script>
-<script src="assets/auth.js?v=0.2.64"></script>
+<script src="assets/auth.js?v=0.2.65"></script>
 <script src="assets/topbar.js?v=0.2.60"></script>
 
 <div class="content">
@@ -1693,9 +1707,15 @@ table.heatmap-tbl td.hm-cell.handover-cell {
         return;
       }
 
+      // Wrap day-strip + grid in a shared overflow-x scroll container so
+      // the day-labels stay aligned with the hour cells when the user scrolls
+      // horizontally. Previously the day-strip sat outside the grid's scroll
+      // area and was clipped by the station-block, so labels showed DH 7-9
+      // while the grid actually extended through DH 10-14 off-screen.
+      html += '<div class="ug-station-scroll">';
       // Day-label strip (above the hour numbers)
       html += '<div class="ug-day-strip" style="grid-template-columns: 130px 28px repeat(' + totalHours + ', minmax(13px, 1fr));">';
-      html += '<div></div><div></div>';
+      html += '<div class="ug-day-strip-sticky1"></div><div class="ug-day-strip-sticky2"></div>';
       days.forEach((dh, di) => {
         const isNowDay = (dh === nowDH);
         const dateStr  = (window.DH_DATES_MAP && window.DH_DATES_MAP[dh]) || '';
@@ -1756,7 +1776,9 @@ table.heatmap-tbl td.hm-cell.handover-cell {
           }
         });
       });
-      html += '</div></div>';
+      html += '</div>';   // close .ug-grid
+      html += '</div>';   // close .ug-station-scroll
+      html += '</div>';   // close .ug-station-block
     });
 
     wrap.innerHTML = html;
