@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '*/30 * * * *'  # every 30 min
   workflow_dispatch:        # manual trigger from Actions tab
+    inputs:
+      only_branch:
+        description: 'Limit refresh to one branch (main / testing / both)'
+        required: false
+        default: 'both'
 
 permissions:
   contents: write
@@ -11,8 +16,21 @@ permissions:
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: [main, testing]
     steps:
-      - uses: actions/checkout@v4
+      - name: Skip if filtered
+        if: ${{ github.event.inputs.only_branch && github.event.inputs.only_branch != 'both' && github.event.inputs.only_branch != matrix.branch }}
+        run: echo "Skipping branch ${{ matrix.branch }} (filtered to ${{ github.event.inputs.only_branch }})" && exit 0
+
+      - name: Checkout ${{ matrix.branch }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.branch }}
+          # Tokens default to GITHUB_TOKEN which has contents:write per the
+          # permissions block above, so commits/pushes succeed on both branches.
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -22,7 +40,9 @@ jobs:
       - name: Install deps
         run: pip install -r requirements.txt
 
-      - name: Build data.json from Google Drive
+      - name: Build data.json from Google Sheet
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: python build.py
 
       - name: Build tasks.json from Smartsheet (or fallback)
@@ -36,8 +56,8 @@ jobs:
           git config user.email "bot@users.noreply.github.com"
           git add data.json tasks.json
           if ! git diff --staged --quiet; then
-            git commit -m "Refresh data — $(date -u +%Y-%m-%dT%H:%MZ)"
-            git push
+            git commit -m "Refresh data on ${{ matrix.branch }} — $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push origin HEAD:${{ matrix.branch }}
           else
-            echo "No changes to commit"
+            echo "No changes to commit on ${{ matrix.branch }}"
           fi
