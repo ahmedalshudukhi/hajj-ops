@@ -1,37 +1,34 @@
 /**
- * Cloudflare Workers config for the testing deployment.
+ * Cloudflare Workers config for the v0.9.1 PRE-PRODUCTION deployment.
  *
- * Direct custom domain: testhajj.shuki.tech routes to this worker via
- * Cloudflare edge, bypassing home NPM entirely. This guarantees
- * testhajj.shuki.tech can NEVER accidentally serve the main branch.
+ * Direct custom domain: prehajj.shuki.tech routes to this worker via
+ * Cloudflare edge. The wrangler deploy step provisions the DNS
+ * record automatically (custom_domain: true).
  *
- * Production (hajj.shuki.tech / main branch) uses Cloudflare Pages
- * and does NOT use this file.
+ * Architecture:
+ *   main branch       → hajj.shuki.tech       (Cloudflare Pages, v0.2.18 locked)
+ *   testing branch    → testhajj.shuki.tech   (hajj-ops-test worker)
+ *   v0.9.1 branch     → prehajj.shuki.tech    (hajj-ops-preprod worker, THIS)
  */
 {
-  "name": "hajj-ops-test",
+  "name": "hajj-ops-preprod",
   "main": "_worker.js",
   "compatibility_date": "2026-05-06",
   "compatibility_flags": ["nodejs_compat"],
 
-  // Direct custom domain — Cloudflare creates a DNS record and routes
-  // requests to this worker. NPM is no longer in the path.
   "routes": [
     {
-      "pattern": "testhajj.shuki.tech",
+      "pattern": "prehajj.shuki.tech",
       "custom_domain": true
     }
   ],
 
-  // Serve static HTML/CSS/JS from repo root.
-  // Worker handles /api/* and non-matching paths fall through to ASSETS.
   "assets": {
     "directory": "./",
     "binding": "ASSETS",
     "not_found_handling": "404-page"
   },
 
-  // D1 database binding — same database as production.
   "d1_databases": [
     {
       "binding": "DB",
@@ -41,8 +38,5 @@
   ],
 
   "workers_dev": true,
-
-  "observability": {
-    "enabled": true
-  }
+  "observability": { "enabled": true }
 }
