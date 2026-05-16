@@ -638,6 +638,26 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
             sd_shifts      = {st: set() for st in SITES}
             sd_doctors     = {st: 0 for st in SITES}
 
+            # Per-station per-shift-family breakdown so we can compute the
+            # operational headcount as max(day, night) + always_on instead of
+            # naively summing both shifts at handover hours. The sum was
+            # over-counting paramedics at 05:00 and 17:00 (the deliberate
+            # 1-hour overlap when outgoing crew briefs incoming crew).
+            sd_paras_day    = {st: 0 for st in SITES}
+            sd_paras_night  = {st: 0 for st in SITES}
+            sd_paras_always = {st: 0 for st in SITES}
+            sd_units_per_family = {st: {'D': [], 'N': [], 'A': []} for st in SITES}
+            # Also store the matched shift per unit so downstream can build
+            # per-unit Gantt visualizations.
+            unit_shift_at_hour = {}  # uid -> matched_shift_code
+
+            def _shift_family(code):
+                u = (code or "").upper().strip()
+                if u == "24/7" or u == "24-7": return 'A'  # always-on
+                if u.startswith("D"): return 'D'
+                if u.startswith("N"): return 'N'
+                return 'A'  # unknown family treated as always-on (conservative)
+
             for uid, day_shifts in schedule.items():
                 if dh not in day_shifts: continue
                 matched_shift = None
@@ -649,12 +669,14 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
                             break
                 if not matched_shift: continue
                 active_units.add(uid)
+                unit_shift_at_hour[uid] = matched_shift
                 size = unit_size.get(uid, 2)
                 home = unit_home.get(uid, "")
                 utype = unit_type.get(uid, "") or "Other"
                 by_type[utype] += 1
                 zone_name = _zone_of(home)
                 by_zone_type[zone_name][utype] += 1
+                fam = _shift_family(matched_shift)
                 if home.startswith("ARF"):
                     zones["Arafat"] += size
                 elif home.startswith("MUZ"):
@@ -663,14 +685,35 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
                     zones["Mina"] += size
                 else:
                     zones["Support"] += size
-                if home in stations:
-                    stations[home] += size
-                    sd_paras[home] += size
+                if home in SITES:
+                    if fam == 'D': sd_paras_day[home] += size
+                    elif fam == 'N': sd_paras_night[home] += size
+                    else:           sd_paras_always[home] += size
+                    sd_units_per_family[home][fam].append(uid)
                     sd_by_type[home][utype] += 1
                     sd_units[home].append(uid)
                     sd_shifts[home].add(matched_shift)
                     if utype == "Doctor":
                         sd_doctors[home] += 1
+
+            # Collapse to operational headcount per station:
+            #   effective = max(day_crew, night_crew) + always_on_baseline
+            # This is the correct operational reading at every hour, including
+            # handover hours (05:00 / 17:00) where day and night shifts physically
+            # overlap for 1 hour. The previous code summed both shifts which
+            # inflated the count by the incoming/outgoing crew size.
+            for st in SITES:
+                effective = max(sd_paras_day[st], sd_paras_night[st]) + sd_paras_always[st]
+                sd_paras[st] = effective
+                if st in stations:
+                    stations[st] = effective
+
+            # Also collapse the zone sums: zones[zone] currently has the
+            # naive sum across all stations. Rebuild from effective station
+            # values so the zone totals are consistent.
+            zones = {"Arafat":0, "Muzdalifah":0, "Mina":0, "Support":0}
+            for st in SITES:
+                zones[_zone_of(st)] += stations.get(st, 0)
 
             # Crewed ambulance presence at each station — the "currently
             # has a crew on duty" view. This is what `stations_amb` shows
@@ -698,12 +741,18 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
             for st in SITES:
                 stations_detail[st] = {
                     "paras":          sd_paras[st],
+                    "paras_day":      sd_paras_day[st],
+                    "paras_night":    sd_paras_night[st],
+                    "paras_always":   sd_paras_always[st],
                     "by_type":        dict(sd_by_type[st]),
                     "doctors":        stations_doctors[st],
                     "amb_crewed":     stations_amb[st],
                     "amb_total":      stations_amb_total.get(st, 0),
                     "active_units":   sorted(sd_units[st]),
                     "active_shifts":  sorted(sd_shifts[st]),
+                    "units_day":      sorted(sd_units_per_family[st]['D']),
+                    "units_night":    sorted(sd_units_per_family[st]['N']),
+                    "units_always":   sorted(sd_units_per_family[st]['A']),
                 }
 
             arf_a = stations_amb.get("ARF1",0)+stations_amb.get("ARF2",0)+stations_amb.get("ARF3",0)

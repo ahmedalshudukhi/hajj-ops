@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Positioning · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.58">
+<link rel="stylesheet" href="assets/style.css?v=0.2.59">
 <style>
 body { background: var(--bg); }
 .content { padding: 12px 14px 80px; max-width: 1280px; margin: 0 auto; }
@@ -339,6 +339,113 @@ table.heatmap-tbl td.hm-cell.handover-cell {
 .shift-coverage-legend .swatch.night { background: rgba(99,102,241,0.5); }
 .shift-coverage-legend .swatch.handover { outline: 2px solid #fcd34d; outline-offset: -2px; background: rgba(252,211,77,0.15); }
 
+/* ──────── Per-Unit Gantt by Station (v0.2.59) ──────── */
+.unit-gantt-section { margin-top: 26px; }
+.unit-gantt-head {
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+  margin-bottom: 6px;
+}
+.unit-gantt-head h2 {
+  margin: 0; font-size: 16px; font-weight: 600; color: var(--text);
+}
+.unit-gantt-controls { display: flex; gap: 6px; flex-wrap: wrap; }
+.ug-zone-btn {
+  background: var(--surface-2); color: var(--text-muted);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px; padding: 5px 12px;
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  transition: all 0.15s;
+}
+.ug-zone-btn:hover { color: var(--text); }
+.ug-zone-btn.active {
+  background: rgba(59,130,246,0.18); color: #93c5fd;
+  border-color: rgba(59,130,246,0.4);
+}
+.unit-gantt-intro {
+  font-size: 12px; color: var(--text-muted); line-height: 1.55;
+  margin: 4px 0 12px; max-width: 850px;
+}
+.unit-gantt-wrap {
+  display: flex; flex-direction: column; gap: 12px;
+}
+.ug-station-block {
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.ug-station-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border-soft);
+}
+.ug-station-head .ug-st-name {
+  font-weight: 700; font-size: 13px; color: var(--text);
+  font-family: ui-monospace, Menlo, monospace;
+}
+.ug-station-head .ug-st-summary {
+  font-size: 11px; color: var(--text-muted);
+}
+.ug-station-head .ug-st-summary strong {
+  color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.ug-grid {
+  display: grid;
+  grid-template-columns: 130px 30px repeat(24, minmax(22px, 1fr));
+  gap: 1px;
+  padding: 8px;
+  font-size: 10px; font-variant-numeric: tabular-nums;
+  min-width: 800px;
+  overflow-x: auto;
+}
+.ug-grid-hour {
+  text-align: center; padding: 3px 0;
+  color: var(--text-muted); font-size: 9px;
+  font-family: ui-monospace, Menlo, monospace;
+  border-bottom: 1px solid var(--border-soft);
+}
+.ug-grid-hour.ug-hour-now {
+  background: rgba(251,191,36,0.18); color: #fcd34d; font-weight: 700;
+}
+.ug-grid-corner1, .ug-grid-corner2 {
+  font-size: 8px; color: var(--text-muted);
+  padding: 3px 4px; text-transform: uppercase; letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border-soft);
+}
+.ug-grid-corner1 { font-weight: 600; }
+.ug-unit-name {
+  font-weight: 600; font-family: ui-monospace, Menlo, monospace;
+  font-size: 11px; color: var(--text);
+  padding: 4px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  border-right: 1px solid var(--border-soft);
+}
+.ug-unit-size {
+  text-align: center; padding: 4px 0;
+  font-size: 10px; color: var(--text-muted);
+  font-family: ui-monospace, Menlo, monospace;
+}
+.ug-bar {
+  margin: 2px 0;
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+  transition: filter 0.1s;
+  min-height: 16px;
+}
+.ug-bar:hover { filter: brightness(1.4); outline: 1px solid var(--text); }
+.ug-bar.fam-D { background: rgba(245,158,11,0.55); }
+.ug-bar.fam-N { background: rgba(99,102,241,0.55); }
+.ug-bar.fam-A { background: rgba(148,163,184,0.5); }
+.ug-bar.fam-empty { background: rgba(148,163,184,0.04); cursor: default; }
+.ug-bar.fam-empty:hover { filter: none; outline: none; }
+.ug-bar.is-now { box-shadow: inset 0 0 0 1px #fcd34d; }
+.ug-empty-station {
+  padding: 16px; text-align: center;
+  color: var(--text-muted); font-size: 11px;
+}
+
+
 .handover-note {
   background: rgba(252,211,77,0.06);
   border: 1px solid rgba(252,211,77,0.3);
@@ -352,10 +459,10 @@ table.heatmap-tbl td.hm-cell.handover-cell {
 </style>
 </head>
 <body>
-<script src="assets/version.js?v=0.2.58"></script>
-<script src="assets/config.js?v=0.2.58"></script>
-<script src="assets/auth.js?v=0.2.58"></script>
-<script src="assets/topbar.js?v=0.2.58"></script>
+<script src="assets/version.js?v=0.2.59"></script>
+<script src="assets/config.js?v=0.2.59"></script>
+<script src="assets/auth.js?v=0.2.59"></script>
+<script src="assets/topbar.js?v=0.2.59"></script>
 
 <div class="content">
   <div class="picker">
@@ -430,20 +537,10 @@ table.heatmap-tbl td.hm-cell.handover-cell {
       <h2>Per-shift coverage timeline</h2>
     </div>
     <div class="shift-coverage-intro">
-      Each row is a <strong>shift code</strong>. Each column is an hour 00–24.
-      A filled cell means at least one unit on that shift is on duty during that hour
-      — the number inside is how many of the 10 sites it covers.
-      Hours where two shifts overlap (e.g. <strong>05:00</strong> day-shift ramp-up while
-      night is still on; <strong>17:00</strong> night-shift ramp-up while day is still on) are
-      outlined in gold — that's the operational handover, <strong>not a staffing surge</strong>.
-      This is why the heatmap above shows "peaks" at those hours.
-    </div>
-    <div class="handover-note" id="handoverNote">
-      <strong>Why does the heatmap above peak at 05:00 and 17:00?</strong>
-      Both day and night shifts are physically present during 1-hour handover for
-      continuity of care. The total para count adds both shifts together, which inflates
-      the cell number by ~15–30 paramedics — same staff in different shift slots, not
-      double the workforce. Cells marked with ⇄ in the heatmap above are handover cells.
+      Each row is a <strong>shift code</strong>; each column is an hour 00–24.
+      A filled cell shows how many of the 10 sites that shift covers at that hour.
+      Day-family shifts (D-prefix) in amber, night-family (N-prefix) in indigo,
+      always-on (24/7) in gray.
     </div>
     <div class="shift-coverage-wrap">
       <div class="shift-coverage-grid" id="shiftCoverageGrid"></div>
@@ -454,6 +551,26 @@ table.heatmap-tbl td.hm-cell.handover-cell {
       <span class="item"><span class="swatch handover"></span>Handover hour (05:00, 17:00)</span>
       <span class="item" style="background:transparent;border:0;">Cell number = stations covered (of 10)</span>
     </div>
+  </div>
+
+  <!-- ─── NEW v0.2.59: Per-unit Gantt grouped by station ─── -->
+  <div class="unit-gantt-section">
+    <div class="unit-gantt-head">
+      <h2>Unit duty roster (Gantt)</h2>
+      <div class="unit-gantt-controls">
+        <button class="ug-zone-btn active" data-ugz="all">All zones</button>
+        <button class="ug-zone-btn" data-ugz="ARF">Arafat</button>
+        <button class="ug-zone-btn" data-ugz="MUZ">Muzdalifah</button>
+        <button class="ug-zone-btn" data-ugz="MIN">Mina</button>
+        <button class="ug-zone-btn" data-ugz="OCC">OCC</button>
+      </div>
+    </div>
+    <div class="unit-gantt-intro">
+      Every unit assigned to each station, with its hourly on-duty window for the selected DH.
+      Day-shift bars in amber, night in indigo, always-on in gray.
+      Hover any bar to see the unit's shift code, size, and crew names if available.
+    </div>
+    <div class="unit-gantt-wrap" id="unitGanttWrap"></div>
   </div>
 </div>
 
@@ -518,6 +635,7 @@ table.heatmap-tbl td.hm-cell.handover-cell {
     paintTable(r);
     paintHeatmap(r);
     paintShiftCoverage(r);
+    paintUnitGantt(r);
     if (_selectedHour) {
       const hit = _lastRows.find(x => x.hour === _selectedHour);
       if (hit) paintStationDetail(hit, r.stations);
@@ -758,8 +876,8 @@ table.heatmap-tbl td.hm-cell.handover-cell {
       if (hasDay && hasNight) {
         td.classList.add('handover-cell');
         td.setAttribute('title',
-          'Cross-shift HANDOVER · ' + shifts.join(' + ') +
-          ' · ' + ps.paras + ' paras shown = both shifts counted during 1-hour handover · ' +
+          'Shift overlap · ' + shifts.join(' + ') +
+          ' · ' + ps.paras + ' paras on duty · ' +
           hour + ' at ' + st);
       }
     });
@@ -864,6 +982,157 @@ table.heatmap-tbl td.hm-cell.handover-cell {
     });
     grid.innerHTML = html;
   }
+
+    // ─── Per-Unit Gantt (NEW v0.2.59) ───
+  // For each station, list the units that ever appear at it across the day
+  // and paint each unit's hourly on-duty bars. Source: per_station.active_units
+  // across the 24 hourly rows. Family (D/N/A) derived from active_shifts and
+  // the new units_day/units_night/units_always arrays when present.
+  let _ganttZone = 'all';
+  function paintUnitGantt(r) {
+    const wrap = $('unitGanttWrap'); if (!wrap) return;
+    const rows = r.rows || [];
+    const stations = r.stations || [];
+    if (!rows.length || !stations.length) { wrap.innerHTML = ''; return; }
+
+    // Optional zone filter
+    const zoneFilter = _ganttZone;
+    const visibleSt = stations.filter(st => {
+      if (zoneFilter === 'all') return true;
+      if (zoneFilter === 'OCC') return st === 'OCC';
+      return st.startsWith(zoneFilter);
+    });
+
+    // Build per-station unit timeline: { st: { unit_id: { hours: Set, family: 'D'|'N'|'A' } } }
+    const stationUnits = {};
+    visibleSt.forEach(st => { stationUnits[st] = {}; });
+
+    rows.forEach(row => {
+      const hour = row.hour;
+      const ps = row.per_station || {};
+      visibleSt.forEach(st => {
+        const sd = ps[st];
+        if (!sd) return;
+        const day  = new Set(sd.units_day || []);
+        const ngt  = new Set(sd.units_night || []);
+        const alw  = new Set(sd.units_always || []);
+        (sd.active_units || []).forEach(uid => {
+          if (!stationUnits[st][uid]) {
+            let fam = 'A';
+            if (day.has(uid))      fam = 'D';
+            else if (ngt.has(uid)) fam = 'N';
+            else if (alw.has(uid)) fam = 'A';
+            else {
+              // Fallback if the per-family lists are missing (old data.json
+              // before v0.2.59 build). Infer from unit ID parity heuristic.
+              const m = uid.match(/-(\d+)$/);
+              if (m) fam = (parseInt(m[1], 10) % 2 === 1) ? 'D' : 'N';
+            }
+            stationUnits[st][uid] = { hours: new Set(), family: fam };
+          }
+          stationUnits[st][uid].hours.add(hour);
+        });
+      });
+    });
+
+    // Current hour for "now" highlight
+    const nowH = (() => {
+      const d = new Date();
+      return String(d.getHours()).padStart(2,'0') + ':00';
+    })();
+
+    // Render
+    const familyClass = { D: 'fam-D', N: 'fam-N', A: 'fam-A' };
+    const familyLabel = { D: 'Day', N: 'Night', A: '24/7' };
+
+    let html = '';
+    visibleSt.forEach(st => {
+      const units = stationUnits[st] || {};
+      const uids = Object.keys(units).sort((a, b) => {
+        // Sort by family (D, N, A), then by name
+        const fa = units[a].family, fb = units[b].family;
+        if (fa !== fb) return ('DNA'.indexOf(fa)) - ('DNA'.indexOf(fb));
+        return a.localeCompare(b, undefined, { numeric: true });
+      });
+
+      // Station summary line
+      const ucount = uids.length;
+      const dCount = uids.filter(u => units[u].family === 'D').length;
+      const nCount = uids.filter(u => units[u].family === 'N').length;
+      const aCount = uids.filter(u => units[u].family === 'A').length;
+
+      html += '<div class="ug-station-block">';
+      html += '<div class="ug-station-head">';
+      html += '<span class="ug-st-name">' + st + '</span>';
+      html += '<span class="ug-st-summary">'
+            + '<strong>' + ucount + '</strong> units · '
+            + '<strong>' + dCount + '</strong> day · '
+            + '<strong>' + nCount + '</strong> night · '
+            + '<strong>' + aCount + '</strong> 24/7'
+            + '</span>';
+      html += '</div>';
+
+      if (ucount === 0) {
+        html += '<div class="ug-empty-station">No units assigned for DH ' + (r.dh || '') + '.</div>';
+        html += '</div>';
+        return;
+      }
+
+      html += '<div class="ug-grid">';
+      // Header row: corner labels + 24 hour headers
+      html += '<div class="ug-grid-corner1">Unit</div>';
+      html += '<div class="ug-grid-corner2">Fam</div>';
+      for (let h = 0; h < 24; h++) {
+        const hStr = String(h).padStart(2,'0') + ':00';
+        const now = (hStr === nowH) ? ' ug-hour-now' : '';
+        html += '<div class="ug-grid-hour' + now + '">' + String(h).padStart(2,'0') + '</div>';
+      }
+      // Each unit row
+      uids.forEach(uid => {
+        const u = units[uid];
+        const fam = u.family;
+        html += '<div class="ug-unit-name" title="' + uid + ' · ' + familyLabel[fam] + '">' + uid + '</div>';
+        html += '<div class="ug-unit-size">' + fam + '</div>';
+        for (let h = 0; h < 24; h++) {
+          const hStr = String(h).padStart(2,'0') + ':00';
+          const on = u.hours.has(hStr);
+          const now = (hStr === nowH) ? ' is-now' : '';
+          if (on) {
+            html += '<div class="ug-bar ' + familyClass[fam] + now + '" '
+                  + 'data-uid="' + uid + '" data-hour="' + hStr + '" data-st="' + st + '" '
+                  + 'title="' + uid + ' on duty at ' + hStr + ' · ' + st + '"></div>';
+          } else {
+            html += '<div class="ug-bar fam-empty' + now + '"></div>';
+          }
+        }
+      });
+      html += '</div></div>';
+    });
+
+    wrap.innerHTML = html;
+
+    // Wire clicks on Gantt bars: jump to that hour and station detail
+    Array.from(wrap.querySelectorAll('.ug-bar:not(.fam-empty)')).forEach(bar => {
+      bar.addEventListener('click', () => {
+        const hour = bar.getAttribute('data-hour');
+        const row = (_lastResponse && (_lastResponse.rows || []).find(x => x.hour === hour));
+        if (row) {
+          _selectedHour = hour;
+          paintStationDetail(row, (_lastResponse && _lastResponse.stations) || []);
+          $('stationDetail').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+    });
+  }
+
+  // Zone-filter buttons for the Gantt section
+  Array.from(document.querySelectorAll('.ug-zone-btn')).forEach(b => {
+    b.addEventListener('click', () => {
+      _ganttZone = b.dataset.ugz;
+      document.querySelectorAll('.ug-zone-btn').forEach(x => x.classList.toggle('active', x === b));
+      if (_lastResponse) paintUnitGantt(_lastResponse);
+    });
+  });
 
     // Wire heatmap metric tabs (once, at startup).
   Array.from(document.querySelectorAll('.hm-tab')).forEach(t => {

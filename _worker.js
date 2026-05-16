@@ -1238,12 +1238,18 @@ const ACTIONS = {
         const detail = (r.stations_detail && r.stations_detail[st]) || null;
         perStation[st] = {
           paras: (r.stations && r.stations[st]) || 0,
+          paras_day:    (detail && detail.paras_day)    || 0,
+          paras_night:  (detail && detail.paras_night)  || 0,
+          paras_always: (detail && detail.paras_always) || 0,
           ambs_crewed:  (r.stations_amb && r.stations_amb[st]) || 0,
           ambs_total:   (r.stations_amb_total && r.stations_amb_total[st]) || 0,
           doctors:      (r.stations_doctors && r.stations_doctors[st]) || 0,
           by_type:      (detail && detail.by_type) || {},
           active_units: (detail && detail.active_units) || [],
           active_shifts:(detail && detail.active_shifts) || [],
+          units_day:    (detail && detail.units_day)    || [],
+          units_night:  (detail && detail.units_night)  || [],
+          units_always: (detail && detail.units_always) || [],
         };
       });
 
