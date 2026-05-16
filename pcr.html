@@ -22,6 +22,7 @@ body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-ser
 </style>
 </head>
 <body>
+<div id="topbar"></div>
 <script src="assets/version.js?v=0.2.53"></script>
 <script src="assets/config.js?v=0.2.53"></script>
 <script src="assets/auth.js?v=0.2.61"></script>
@@ -58,4 +59,5 @@ body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-ser
   </div>
 </div>
 
+<script>document.addEventListener("DOMContentLoaded",function(){if(window.CADTopbar){CADTopbar.render({ title: 'PCR' });}});</script>
 </body></html>

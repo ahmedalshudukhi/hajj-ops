@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Positioning · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.65">
+<link rel="stylesheet" href="assets/style.css?v=0.9.4">
 <style>
 body { background: var(--bg); }
 .content { padding: 12px 14px 80px; max-width: 1280px; margin: 0 auto; }
@@ -204,7 +204,7 @@ table.heatmap-tbl td.hm-total { font-weight: 700; background: var(--surface-2); 
 
 /* Shudukhi Labs subtle site footer */
 .shudukhi-labs-footer {
-  position: fixed; right: 10px; bottom: 6px;
+  position: fixed; left: 10px; bottom: 6px;
   font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase;
   color: var(--text-muted); opacity: 0.35;
   pointer-events: none; user-select: none;
@@ -233,111 +233,7 @@ table.heatmap-tbl td.hm-cell.handover-cell {
   background-image: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(252,211,77,0.25) 4px, rgba(252,211,77,0.25) 6px) !important;
 }
 
-/* ──────── Per-Shift Coverage Timeline (new view) ──────── */
-.shift-coverage-section { margin-top: 26px; }
-.shift-coverage-head {
-  display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
-  margin-bottom: 8px;
-}
-.shift-coverage-head h2 {
-  margin: 0; font-size: 16px; font-weight: 600; color: var(--text);
-}
-.shift-coverage-intro {
-  font-size: 12px; color: var(--text-muted); line-height: 1.55;
-  margin: 4px 0 12px; max-width: 850px;
-}
-.shift-coverage-intro strong { color: var(--text); font-weight: 600; }
-.shift-coverage-wrap {
-  background: var(--surface); border: 1px solid var(--border-soft);
-  border-radius: var(--radius); padding: 14px;
-  overflow-x: auto;
-}
-.shift-coverage-grid {
-  display: grid;
-  grid-template-columns: 110px repeat(24, minmax(28px, 1fr));
-  gap: 2px;
-  font-size: 10px; font-variant-numeric: tabular-nums;
-  min-width: 820px;
-}
-.scg-corner {
-  font-size: 9px; color: var(--text-muted); padding: 6px 4px;
-  border-bottom: 1px solid var(--border-soft);
-  position: sticky; left: 0; background: var(--surface); z-index: 3;
-  text-transform: uppercase; letter-spacing: 0.06em;
-}
-.scg-hour-head {
-  text-align: center; padding: 5px 0 7px;
-  font-size: 10px; color: var(--text-muted);
-  font-family: ui-monospace, Menlo, monospace;
-  border-bottom: 1px solid var(--border-soft);
-  position: relative;
-}
-.scg-hour-head.hour-handover {
-  color: #fcd34d; background: rgba(252,211,77,0.08);
-}
-.scg-hour-head .hh-mark {
-  display: block; font-size: 7px; color: #fcd34d;
-  letter-spacing: 0; line-height: 1;
-}
-.scg-shift-label {
-  font-weight: 700; font-family: ui-monospace, Menlo, monospace;
-  color: var(--text);
-  padding: 9px 8px;
-  position: sticky; left: 0; background: var(--surface); z-index: 2;
-  font-size: 12px;
-  border-right: 1px solid var(--border-soft);
-  display: flex; flex-direction: column; gap: 2px;
-}
-.scg-shift-label .ssl-sub {
-  font-weight: 500; font-size: 9px;
-  color: var(--text-muted); font-family: ui-monospace, Menlo, monospace;
-}
-.scg-cell {
-  padding: 7px 2px;
-  text-align: center;
-  border-radius: 3px;
-  background: rgba(148,163,184,0.06);
-  font-size: 10px;
-  position: relative;
-  line-height: 1.1;
-}
-.scg-cell.shift-day {
-  background: rgba(245,158,11,0.32); color: #fef3c7;
-}
-.scg-cell.shift-night {
-  background: rgba(99,102,241,0.32); color: #e0e7ff;
-}
-.scg-cell.shift-mixed {
-  background: linear-gradient(135deg, rgba(245,158,11,0.32) 50%, rgba(99,102,241,0.32) 50%);
-  color: #f3f4f6;
-}
-.scg-cell.handover-hour {
-  outline: 2px solid #fcd34d;
-  outline-offset: -2px;
-  z-index: 1;
-}
-.scg-cell .scg-stations {
-  font-weight: 700; font-size: 10px;
-}
-.scg-cell .scg-stations.zero { opacity: 0.25; }
-.scg-cell.empty { background: transparent; }
-
-.shift-coverage-legend {
-  display: flex; flex-wrap: wrap; gap: 10px;
-  margin-top: 10px; font-size: 11px; color: var(--text-muted);
-}
-.shift-coverage-legend .item {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 3px 10px; border-radius: 12px;
-  background: var(--surface-2); border: 1px solid var(--border-soft);
-}
-.shift-coverage-legend .swatch {
-  width: 14px; height: 10px; border-radius: 2px;
-  display: inline-block;
-}
-.shift-coverage-legend .swatch.day { background: rgba(245,158,11,0.5); }
-.shift-coverage-legend .swatch.night { background: rgba(99,102,241,0.5); }
-.shift-coverage-legend .swatch.handover { outline: 2px solid #fcd34d; outline-offset: -2px; background: rgba(252,211,77,0.15); }
+/* Per-Shift Coverage Timeline CSS removed per Ahmed (no longer rendered) */
 
 /* ──────── Per-Unit Gantt by Station (v0.2.59) ──────── */
 .unit-gantt-section { margin-top: 26px; }
@@ -892,10 +788,11 @@ table.heatmap-tbl td.hm-cell.handover-cell {
 </style>
 </head>
 <body>
-<script src="assets/version.js?v=0.2.65"></script>
-<script src="assets/config.js?v=0.2.60"></script>
-<script src="assets/auth.js?v=0.2.65"></script>
-<script src="assets/topbar.js?v=0.2.60"></script>
+<div id="topbar"></div>
+<script src="assets/version.js?v=0.9.4"></script>
+<script src="assets/config.js?v=0.9.4"></script>
+<script src="assets/auth.js?v=0.9.4"></script>
+<script src="assets/topbar.js?v=0.9.4"></script>
 
 <div class="content">
   <div class="picker">
@@ -963,28 +860,7 @@ table.heatmap-tbl td.hm-cell.handover-cell {
       </table>
     </div>
   </div>
-
-  <!-- ─── Per-Shift Coverage Timeline (NEW v0.2.57) ─── -->
-  <div class="shift-coverage-section">
-    <div class="shift-coverage-head">
-      <h2>Per-shift coverage timeline</h2>
-    </div>
-    <div class="shift-coverage-intro">
-      Each row is a <strong>shift code</strong>; each column is an hour 00–24.
-      A filled cell shows how many of the 10 sites that shift covers at that hour.
-      Day-family shifts (D-prefix) in amber, night-family (N-prefix) in indigo,
-      always-on (24/7) in gray.
-    </div>
-    <div class="shift-coverage-wrap">
-      <div class="shift-coverage-grid" id="shiftCoverageGrid"></div>
-    </div>
-    <div class="shift-coverage-legend">
-      <span class="item"><span class="swatch day"></span>Day shift (06:00–18:00 family)</span>
-      <span class="item"><span class="swatch night"></span>Night shift (18:00–06:00 family)</span>
-      <span class="item"><span class="swatch handover"></span>Handover hour (05:00, 17:00)</span>
-      <span class="item" style="background:transparent;border:0;">Cell number = stations covered (of 10)</span>
-    </div>
-  </div>
+  
 
   <!-- ─── Per-unit Gantt (multi-day range) ─── -->
   <div class="unit-gantt-section">
@@ -1137,7 +1013,6 @@ table.heatmap-tbl td.hm-cell.handover-cell {
     paintSummary(r);
     paintTable(r);
     paintHeatmap(r);
-    paintShiftCoverage(r);
     paintUnitGantt(r);
     if (_selectedHour) {
       const hit = _lastRows.find(x => x.hour === _selectedHour);
@@ -1384,106 +1259,6 @@ table.heatmap-tbl td.hm-cell.handover-cell {
           hour + ' at ' + st);
       }
     });
-  }
-
-  // ─── Per-shift coverage timeline ───
-  // For each unique shift code seen across the day, paint a row showing
-  // which hours that shift is active at any station, with station count.
-  function paintShiftCoverage(r) {
-    const grid = $('shiftCoverageGrid'); if (!grid) return;
-    const rows = r.rows || [];
-    const stations = r.stations || [];
-    if (!rows.length) { grid.innerHTML = ''; return; }
-
-    // Collect: shift_code → set of hour strings where it's active
-    // and shift_code → {hour: station_count}
-    const shiftHourStations = {};   // shift -> {hour -> Set(stations)}
-    const allShiftCodes = new Set();
-    rows.forEach(row => {
-      const ps = row.per_station || {};
-      stations.forEach(st => {
-        const s = (ps[st] && ps[st].active_shifts) || [];
-        s.forEach(code => {
-          allShiftCodes.add(code);
-          if (!shiftHourStations[code]) shiftHourStations[code] = {};
-          if (!shiftHourStations[code][row.hour]) shiftHourStations[code][row.hour] = new Set();
-          shiftHourStations[code][row.hour].add(st);
-        });
-      });
-    });
-    // Sort shift codes: Day codes first (D*), then Night (N*), then others
-    const sortedShifts = Array.from(allShiftCodes).sort((a,b) => {
-      const aIsDay = a.startsWith('D'), bIsDay = b.startsWith('D');
-      const aIsNight = a.startsWith('N'), bIsNight = b.startsWith('N');
-      if (aIsDay && bIsNight) return -1;
-      if (aIsNight && bIsDay) return 1;
-      return a.localeCompare(b);
-    });
-
-    // Detect handover hours: local maxima in distinct shift count where
-    // both day-family AND night-family shifts are active simultaneously.
-    // Excludes the 24/7 shift (always on, not part of any handover).
-    function shiftCount(hStr) {
-      let dCount = 0, nCount = 0;
-      sortedShifts.forEach(code => {
-        if (code === '24/7') return;
-        if (shiftHourStations[code] && shiftHourStations[code][hStr]) {
-          if (code.startsWith('D')) dCount++;
-          else if (code.startsWith('N')) nCount++;
-        }
-      });
-      return { d: dCount, n: nCount, total: dCount + nCount, crossFamily: dCount > 0 && nCount > 0 };
-    }
-    const handoverHours = new Set();
-    const hourCounts = [];
-    for (let h = 0; h < 24; h++) {
-      hourCounts.push(shiftCount(String(h).padStart(2,'0') + ':00'));
-    }
-    for (let h = 0; h < 24; h++) {
-      const cur = hourCounts[h];
-      const prev = hourCounts[(h + 23) % 24];
-      const next = hourCounts[(h + 1) % 24];
-      // True handover: cross-family overlap (D AND N both active)
-      // AND this hour has more total shifts than its neighbors (local peak).
-      if (cur.crossFamily && cur.total >= 3 && cur.total > prev.total && cur.total > next.total) {
-        handoverHours.add(String(h).padStart(2,'0') + ':00');
-      }
-    }
-
-    // Build grid HTML
-    let html = '';
-    html += '<div class="scg-corner">Shift ↓ / Hour →</div>';
-    for (let h = 0; h < 24; h++) {
-      const hStr = String(h).padStart(2,'0') + ':00';
-      const hov = handoverHours.has(hStr) ? ' hour-handover' : '';
-      const mark = handoverHours.has(hStr) ? '<span class="hh-mark">⇄</span>' : '';
-      html += '<div class="scg-hour-head' + hov + '">' + String(h).padStart(2,'0') + mark + '</div>';
-    }
-    sortedShifts.forEach(code => {
-      const isDay = code.startsWith('D');
-      const isNight = code.startsWith('N');
-      const cls = isDay ? 'shift-day' : isNight ? 'shift-night' : 'shift-mixed';
-      // Sub-label: try to show start-end if we can infer (D6 → 06:00, N18 → 18:00, D6-12 = day from 6-12, N18-00 = night 18-00)
-      let sub = '';
-      const m1 = code.match(/^([DN])(\d+)$/);
-      const m2 = code.match(/^([DN])(\d+)-(\d+)$/);
-      if (m2) {
-        sub = `${m2[2].padStart(2,'0')}:00 → ${m2[3].padStart(2,'0')}:00`;
-      } else if (m1) {
-        sub = (m1[1]==='D' ? `${m1[2].padStart(2,'0')}:00 → 18:00` : `${m1[2].padStart(2,'0')}:00 → 06:00`);
-      }
-      html += '<div class="scg-shift-label">' + code + (sub ? '<span class="ssl-sub">' + sub + '</span>' : '') + '</div>';
-      for (let h = 0; h < 24; h++) {
-        const hStr = String(h).padStart(2,'0') + ':00';
-        const sites = (shiftHourStations[code] && shiftHourStations[code][hStr]) ? shiftHourStations[code][hStr].size : 0;
-        const handover = handoverHours.has(hStr) ? ' handover-hour' : '';
-        const empty = sites === 0 ? ' empty' : '';
-        html += '<div class="scg-cell ' + (sites > 0 ? cls : '') + handover + empty + '" title="' + code + ' · ' + hStr + ' · ' + sites + '/' + stations.length + ' stations">'
-              + '<span class="scg-stations' + (sites === 0 ? ' zero' : '') + '">' + (sites === 0 ? '·' : sites) + '</span>'
-              + '</div>';
-      }
-    });
-    grid.innerHTML = html;
   }
 
     // ─── Per-Unit Gantt — multi-day range (v0.2.62) ───

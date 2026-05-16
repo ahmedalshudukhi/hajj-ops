@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Schedule · Hajj 2026</title>
+<link rel="stylesheet" href="assets/style.css?v=0.9.4">
+<script src="assets/config.js?v=0.9.4"></script>
+<script src="assets/auth.js?v=0.9.4"></script>
+<script src="assets/shortcuts.js?v=0.9.4"></script>
+<script src="assets/topbar.js?v=0.9.4"></script>
+<style>
+body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-serif; }
+.s-shell { max-width:1300px; margin:0 auto; padding:20px; }
+.s-tabs { display:flex; gap:6px; margin-bottom:16px; border-bottom:1px solid rgba(99,179,237,0.18); }
+.s-tab { background:transparent; color:#93a4cd; border:0; padding:10px 16px; font-size:13px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; }
+.s-tab.active { color:#67e8f9; border-bottom-color:#67e8f9; }
+.s-filter { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px; align-items:center; }
+.s-filter input, .s-filter select { background:rgba(20,28,50,0.5); border:1px solid rgba(99,179,237,0.18); border-radius:8px; padding:8px 12px; color:#e7ecf7; font-size:13px; min-width:160px; }
+.s-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; }
+.s-card { background:rgba(20,28,50,0.5); border:1px solid rgba(99,179,237,0.18); border-radius:12px; padding:14px 16px; }
+.s-card .code { font-family:ui-monospace,Menlo,monospace; font-weight:700; font-size:14px; color:#cdf1ff; }
+.s-card .sub { font-size:11px; color:#93a4cd; margin-top:2px; letter-spacing:0.04em; }
+.s-card .meta { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; font-size:11px; }
+.s-card .meta .pill { background:rgba(15,23,42,0.5); padding:2px 8px; border-radius:4px; color:#a5b4fc; font-family:ui-monospace,Menlo,monospace; }
+.s-card .pill.filled { background:rgba(34,197,94,0.15); color:#86efac; }
+.s-card .pill.vacant { background:rgba(239,68,68,0.15); color:#fca5a5; }
+.s-card .dh-grid { display:grid; grid-template-columns:repeat(11, 1fr); gap:2px; margin-top:10px; }
+.s-card .dh-cell { height:18px; border-radius:2px; background:rgba(148,163,184,0.08); font-size:9px; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-family:ui-monospace,Menlo,monospace; }
+.s-card .dh-cell.on { background:rgba(245,158,11,0.45); color:#fef3c7; }
+.s-card .dh-cell.on-n { background:rgba(99,102,241,0.45); color:#e0e7ff; }
+.s-card .dh-cell.on-a { background:rgba(148,163,184,0.4); color:#f1f5f9; }
+.s-card .members { margin-top:10px; padding-top:8px; border-top:1px solid rgba(99,179,237,0.10); display:flex; flex-direction:column; gap:4px; }
+.s-card .members .m { font-size:11px; color:#cbd5e1; display:flex; justify-content:space-between; }
+.s-card .members .m .nm { color:#cdf1ff; font-weight:500; }
+.s-card .members .m .stat { font-size:9px; padding:1px 6px; border-radius:3px; }
+.s-card .members .m .stat.filled { background:rgba(34,197,94,0.18); color:#86efac; }
+.s-card .members .m .stat.vacant { background:rgba(239,68,68,0.18); color:#fca5a5; }
+.empty { padding:30px; text-align:center; color:#6b7d9e; }
+</style>
+</head>
+<body>
+<div id="topbar"></div>
+<div class="s-shell">
+  <h1 style="font-size:24px; margin:8px 0;">Schedule · Staff and Units</h1>
+  <p style="color:#93a4cd; margin:0 0 14px; font-size:13px;">
+    DH4 → DH14 (May 25 → June 4). Each row shows when a unit (and its members) are on duty.
+  </p>
+  <div class="s-tabs">
+    <button class="s-tab active" data-tab="units">By Unit</button>
+    <button class="s-tab" data-tab="staff">By Staff Member</button>
+  </div>
+  <div class="s-filter">
+    <input id="sSearch" placeholder="Search unit or person…" autocomplete="off">
+    <select id="sStation">
+      <option value="">All stations</option>
+      <option>ARF1</option><option>ARF2</option><option>ARF3</option>
+      <option>MUZ1</option><option>MUZ2</option><option>MUZ3</option>
+      <option>MIN1</option><option>MIN2</option><option>MIN3</option>
+      <option>OCC</option>
+    </select>
+    <select id="sCategory">
+      <option value="">All categories</option>
+      <option>Leadership</option>
+      <option>Command</option>
+      <option>Medical</option>
+      <option>Ambulance</option>
+      <option>Foot-Runner</option>
+    </select>
+    <span style="font-size:12px; color:#93a4cd;" id="sCount">—</span>
+  </div>
+  <div id="sBody"><div class="empty">Loading schedule…</div></div>
+</div>
+<script src="assets/version.js?v=0.9.4"></script>
+<script>
+(async function() {
+  if (!HAJJ.requireAuth()) return;
+  CADTopbar.render({ title: "Schedule" });
+
+  let _units = [];
+  let _activeTab = 'units';
+  const DH_DAYS = [4,5,6,7,8,9,10,11,12,13,14];
+
+  function shiftFamily(code) {
+    if (!code) return 'A';
+    const c = String(code).toUpperCase();
+    if (c === '24/7' || c === '24-7') return 'A';
+    if (c[0] === 'D') return 'D';
+    if (c[0] === 'N') return 'N';
+    return 'A';
+  }
+
+  async function load() {
+    try {
+      const r = await HAJJ.authedCall('schedule_overview', {});
+      if (!r || !r.ok) {
+        document.getElementById('sBody').innerHTML = '<div class="empty">Failed to load schedule.</div>';
+        return;
+      }
+      _units = r.units || [];
+      paint();
+    } catch (e) {
+      document.getElementById('sBody').innerHTML = '<div class="empty">Error: ' + e.message + '</div>';
+    }
+  }
+
+  function paint() {
+    const q = (document.getElementById('sSearch').value || '').toLowerCase();
+    const stn = document.getElementById('sStation').value || '';
+    const cat = document.getElementById('sCategory').value || '';
+    let list = _units.filter(u => {
+      if (stn && u.home_station !== stn) return false;
+      if (cat && u.category !== cat) return false;
+      if (q) {
+        const hay = (u.code + ' ' + u.type + ' ' + (u.members || []).map(m => (m.name || '') + ' ' + (m.call_sign || '')).join(' ')).toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    document.getElementById('sCount').textContent = list.length + ' result' + (list.length === 1 ? '' : 's');
+    if (!list.length) {
+      document.getElementById('sBody').innerHTML = '<div class="empty">No matches.</div>';
+      return;
+    }
+    if (_activeTab === 'units') {
+      document.getElementById('sBody').innerHTML = '<div class="s-grid">' + list.map(unitCard).join('') + '</div>';
+    } else {
+      // Flatten to staff
+      const staff = [];
+      list.forEach(u => (u.members || []).forEach(m => {
+        if (m.name) staff.push({ unit: u, member: m });
+      }));
+      if (!staff.length) {
+        document.getElementById('sBody').innerHTML = '<div class="empty">No staff members loaded.</div>';
+        return;
+      }
+      document.getElementById('sBody').innerHTML = '<div class="s-grid">' + staff.map(s => staffCard(s.unit, s.member)).join('') + '</div>';
+    }
+  }
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]); }
+
+  function dhStrip(shiftCode) {
+    const fam = shiftFamily(shiftCode);
+    const famCls = fam === 'D' ? 'on' : fam === 'N' ? 'on-n' : 'on-a';
+    return '<div class="dh-grid">' + DH_DAYS.map(d => '<div class="dh-cell ' + famCls + '">' + d + '</div>').join('') + '</div>';
+  }
+
+  function unitCard(u) {
+    const filled = u.filled_count || 0;
+    const total = u.size || 0;
+    const fillCls = filled === total && total > 0 ? 'filled' : (filled > 0 ? '' : 'vacant');
+    const members = (u.members || []).slice(0, 4).map(m => 
+      '<div class="m"><span class="nm">' + esc(m.name || '—') + '</span><span class="stat ' + (m.status === 'Filled' ? 'filled' : 'vacant') + '">' + esc(m.status || 'Vacant') + '</span></div>'
+    ).join('');
+    return '<div class="s-card">' +
+      '<div class="code">' + esc(u.code) + '</div>' +
+      '<div class="sub">' + esc(u.type) + ' · ' + esc(u.home_station || '—') + ' · shift ' + esc(u.default_shift || '—') + '</div>' +
+      '<div class="meta">' +
+        '<span class="pill ' + fillCls + '">' + filled + '/' + total + ' staffed</span>' +
+        '<span class="pill">' + esc(u.category || '—') + '</span>' +
+      '</div>' +
+      dhStrip(u.default_shift) +
+      (members ? '<div class="members">' + members + '</div>' : '') +
+    '</div>';
+  }
+
+  function staffCard(u, m) {
+    const stat = m.status === 'Filled' ? 'filled' : 'vacant';
+    return '<div class="s-card">' +
+      '<div class="code">' + esc(m.name || '—') + '</div>' +
+      '<div class="sub">' + esc(m.role || '—') + ' · ' + esc(m.call_sign || u.code) + '</div>' +
+      '<div class="meta">' +
+        '<span class="pill">' + esc(u.code) + '</span>' +
+        '<span class="pill">' + esc(u.home_station || '—') + '</span>' +
+        '<span class="pill ' + stat + '">' + esc(m.status || 'Vacant') + '</span>' +
+      '</div>' +
+      dhStrip(u.default_shift) +
+    '</div>';
+  }
+
+  // Wire up
+  document.querySelectorAll('.s-tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.s-tab').forEach(x => x.classList.toggle('active', x === t));
+      _activeTab = t.dataset.tab;
+      paint();
+    });
+  });
+  document.getElementById('sSearch').addEventListener('input', paint);
+  document.getElementById('sStation').addEventListener('change', paint);
+  document.getElementById('sCategory').addEventListener('change', paint);
+  load();
+})();
+</script>
+</body></html>

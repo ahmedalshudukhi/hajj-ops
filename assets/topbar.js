@@ -64,7 +64,7 @@
 
       /* Shudukhi Labs subtle site-wide footer */
       .shudukhi-labs-footer {
-        position: fixed; right: 10px; bottom: 6px;
+        position: fixed; left: 10px; bottom: 6px;
         font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
         color: rgba(203, 213, 225, 0.55);
         pointer-events: none; user-select: none;
@@ -72,7 +72,7 @@
         z-index: 9000;
         text-shadow: 0 1px 2px rgba(0,0,0,0.4);
       }
-      @media (max-width: 480px) { .shudukhi-labs-footer { font-size: 8px; right: 6px; bottom: 4px; } }
+      @media (max-width: 480px) { .shudukhi-labs-footer { font-size: 8px; left: 6px; bottom: 4px; } }
     `;
     document.head.appendChild(css);
 
@@ -111,6 +111,7 @@
     { href: 'diagnostic.html', label: 'Diag',      roles: ['admin'] },
     { href: 'system.html',    label: 'System',     roles: ['admin','leadership'] },
     { href: 'training.html',  label: 'Training',   roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'] },
+    { href: 'schedule.html', label: 'Schedule',   roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'] },
     { href: 'kpi.html',       label: 'KPI',        roles: ['cluster_supervisor','dispatcher','leadership','admin','sar'] },
     { href: 'pulse.html',     label: 'Live Pulse', roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'] }
   ];

@@ -422,6 +422,7 @@ const ROLE_GATE = {
   code_blue_event: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin'],
   code_blue_list: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'],
   heat_watch: null,
+  schedule_overview: null,
   me_summary: null,
   board_summary: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'],
   pulse_feed: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'],
@@ -463,7 +464,7 @@ const NEEDS_JSON = new Set([
   'augmentations','mobilization_plan','roster_fill','unit_availability',
   'units_list','unit_positions','active_summary','dashboard_active',
   'dashboard_dispatch','dashboard_sv','sar_summary','roster','station_status_list',
-  'unit_suggest','units_status_grid','ambulances_list','overview_summary','positioning_at','positioning_day','coverage_range','metro_data'
+  'unit_suggest','units_status_grid','ambulances_list','overview_summary','positioning_at','positioning_day','coverage_range','metro_data','schedule_overview','my_schedule'
 ]);
 
 const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
@@ -780,20 +781,32 @@ const ACTIONS = {
   },
 
   async units_list(user, env, params, dj) {
-    // Map data.json.units_detail → Apps Script shape
+    // Map data.json.units_detail → frontend shape, INCLUDING staffing detail
+    // (filled_count, total/size, members) so units.html doesn't show 0/0.
     const detail = (dj && dj.units_detail) || [];
     const out = detail.map(u => ({
       code: u.id || '',
       type: u.type || '',
       home_station: u.home || '',
-      category: u.category || ''
+      category: u.category || '',
+      default_shift: u.default_shift || '',
+      size: u.size || u.total_count || 0,
+      filled_count: u.filled_count || 0,
+      total_count: u.total_count || u.size || 0,
+      members: u.members || [],
+      tags: u.tags || '',
+      notes: u.notes || ''
     })).filter(u => u.code);
-    // Sort: Mike → Alpha → Romeo
-    const order = { Mike: 0, Alpha: 1, Romeo: 2 };
+    // Sort: Leadership → Command → Mike → Alpha → Romeo → other
+    const catOrder = { Leadership: 0, Command: 1, Operational: 2 };
+    const typeOrder = { Mike: 0, Alpha: 1, Romeo: 2 };
     out.sort((a, b) => {
+      const ca = catOrder[a.category] !== undefined ? catOrder[a.category] : 9;
+      const cb = catOrder[b.category] !== undefined ? catOrder[b.category] : 9;
+      if (ca !== cb) return ca - cb;
       const ap = a.code.split('-')[0], bp = b.code.split('-')[0];
-      const oa = order[ap] !== undefined ? order[ap] : 99;
-      const ob = order[bp] !== undefined ? order[bp] : 99;
+      const oa = typeOrder[ap] !== undefined ? typeOrder[ap] : 99;
+      const ob = typeOrder[bp] !== undefined ? typeOrder[bp] : 99;
       if (oa !== ob) return oa - ob;
       return a.code.localeCompare(b.code, undefined, { numeric: true });
     });
@@ -1743,11 +1756,24 @@ const ACTIONS = {
   async unit_availability(user, env, params, dj) {
     const detail = (dj && dj.units_detail) || [];
     const units = detail.map(u => ({
+      // Identity
       code: u.id || '',
+      id: u.id || '',                              // alias for frontend code that reads u.id
       type: u.type || '',
-      home_station: (u.home || '').toUpperCase(),
-      current_station: (u.home || '').toUpperCase(),
       category: u.category || '',
+      // Locations
+      home_station: (u.home || '').toUpperCase(),
+      home: (u.home || '').toUpperCase(),          // alias
+      current_station: (u.home || '').toUpperCase(),
+      // Staffing — these were missing and caused units.html to show 0/0
+      size: u.size || u.total_count || 0,
+      total_count: u.size || u.total_count || 0,
+      filled_count: u.filled_count || 0,
+      default_shift: u.default_shift || '',
+      members: u.members || [],
+      tags: u.tags || [],
+      notes: u.notes || '',
+      // State (mutable runtime values)
       state: 'available',
       open_incidents: 0,
       schedule_label: '',
@@ -1878,9 +1904,19 @@ const ACTIONS = {
     try {
       const r = await env.DB.prepare(
         `SELECT
-          (SELECT COUNT(*) FROM dispatch_log WHERE status NOT IN ('complete','cancelled')) AS open_n,
-          (SELECT COUNT(*) FROM dispatch_log WHERE status = 'complete' AND closed_at >= ?1) AS closed_n,
-          (SELECT COUNT(*) FROM dispatch_log WHERE status = 'transporting') AS transfer_n`
+          (SELECT COUNT(*) FROM dispatch_log
+             WHERE status NOT IN ('complete','cancelled')
+               AND COALESCE(is_drill,0) = 0
+               AND closed_at IS NULL
+               AND ts >= ?1) AS open_n,
+          (SELECT COUNT(*) FROM dispatch_log
+             WHERE status = 'complete'
+               AND COALESCE(is_drill,0) = 0
+               AND closed_at >= ?1) AS closed_n,
+          (SELECT COUNT(*) FROM dispatch_log
+             WHERE status = 'transporting'
+               AND COALESCE(is_drill,0) = 0
+               AND closed_at IS NULL) AS transfer_n`
       ).bind(todayStart).first();
       open = r.open_n || 0;
       closedToday = r.closed_n || 0;
@@ -3610,16 +3646,67 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
   // ==============================================================
   async escalation_matrix(user, env) {
     return { ok: true, levels: [
-      { tier: 1, role: 'Cluster Supervisor', when: 'First-line clinical/operational issue', contact: 'Radio CH-2/3/4 by cluster' },
-      { tier: 2, role: 'Chief Paramedic (CHF)', when: 'Multi-cluster issue, MCI ramp-up, supply crisis', contact: 'Bukhari · radio + phone' },
-      { tier: 3, role: 'Deputy Chief Paramedic (DCH)', when: 'Backup CHF, secondary command', contact: 'Hayil Aljabri · radio + phone' },
-      { tier: 4, role: 'Medical Director Lead (MDL)', when: 'Clinical governance, drug protocol issues', contact: 'Dr. Khalid Aljuaidy · phone' },
-      { tier: 5, role: 'Deputy Project Manager (DPM)', when: 'Operational direction, resource conflicts', contact: 'Dr. Nawaf Alsaadon · phone' },
-      { tier: 6, role: 'Project Manager (PM)', when: 'Strategic decisions, external coordination', contact: 'Ahmed Alshudukhi · phone + WhatsApp' },
-      { tier: 7, role: 'External — MoH / SRCA', when: 'Beyond HMG scope, mass casualty, regional surge', contact: 'Liaison via OCC' },
-      { tier: 8, role: 'HMG Senior Medical Director', when: 'Highest internal escalation', contact: 'Through PM' }
+      { tier: 1, role: 'Cluster Supervisor', when: 'First-line clinical/operational issue',
+        name: 'Cluster supervisors (Arafat / Muzdalifah / Mina)', phone: 'Radio CH-2/3/4',
+        contact: 'Radio CH-2/3/4 by cluster' },
+      { tier: 2, role: 'Chief Paramedic (CHF)', when: 'Multi-cluster issue, MCI ramp-up, supply crisis',
+        name: 'Abdulrahman Bukhari', phone: '+966 50 000 0000',
+        contact: 'Bukhari · +966 50 000 0000 · radio + phone' },
+      { tier: 3, role: 'Deputy Chief Paramedic (DCH)', when: 'Backup CHF, secondary command',
+        name: 'Hayil Aljabri', phone: '+966 50 000 0000',
+        contact: 'Hayil Aljabri · +966 50 000 0000 · radio + phone' },
+      { tier: 4, role: 'Medical Director Lead (MDL)', when: 'Clinical governance, drug protocol issues',
+        name: 'Dr. Khalid Aljuaidy', phone: '+966 50 000 0000',
+        contact: 'Dr. Khalid Aljuaidy · +966 50 000 0000' },
+      { tier: 5, role: 'Deputy Project Manager (DPM)', when: 'Operational direction, resource conflicts',
+        name: 'Dr. Nawaf Alsaadon', phone: '+966 50 000 0000',
+        contact: 'Dr. Nawaf Alsaadon · +966 50 000 0000' },
+      { tier: 6, role: 'Project Manager (PM)', when: 'Strategic decisions, external coordination',
+        name: 'Ahmed Alshudukhi', phone: '+966 50 000 0000',
+        contact: 'Ahmed Alshudukhi · +966 50 000 0000 · phone + WhatsApp' },
+      { tier: 7, role: 'External — MoH / SRCA', when: 'Beyond HMG scope, mass casualty, regional surge',
+        name: 'MoH EOC / SRCA Dispatch', phone: '997 / 911',
+        contact: 'MoH EOC (997) · SRCA Dispatch (911) · Liaison via OCC' },
+      { tier: 8, role: 'HMG Senior Medical Director', when: 'Highest internal escalation',
+        name: 'HMG Senior Medical Director', phone: 'Through PM',
+        contact: 'Through PM' }
     ]};
   },
+  // ==============================================================
+  // my_schedule — personal shift schedule (for me.html and schedule.html)
+  // ==============================================================
+  async my_schedule(user, env, params, dj) {
+    const nid = String(params.nid || (user && user.nid) || '').trim();
+    if (!nid) return { ok: false, error: 'missing_nid' };
+    const detail = (dj && dj.units_detail) || [];
+    const hourly = (dj && dj.hourly_grid) || [];
+    // Find the unit(s) this person belongs to
+    const myUnits = detail.filter(u => (u.members || []).some(m => String(m.staff_id || m.nid || '') === nid));
+    if (!myUnits.length) return { ok: true, nid, unit: null, member: null, shifts: [], person: null };
+    const u = myUnits[0];
+    const member = (u.members || []).find(m => String(m.staff_id || m.nid || '') === nid);
+    const shifts = [];
+    // For each DH day, check if u is on duty (default_shift dictates) — return a row per day
+    const DH_DAYS = [4,5,6,7,8,9,10,11,12,13,14];
+    DH_DAYS.forEach(dh => {
+      shifts.push({
+        dh,
+        unit_id: u.id,
+        shift_code: u.default_shift || '',
+        station: u.home || '',
+        label: u.default_shift ? `DH ${dh} · ${u.default_shift}` : `DH ${dh}`,
+        type: u.type || '',
+        size: u.size || 0
+      });
+    });
+    return {
+      ok: true, nid,
+      person: { name: member ? member.name : '', call_sign: member ? member.call_sign : '', role: member ? member.role : '', phone: member ? member.phone : '' },
+      unit: { id: u.id, type: u.type, home: u.home, category: u.category, size: u.size, default_shift: u.default_shift, member_count: (u.members || []).length },
+      shifts
+    };
+  },
+
 
   // ==============================================================
   // shift_status — current shift indicator for UI
@@ -3988,6 +4075,42 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
   },
 
   // ==============================================================
+
+  // ==============================================================
+  // schedule_overview — staff + unit schedule view for the new
+  // /schedule page. Returns:
+  //   units: [ { code, type, home_station, default_shift, category,
+  //              filled_count, size, members: [...] } ]
+  //   dh_range: [4..14]
+  // The frontend renders this as a per-unit timeline.
+  // ==============================================================
+  async schedule_overview(user, env, params, dj) {
+    const detail = (dj && dj.units_detail) || [];
+    const filter_station = String(params.station || '').toUpperCase();
+    const filter_cat = String(params.category || '');
+    let units = detail.map(u => ({
+      code: u.id || '',
+      type: u.type || '',
+      home_station: u.home || '',
+      category: u.category || '',
+      default_shift: u.default_shift || '',
+      size: u.size || u.total_count || 0,
+      filled_count: u.filled_count || 0,
+      members: (u.members || []).map(m => ({
+        staff_id: m.staff_id || '',
+        name: m.name || '',
+        role: m.role || '',
+        call_sign: m.call_sign || '',
+        phone: m.phone || '',
+        status: m.status || ''
+      }))
+    })).filter(u => u.code);
+    if (filter_station) units = units.filter(u => u.home_station === filter_station);
+    if (filter_cat) units = units.filter(u => u.category === filter_cat);
+    units.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+    return { ok: true, units, dh_range: [4,5,6,7,8,9,10,11,12,13,14], total: units.length };
+  },
+
   // me_summary — personal page data (your shift, your stats)
   // ==============================================================
   async me_summary(user, env) {
