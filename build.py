@@ -495,24 +495,97 @@ def infer_shift_from_code(code):
     end    = int(m.group(3)) % 24 if m.group(3) else (start + 12) % 24
     return (start, end)
 
+# Module-level audit dict — accumulates how each code was resolved across
+# the whole build. Keyed by code. Values: 'backend' | 'inferred_missing' |
+# 'inferred_malformed' | 'unresolvable'. Reported at end of build via
+# print_shift_audit().
+SHIFT_AUDIT = {}
+
 def resolve_shift(code, shift_map):
     """
-    Resolve a shift code to (start_t, end_t). First tries shift_map (the
-    Shifts tab data). If the code isn't there OR has unparseable times,
-    falls back to infer_shift_from_code, so codes like D12 / D14 / D2-14
-    that the user added to the schedule without adding rows in the Shifts
-    tab still resolve correctly.
+    Resolve a shift code to (start_hour, end_hour).
 
-    Returns (start, end) tuple where start and end are hour integers (0-23),
-    or None if the code can't be resolved.
+    Precedence (units NEVER drop because of resolution failure):
+      1. Backend Shifts tab with VALID Start/End → use those. Backend wins.
+      2. Backend Shifts tab present but Start/End malformed → fall back to
+         inference, AND mark the code as 'inferred_malformed' in the audit
+         so the build log warns the user to fix their Shifts tab.
+      3. Code missing from backend Shifts tab → infer from code structure,
+         mark as 'inferred_missing'. The build log lists these so the user
+         can decide whether to add explicit Shifts-tab rows.
+      4. Inference fails (code doesn't match D{N} / N{N} / 24/7 patterns) →
+         mark 'unresolvable' and return None. ONLY case where the unit drops
+         at this hour. Logged loudly.
+
+    Returns (start_hour, end_hour) or None.
     """
+    if not code:
+        return None
     if code in shift_map:
         st, en = shift_map[code]
         sh = parse_time_str(st); eh = parse_time_str(en)
         if sh is not None and eh is not None:
+            # Backend has valid values. Use them.
+            SHIFT_AUDIT.setdefault(code, 'backend')
             return (sh, eh)
-    # Fallback: parse the code structure itself
-    return infer_shift_from_code(code)
+        # Backend defined the code but the cells are unparseable. Don't
+        # drop the unit — fall back to inference. Mark for audit so the
+        # build log surfaces the data error.
+        inferred = infer_shift_from_code(code)
+        if inferred is not None:
+            SHIFT_AUDIT[code] = 'inferred_malformed'  # always overrides
+            return inferred
+        SHIFT_AUDIT[code] = 'unresolvable'
+        return None
+    # Code is not in backend Shifts tab. Infer from structure.
+    inferred = infer_shift_from_code(code)
+    if inferred is not None:
+        SHIFT_AUDIT.setdefault(code, 'inferred_missing')
+        return inferred
+    SHIFT_AUDIT.setdefault(code, 'unresolvable')
+    return None
+
+def print_shift_audit():
+    """Print a clear audit of every shift code's resolution source.
+    Called at end of build. Output goes to stdout (captured in GH Actions logs).
+    """
+    if not SHIFT_AUDIT:
+        return
+    from collections import defaultdict
+    by_status = defaultdict(list)
+    for code, status in SHIFT_AUDIT.items():
+        by_status[status].append(code)
+    print()
+    print("=" * 60)
+    print("SHIFT CODE RESOLUTION AUDIT")
+    print("=" * 60)
+    for status, codes in sorted(by_status.items()):
+        codes_sorted = sorted(codes)
+        if status == 'backend':
+            print(f"  ✅ Resolved from backend Shifts tab ({len(codes)}):")
+            print(f"     {', '.join(codes_sorted)}")
+        elif status == 'inferred_missing':
+            print(f"  ⚠️  Missing from backend Shifts tab, inferred from code ({len(codes)}):")
+            print(f"     {', '.join(codes_sorted)}")
+            print(f"     → Recommendation: add explicit rows to the Shifts tab in")
+            print(f"       Mobilization_Plan.xlsx → Shifts so the user-defined times")
+            print(f"       are authoritative rather than inferred.")
+        elif status == 'inferred_malformed':
+            print(f"  ❌ Backend Shifts tab has these codes but Start/End cells are")
+            print(f"     unparseable — falling back to inference ({len(codes)}):")
+            print(f"     {', '.join(codes_sorted)}")
+            print(f"     → ACTION REQUIRED: fix the Start/End cells for these codes")
+            print(f"       in Mobilization_Plan.xlsx → Shifts tab. Cells must be")
+            print(f"       time-formatted (HH:MM) or proper time values.")
+        elif status == 'unresolvable':
+            print(f"  🚨 UNRESOLVABLE — code does not match any pattern, units on this")
+            print(f"     code at hour-level will be DROPPED ({len(codes)}):")
+            print(f"     {', '.join(codes_sorted)}")
+            print(f"     → ACTION REQUIRED: add to Shifts tab with explicit Start/End,")
+            print(f"       or rename to D{{H}}[-{{H}}] / N{{H}}[-{{H}}] / 24/7 format.")
+    print("=" * 60)
+    print()
+
 
 def covers_hour_resolved(code, shift_map, target_hour):
     """
@@ -1546,6 +1619,8 @@ def main():
     unit_readiness = read_sheet(wb, "Unit_Readiness")
     ambulances = read_sheet(wb, "Ambulances", r"^[EBR]\d{2}$")
     print(f"  Roles: {len(roles)} · Units: {len(units)} · Staff: {len(staff)} · Shifts: {len(shifts)} · Schedule: {len(schedule)} · Ambulances: {len(ambulances)}")
+    # Print shift code audit so any missing/malformed entries are visible in CI logs.
+    print_shift_audit()
 
     personnel = compute_personnel(roles)
     roster = compute_roster(staff)
