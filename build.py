@@ -1619,8 +1619,6 @@ def main():
     unit_readiness = read_sheet(wb, "Unit_Readiness")
     ambulances = read_sheet(wb, "Ambulances", r"^[EBR]\d{2}$")
     print(f"  Roles: {len(roles)} · Units: {len(units)} · Staff: {len(staff)} · Shifts: {len(shifts)} · Schedule: {len(schedule)} · Ambulances: {len(ambulances)}")
-    # Print shift code audit so any missing/malformed entries are visible in CI logs.
-    print_shift_audit()
 
     personnel = compute_personnel(roles)
     roster = compute_roster(staff)
@@ -1776,6 +1774,9 @@ def main():
         with open(_path, "w") as _f:
             json.dump(_payload, _f, ensure_ascii=False, separators=(",", ":"), default=_json_default)
     print(f"  \u2713 Wrote {len(_api_endpoints)} /api/v1/*.json files")
+
+    # Shift code resolution audit — runs AFTER build_hourly populated SHIFT_AUDIT.
+    print_shift_audit()
 
     try: os.unlink(xlsx_path)
     except: pass
