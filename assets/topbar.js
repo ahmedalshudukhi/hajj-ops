@@ -405,21 +405,12 @@
         items.push({ href: '/dispatch', label: 'New Dispatch', ico: '+', cls: 'warn' });
       }
       if (['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'].includes(role)) {
-        items.push({ href: '/code', label: 'Code Blue', ico: 'CB', cls: 'danger' });
-        items.push({ href: '/intake', label: 'Quick Intake', ico: 'IN', cls: '' });
-        items.push({ href: '/triage', label: 'Triage Tag', ico: 'TT', cls: 'warn' });
-      }
+        items.push({ href: '/code', label: 'Code Blue', ico: 'CB', cls: 'danger' });      }
       items.push({ href: '/pcr', label: 'PCR', ico: 'PC', cls: '' });
       items.push({ divider: true });
       items.push({ href: '/board', label: 'Operations Board', ico: 'BD', cls: '' });
-      items.push({ href: '/pulse', label: 'Live Pulse', ico: 'PL', cls: '' });
-      items.push({ href: '/heat', label: 'Heat Watch', ico: 'HW', cls: 'good' });
-      if (['cluster_supervisor','leadership','admin','dispatcher'].includes(role)) {
-        items.push({ href: '/mci', label: 'MCI Command', ico: 'MC', cls: 'danger' });
-      }
-      items.push({ divider: true });
-      items.push({ href: '/runbook', label: 'Runbook', ico: 'RB', cls: '' });
-      items.push({ href: '/protocols', label: 'Protocols', ico: 'PR', cls: '' });
+      items.push({ href: '/pulse', label: 'Live Pulse', ico: 'PL', cls: '' });      if (['cluster_supervisor','leadership','admin','dispatcher'].includes(role)) {      }
+      items.push({ divider: true });      items.push({ href: '/protocols', label: 'Protocols', ico: 'PR', cls: '' });
       items.push({ href: '/me', label: 'My Page', ico: 'ME', cls: '' });
 
       const menu = document.getElementById('cadFabMenu');
