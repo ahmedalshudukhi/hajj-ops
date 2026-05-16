@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        branch: [main, testing]
+        branch: [main, testing, v0.9.1]
     steps:
       - name: Skip if filtered
         if: ${{ github.event.inputs.only_branch && github.event.inputs.only_branch != 'both' && github.event.inputs.only_branch != matrix.branch }}
