@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Positioning · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.57">
+<link rel="stylesheet" href="assets/style.css?v=0.2.58">
 <style>
 body { background: var(--bg); }
 .content { padding: 12px 14px 80px; max-width: 1280px; margin: 0 auto; }
@@ -352,10 +352,10 @@ table.heatmap-tbl td.hm-cell.handover-cell {
 </style>
 </head>
 <body>
-<script src="assets/version.js?v=0.2.57"></script>
-<script src="assets/config.js?v=0.2.57"></script>
-<script src="assets/auth.js?v=0.2.57"></script>
-<script src="assets/topbar.js?v=0.2.57"></script>
+<script src="assets/version.js?v=0.2.58"></script>
+<script src="assets/config.js?v=0.2.58"></script>
+<script src="assets/auth.js?v=0.2.58"></script>
+<script src="assets/topbar.js?v=0.2.58"></script>
 
 <div class="content">
   <div class="picker">
@@ -741,6 +741,10 @@ table.heatmap-tbl td.hm-cell.handover-cell {
   // A cell is a handover-overlap cell when its station has 2+ active_shifts
   // at that hour AND its value is noticeably higher than its hour-neighbors.
   function markHandoverCells(rows, stations) {
+    // Mark a cell ONLY when the station has both a D-family and an N-family
+    // shift active simultaneously (excluding the 24/7 background shift).
+    // That's the real cross-shift handover signature — not just "more than
+    // one shift" which fires too often because 24/7 overlaps everything.
     Array.from(document.querySelectorAll('#heatmapBody td.hm-cell')).forEach(td => {
       const hour = td.getAttribute('data-hour');
       const st = td.getAttribute('data-st');
@@ -748,13 +752,14 @@ table.heatmap-tbl td.hm-cell.handover-cell {
       if (!row) return;
       const ps = (row.per_station || {})[st];
       if (!ps) return;
-      const shifts = ps.active_shifts || [];
-      if (shifts.length >= 2) {
+      const shifts = (ps.active_shifts || []).filter(c => c !== '24/7');
+      const hasDay = shifts.some(c => c.startsWith('D'));
+      const hasNight = shifts.some(c => c.startsWith('N'));
+      if (hasDay && hasNight) {
         td.classList.add('handover-cell');
-        const prevTitle = td.getAttribute('title') || '';
         td.setAttribute('title',
-          'Handover overlap · ' + shifts.join(' + ') +
-          ' · ' + ps.paras + ' paras (both shifts counted during 1-hour handover) · ' +
+          'Cross-shift HANDOVER · ' + shifts.join(' + ') +
+          ' · ' + ps.paras + ' paras shown = both shifts counted during 1-hour handover · ' +
           hour + ' at ' + st);
       }
     });
@@ -794,15 +799,34 @@ table.heatmap-tbl td.hm-cell.handover-cell {
       return a.localeCompare(b);
     });
 
-    // Detect handover hours: any hour where >=2 distinct shifts are active anywhere
-    const handoverHours = new Set();
-    for (let h = 0; h < 24; h++) {
-      const hStr = String(h).padStart(2,'0') + ':00';
-      let cnt = 0;
+    // Detect handover hours: local maxima in distinct shift count where
+    // both day-family AND night-family shifts are active simultaneously.
+    // Excludes the 24/7 shift (always on, not part of any handover).
+    function shiftCount(hStr) {
+      let dCount = 0, nCount = 0;
       sortedShifts.forEach(code => {
-        if (shiftHourStations[code] && shiftHourStations[code][hStr]) cnt++;
+        if (code === '24/7') return;
+        if (shiftHourStations[code] && shiftHourStations[code][hStr]) {
+          if (code.startsWith('D')) dCount++;
+          else if (code.startsWith('N')) nCount++;
+        }
       });
-      if (cnt >= 2) handoverHours.add(hStr);
+      return { d: dCount, n: nCount, total: dCount + nCount, crossFamily: dCount > 0 && nCount > 0 };
+    }
+    const handoverHours = new Set();
+    const hourCounts = [];
+    for (let h = 0; h < 24; h++) {
+      hourCounts.push(shiftCount(String(h).padStart(2,'0') + ':00'));
+    }
+    for (let h = 0; h < 24; h++) {
+      const cur = hourCounts[h];
+      const prev = hourCounts[(h + 23) % 24];
+      const next = hourCounts[(h + 1) % 24];
+      // True handover: cross-family overlap (D AND N both active)
+      // AND this hour has more total shifts than its neighbors (local peak).
+      if (cur.crossFamily && cur.total >= 3 && cur.total > prev.total && cur.total > next.total) {
+        handoverHours.add(String(h).padStart(2,'0') + ':00');
+      }
     }
 
     // Build grid HTML
