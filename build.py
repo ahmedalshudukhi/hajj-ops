@@ -372,19 +372,25 @@ def compute_phase_duration(start_dh, start_hour, end_dh, end_hour):
     return (_dh(end_dh) - _dh(start_dh)) * 24 + (_hr(end_hour) - _hr(start_hour))
 
 def download_xlsx():
-    # Order of preference:
-    #   1. Local backend.xlsx / _backend_cache.xlsx (Ahmed dropped a fresh export)
-    #   2. Service-account-authenticated Drive export (cron-friendly, secure)
-    #   3. Public /export?format=xlsx (only works if the sheet is "anyone with link")
+    # SINGLE SOURCE OF TRUTH: live Google Sheet backend, fetched via Drive API.
+    # Per Ahmed's instruction (2026-05-16): NEVER read from a local static
+    # XLSX file. If service-account auth fails, the build fails loudly —
+    # we do NOT silently fall back to a stale local cache.
     here = os.path.dirname(os.path.abspath(__file__))
-    local_candidates = [
-        os.path.join(here, "backend.xlsx"),
-        os.path.join(here, "_backend_cache.xlsx"),
-    ]
-    for p in local_candidates:
+
+    # Refuse to run if a local xlsx is accidentally present. This catches
+    # the case where someone copies backend.xlsx into the repo for testing
+    # and forgets to remove it before pushing. Crashing here is correct —
+    # production must never read from anything except the Google Sheet.
+    for legacy in ("backend.xlsx", "_backend_cache.xlsx"):
+        p = os.path.join(here, legacy)
         if os.path.exists(p):
-            print(f"  Using local file: {p} ({os.path.getsize(p):,} bytes)")
-            return p
+            raise RuntimeError(
+                f"REFUSED TO BUILD: a stale local file is present at {p}. "
+                f"Per project policy, data must ONLY come from the live "
+                f"Google Sheet backend (FILE_ID={FILE_ID}). "
+                f"Delete this file and re-run the build."
+            )
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx"); tmp.close()
 
@@ -420,15 +426,24 @@ def download_xlsx():
             print(f"  ✓ Downloaded {os.path.getsize(tmp.name):,} bytes (authenticated)")
             return tmp.name
         except Exception as e:
-            print(f"  ⚠ Service-account auth failed: {e}")
-            print(f"     Falling back to public export URL — likely 401 if sheet is private.")
+            # Per policy: do NOT fall back. If the authenticated path fails,
+            # the build fails. This prevents serving stale or wrong data.
+            raise RuntimeError(
+                f"BUILD FAILED: service-account auth to Google Sheet failed: {e}. "
+                f"Refusing to fall back to unauthenticated export — Hajj operations "
+                f"require live backend data only. Fix the service account credential "
+                f"(GOOGLE_SERVICE_ACCOUNT_JSON env var) and re-run."
+            )
 
-    print(f"  Downloading from Google Drive (file: {FILE_ID})...")
-    req = urllib.request.Request(DOWNLOAD_URL, headers={"User-Agent": "hajj-ops/5.0"})
-    with urllib.request.urlopen(req, timeout=30) as resp, open(tmp.name, "wb") as out:
-        out.write(resp.read())
-    print(f"  ✓ Downloaded {os.path.getsize(tmp.name):,} bytes")
-    return tmp.name
+    # No service account configured at all. Refuse to use the public export
+    # URL because (a) the sheet is private (would 401) and (b) policy
+    # forbids any data source except the authenticated Google Sheet pull.
+    raise RuntimeError(
+        f"BUILD FAILED: no service-account credentials configured. "
+        f"GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_SERVICE_ACCOUNT_PATH must be set. "
+        f"Per project policy, this build will not fall back to an unauthenticated "
+        f"public export URL."
+    )
 
 def read_sheet(wb, name, valid_first_col_pattern=None):
     if name not in wb.sheetnames:
