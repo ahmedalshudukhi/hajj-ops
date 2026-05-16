@@ -1444,11 +1444,15 @@ const ACTIONS = {
     const hourlyTimeline = [];
     for (let h = startHr; h < endHr; h++) {
       const minStart = h * 60;
-      const minMid = h * 60 + 30;
+      const minEnd = minStart + 60;
       let label = "—", trains = 0, desc = "";
+      // Any-overlap test: hour bucket [h*60, h*60+60) overlaps band [start, end).
+      // Prefer the band that occupies the most of this hour.
+      let bestOverlap = 0;
       for (const b of bands) {
-        if (b.start_min <= minMid && minMid < b.end_min) {
-          label = b.mvt; trains = b.trains; desc = b.desc; break;
+        const ov = Math.max(0, Math.min(b.end_min, minEnd) - Math.max(b.start_min, minStart));
+        if (ov > bestOverlap) {
+          bestOverlap = ov; label = b.mvt; trains = b.trains; desc = b.desc;
         }
       }
       hourlyTimeline.push({hour: String(h).padStart(2,'0')+':00', mvt: label, trains, desc});
@@ -1564,6 +1568,15 @@ const ACTIONS = {
       pax_by_band: paxByBand,
       hourly_timeline: hourlyTimeline,
       grid,
+      // platforms_for_dh: movement-code → [{st, plat, role}] for the
+      // movements present on this DH. Lets the UI look up station/platform
+      // activity directly by band.mvt instead of going via hourly grid
+      // (which loses 30-min-band entries due to hour-rounding).
+      platforms_for_dh: phasesForDH.reduce((acc, p) => {
+        if (acc[p.mvt]) return acc;
+        acc[p.mvt] = platforms[p.mvt] || [];
+        return acc;
+      }, {}),
       tafweej: tafweejForDH,
       station_hours: stationHours,
       all_phases: full ? phases : undefined,

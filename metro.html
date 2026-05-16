@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Metro · SAR Movements · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.53">
+<link rel="stylesheet" href="assets/style.css?v=0.2.54">
 <style>
 body { background: var(--bg); }
 .content { padding: 12px 14px 80px; max-width: 1280px; margin: 0 auto; }
@@ -252,10 +252,10 @@ table.plat-tbl td.st-cell {
 </style>
 </head>
 <body>
-<script src="assets/version.js?v=0.2.53"></script>
-<script src="assets/config.js?v=0.2.53"></script>
-<script src="assets/auth.js?v=0.2.53"></script>
-<script src="assets/topbar.js?v=0.2.53"></script>
+<script src="assets/version.js?v=0.2.54"></script>
+<script src="assets/config.js?v=0.2.54"></script>
+<script src="assets/auth.js?v=0.2.54"></script>
+<script src="assets/topbar.js?v=0.2.54"></script>
 
 <div class="content">
   <div class="picker">
@@ -522,35 +522,38 @@ table.plat-tbl td.st-cell {
       $('platBody').innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:18px;">No train ops — stations are not actively boarding or alighting passengers.</td></tr>';
       return;
     }
-    // Match a phase that contains the band start by mvt code; the worker
-    // already returns active stations in `grid` keyed by hour. Use the
-    // hour at the band's midpoint to look up.
-    const midHr = Math.floor((band.start_min + band.end_min) / 2 / 60);
-    const midHrStr = String(midHr).padStart(2,'0') + ':00';
-    const grid = r.grid || [];
+    // Direct lookup via platforms_for_dh — movement code → station list.
+    // (The hourly grid loses 30-min bands due to hour-rounding; the
+    // movement-keyed map is the canonical source per SAR ops doc.)
+    const pfd = r.platforms_for_dh || {};
+    const movementPlats = pfd[band.mvt] || [];
     const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+    // Per-station pax from pax_by_band aggregate for THIS band.
+    const bandPax = (r.pax_by_band || []).find(p =>
+      p.mvt === band.mvt && p.start === band.start && p.end === band.end
+    ) || { per_station: {}, forecast_published: false };
+    const fc = bandPax.forecast_published;
     let rows = '';
     let anyActive = false;
     STATIONS.forEach(st => {
-      const row = grid.find(g => g.st === st);
-      const cell = row ? row.hours.find(c => c.hour === midHrStr) : null;
-      if (!cell || !cell.active) {
+      const here = movementPlats.find(p => p.st === st);
+      if (!here) {
         rows += '<tr><td class="st-cell">' + st + '</td>'
               + '<td><span class="pl-off">— not in service —</span></td>'
               + '<td>—</td><td>—</td></tr>';
         return;
       }
       anyActive = true;
-      const plat = cell.plat || '?';
-      const role = cell.role || '';
-      let paxDisplay = '';
-      if (cell.plat === 'NS' && (cell.pax_n || cell.pax_s)) {
-        paxDisplay = '<span class="st" style="color:#bfdbfe;">N: ' + fmt(cell.pax_n || 0) + '</span>  '
-                   + '<span class="st" style="color:#fde68a;">S: ' + fmt(cell.pax_s || 0) + '</span>';
-      } else if (cell.pax > 0) {
-        paxDisplay = fmt(cell.pax);
+      const plat = here.plat || '?';
+      const role = here.role || '';
+      // Per-station pax for this band aggregate (only meaningful when SAR
+      // published a forecast — for A/E we show "—" rather than misleading 0).
+      let paxDisplay;
+      if (!fc) {
+        paxDisplay = '<span class="pl-off" title="No published forecast for Movement ' + band.mvt + '">—</span>';
       } else {
-        paxDisplay = '<span class="pl-off">—</span>';
+        const stPax = bandPax.per_station[st] || 0;
+        paxDisplay = stPax > 0 ? fmt(stPax) : '<span class="pl-off">—</span>';
       }
       rows += '<tr>'
         + '<td class="st-cell">' + st + '</td>'
@@ -560,7 +563,7 @@ table.plat-tbl td.st-cell {
         + '</tr>';
     });
     if (!anyActive) {
-      $('platBody').innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:18px;">No station data for this period.</td></tr>';
+      $('platBody').innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:18px;">No station map defined for Movement ' + band.mvt + '.</td></tr>';
     } else {
       $('platBody').innerHTML = rows;
     }

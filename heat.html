@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Heat Watch · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.53">
+<link rel="stylesheet" href="assets/style.css?v=0.2.54">
 <style>
 body { background: #0a0e1a; color: #e7ecf7; font-family: Inter, system-ui, sans-serif; }
 .ht-shell { max-width: 1280px; margin: 0 auto; padding: 16px 14px 60px; }
@@ -194,10 +194,10 @@ body { background: #0a0e1a; color: #e7ecf7; font-family: Inter, system-ui, sans-
   </div>
 </div>
 
-<script src="assets/auth.js?v=0.2.53"></script>
-<script src="assets/shortcuts.js?v=0.2.53"></script>
-<script src="assets/topbar.js?v=0.2.53"></script>
-<script src="assets/version.js?v=0.2.53"></script>
+<script src="assets/auth.js?v=0.2.54"></script>
+<script src="assets/shortcuts.js?v=0.2.54"></script>
+<script src="assets/topbar.js?v=0.2.54"></script>
+<script src="assets/version.js?v=0.2.54"></script>
 <script>
 (async function() {
   if (!await HAJJ.requireRole(['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'])) return;
@@ -227,16 +227,20 @@ body { background: #0a0e1a; color: #e7ecf7; font-family: Inter, system-ui, sans-
     banner.className = 'ht-banner ' + r.risk_level;
     document.getElementById('htLevel').textContent = 'Heat risk: ' + r.risk_level;
     const w = r.weather || {};
-    const tempStr = w.temperature != null ? w.temperature.toFixed(1) + '°C' : 'no data';
-    const hiStr = w.heat_index != null ? w.heat_index.toFixed(0) + '°C HI' : '';
+    const tempStr = w.temp_c != null ? w.temp_c.toFixed(1) + '°C' : 'no data';
+    const hiStr = w.feels_c != null ? w.feels_c.toFixed(0) + '°C feels' : '';
     document.getElementById('htTitle').textContent = r.risk_level.toUpperCase() + ' · ' + tempStr + (hiStr ? ' · ' + hiStr : '');
     document.getElementById('htRec').textContent = r.recommendation;
+    const hr = w.heat_risk || {};
     document.getElementById('htWeather').innerHTML =
-      '<div class="ht-stat"><span class="l">Temperature</span><span class="v">' + (w.temperature != null ? w.temperature.toFixed(1) + '°C' : '--') + '</span></div>' +
-      '<div class="ht-stat"><span class="l">Heat index</span><span class="v">' + (w.heat_index != null ? w.heat_index.toFixed(0) + '°C' : '--') + '</span></div>' +
-      '<div class="ht-stat"><span class="l">Humidity</span><span class="v">' + (w.humidity != null ? w.humidity + '%' : '--') + '</span></div>' +
-      '<div class="ht-stat"><span class="l">Wind</span><span class="v">' + (w.wind != null ? w.wind + ' km/h' : '--') + '</span></div>' +
-      '<div class="ht-stat"><span class="l">Heat incidents (6h)</span><span class="v" style="color:#fcd34d;">' + r.heat_incidents_6h + '</span></div>';
+      '<div class="ht-stat"><span class="l">Temperature</span><span class="v">' + (w.temp_c != null ? w.temp_c.toFixed(1) + '°C' : '--') + '</span></div>' +
+      '<div class="ht-stat"><span class="l">Feels like</span><span class="v">' + (w.feels_c != null ? w.feels_c.toFixed(1) + '°C' : '--') + '</span></div>' +
+      '<div class="ht-stat"><span class="l">Humidity</span><span class="v">' + (w.humidity_pct != null ? w.humidity_pct + '%' : '--') + '</span></div>' +
+      '<div class="ht-stat"><span class="l">Wind</span><span class="v">' + (w.wind_kmh != null ? w.wind_kmh.toFixed(1) + ' km/h' : '--') + '</span></div>' +
+      '<div class="ht-stat"><span class="l">UV index</span><span class="v">' + (w.uv_index != null ? w.uv_index.toFixed(1) : '--') + '</span></div>' +
+      (hr.score != null ? '<div class="ht-stat"><span class="l">Heat-risk score</span><span class="v" style="color:#fcd34d;">' + hr.score + ' · ' + (hr.level || '') + '</span></div>' : '') +
+      '<div class="ht-stat"><span class="l">Heat incidents (6h)</span><span class="v" style="color:#fcd34d;">' + r.heat_incidents_6h + '</span></div>' +
+      (hr.note ? '<div style="font-size:11px;color:#93a4cd;margin-top:8px;line-height:1.5;">' + hr.note + '</div>' : '');
 
     const stations = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
     document.getElementById('htStations').innerHTML = stations.map(function(s) {
