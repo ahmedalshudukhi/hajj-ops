@@ -315,6 +315,21 @@ def num(v, default=0):
 
 def s(v): return str(v).strip() if v is not None else ""
 
+def resolve_duration(code, shift_dur, shift_map):
+    """
+    Return shift duration in hours for a code. First tries shift_dur (which
+    is computed from the Shifts tab). If the code isn't there, infers from
+    the code structure.
+    """
+    if code in shift_dur and shift_dur[code]:
+        return shift_dur[code]
+    r = infer_shift_from_code(code)
+    if r is None: return 0
+    sh, eh = r
+    if sh == eh: return 24.0
+    return float((24 - sh) + eh) if eh < sh else float(eh - sh)
+
+
 def compute_shift_duration(start_time, end_time):
     """Calculate shift duration in hours from start/end time cells.
     Handles midnight wrap (e.g. 19:00 → 07:00 = 12 h, 20:00 → 02:00 = 6 h).
@@ -446,6 +461,67 @@ def parse_time_str(t):
 def shift_covers_hour(start_t, end_t, target_hour):
     sh = parse_time_str(start_t); eh = parse_time_str(end_t)
     if sh is None or eh is None: return False
+    if sh < eh: return sh <= target_hour < eh
+    elif sh > eh: return target_hour >= sh or target_hour < eh
+    else: return True
+
+import re as _re
+_SHIFT_CODE_RX = _re.compile(r'^([DN])(\d{1,2})(?:-(\d{1,2}))?$', _re.IGNORECASE)
+
+def infer_shift_from_code(code):
+    """
+    Given a shift code like 'D12', 'D6-12', 'N18', 'N18-00', '24/7',
+    return a tuple (start_hour:int, end_hour:int) usable by shift_covers_hour.
+
+    Rules:
+      • '24/7' or '24-7' → (0, 0) which shift_covers_hour treats as always-on
+      • 'D{S}' alone     → Day shift starting hour S, ending S+12 (mod 24).
+                            Default 12-hour duration.
+      • 'D{S}-{E}'       → Day shift from S to E (E may be < S to wrap midnight).
+      • 'N{S}' alone     → Night shift starting hour S, ending S+12 (mod 24).
+      • 'N{S}-{E}'       → Night shift from S to E.
+
+    Returns None if code is malformed (so the caller can skip the unit).
+    """
+    if not code: return None
+    u = str(code).upper().strip()
+    if u in ('24/7', '24-7'):
+        # Same start and end → shift_covers_hour treats as covering all 24h.
+        return (0, 0)
+    m = _SHIFT_CODE_RX.match(u)
+    if not m: return None
+    prefix = m.group(1)  # D or N
+    start  = int(m.group(2)) % 24
+    end    = int(m.group(3)) % 24 if m.group(3) else (start + 12) % 24
+    return (start, end)
+
+def resolve_shift(code, shift_map):
+    """
+    Resolve a shift code to (start_t, end_t). First tries shift_map (the
+    Shifts tab data). If the code isn't there OR has unparseable times,
+    falls back to infer_shift_from_code, so codes like D12 / D14 / D2-14
+    that the user added to the schedule without adding rows in the Shifts
+    tab still resolve correctly.
+
+    Returns (start, end) tuple where start and end are hour integers (0-23),
+    or None if the code can't be resolved.
+    """
+    if code in shift_map:
+        st, en = shift_map[code]
+        sh = parse_time_str(st); eh = parse_time_str(en)
+        if sh is not None and eh is not None:
+            return (sh, eh)
+    # Fallback: parse the code structure itself
+    return infer_shift_from_code(code)
+
+def covers_hour_resolved(code, shift_map, target_hour):
+    """
+    Convenience: resolve `code` (with shift_map fallback) and check if the
+    resolved shift covers `target_hour`.
+    """
+    r = resolve_shift(code, shift_map)
+    if r is None: return False
+    sh, eh = r
     if sh < eh: return sh <= target_hour < eh
     elif sh > eh: return target_hour >= sh or target_hour < eh
     else: return True
@@ -662,11 +738,11 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_r
                 if dh not in day_shifts: continue
                 matched_shift = None
                 for code in day_shifts[dh]:
-                    if code in shift_map:
-                        start_t, end_t = shift_map[code]
-                        if shift_covers_hour(start_t, end_t, h):
-                            matched_shift = code
-                            break
+                    # Use resolved matcher so codes like D12 / D14 that aren't
+                    # in the Shifts tab still resolve via infer_shift_from_code.
+                    if covers_hour_resolved(code, shift_map, h):
+                        matched_shift = code
+                        break
                 if not matched_shift: continue
                 active_units.add(uid)
                 unit_shift_at_hour[uid] = matched_shift
@@ -978,9 +1054,10 @@ def compute_zone_movement(schedule_rows, units_rows, shifts_rows):
                     candidates.append((dh_p - 1, 2))
                 for col_dh, slot in candidates:
                     code = s(r.get(f"{col_dh}DH-S{slot}"))
-                    if not code or code not in shift_map: continue
-                    start_t, end_t = shift_map[code]
-                    if shift_covers_hour(start_t, end_t, h_p):
+                    if not code: continue
+                    if not covers_hour_resolved(code, shift_map, h_p): continue
+                    # Resolved (either from Shifts tab or inferred from code structure)
+                    if True:
                         unit_active = True
                         break
             if unit_active:
