@@ -1351,9 +1351,30 @@ const ACTIONS = {
     // is the Wuquf (standing at Arafat); 02:00-04:00 on E-days is the
     // SAR-mandated daily maintenance window.
     function gapReason(dhI, startMin, endMin, prevMvt, nextMvt) {
+      const durMin = endMin - startMin;
       // Daily 02:00-04:00 maintenance on DH 11, 12, 13
       if ((dhI >= 11 && dhI <= 13) && startMin >= 120 && endMin <= 240) {
         return { reason: 'Daily maintenance window (02:00–04:00)', kind: 'maintenance' };
+      }
+      // Short (<=45 min) gaps between two active bands = shift handover +
+      // platform changeover, NOT idle. Two cases on the SAR schedule:
+      //   DH 9 05:00-05:30 (B1B night → B2A day, direction reverses)
+      //   DH 10 00:30-01:00 (C night Nafra → D night skip-stop)
+      if (prevMvt && nextMvt && durMin <= 45) {
+        const pSh = prevMvt.charAt(0);
+        const nSh = nextMvt.charAt(0);
+        // Both same family (B→B) → platform direction swap during shift change
+        if (pSh === nSh && pSh === 'B') {
+          return {
+            reason: 'Shift handover · platform direction swap (Night → Day)',
+            kind: 'handover'
+          };
+        }
+        // Different families (C → D) → service handover, same shift
+        return {
+          reason: 'Service handover · ' + prevMvt + ' → ' + nextMvt + ' platform repositioning',
+          kind: 'handover'
+        };
       }
       // DH 9 Wuquf: between B2B end (11:00) and C start (18:57)
       if (dhI === 9 && prevMvt && prevMvt.startsWith('B') && nextMvt === 'C') {

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Metro · SAR Movements · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.54">
+<link rel="stylesheet" href="assets/style.css?v=0.2.55">
 <style>
 body { background: var(--bg); }
 .content { padding: 12px 14px 80px; max-width: 1280px; margin: 0 auto; }
@@ -249,13 +249,160 @@ table.plat-tbl td.st-cell {
   border-radius: var(--radius); padding: 20px;
   text-align: center; color: var(--text-muted); font-size: 13px;
 }
+
+/* handover kind: short shift/platform changeover (DH 9 05:00, DH 10 00:30) */
+.band.gap.handover {
+  border-left: 4px solid #38bdf8;
+  background: repeating-linear-gradient(135deg, rgba(56,189,248,0.10), rgba(56,189,248,0.10) 6px, rgba(56,189,248,0.18) 6px, rgba(56,189,248,0.18) 12px);
+}
+.band.gap.handover .b-mvt { color: #7dd3fc; font-size: 11px; }
+.band.gap.handover .b-reason { color: #bae6fd; }
+.active-banner.handover {
+  background: linear-gradient(135deg, rgba(56,189,248,0.18), rgba(56,189,248,0.08));
+  border-color: rgba(56,189,248,0.45);
+}
+.active-banner.handover .ab-code { background: linear-gradient(180deg,#bae6fd,#0ea5e9); -webkit-background-clip:text; background-clip:text; color: transparent; }
+
+/* Shift-change marker between adjacent bands of different shifts (no gap, just visual cue) */
+.band.shift-change-before {
+  position: relative;
+}
+.band.shift-change-before::before {
+  content: ''; position: absolute; top: 8px; bottom: 8px; left: -6px; width: 4px;
+  background: linear-gradient(180deg, #fbbf24, #6366f1);
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(251,191,36,0.6);
+  z-index: 5;
+}
+
+/* Shift badge inside each active band */
+.band .b-shift {
+  position: absolute; top: 6px; right: 8px;
+  font-size: 8px; font-weight: 700; letter-spacing: 0.1em;
+  padding: 1px 5px; border-radius: 3px; text-transform: uppercase;
+}
+.band .b-shift.NIGHT { background: rgba(99,102,241,0.25); color: #c7d2fe; }
+.band .b-shift.DAY   { background: rgba(245,158,11,0.25); color: #fde68a; }
+.band .b-shift.MIXED { background: rgba(168,85,247,0.25); color: #e9d5ff; }
+
+/* ─────────── NEW VIEW: Station × Hour Activity Grid ─────────── */
+.grid-section { margin-top: 28px; }
+.grid-intro {
+  font-size: 12px; color: var(--text-muted); line-height: 1.5;
+  margin: -6px 0 10px; max-width: 780px;
+}
+.grid-intro strong { color: var(--text); font-weight: 600; }
+.station-grid-wrap {
+  background: var(--surface); border: 1px solid var(--border-soft);
+  border-radius: var(--radius); padding: 12px;
+  overflow-x: auto; max-width: 100%;
+}
+.station-grid {
+  display: grid;
+  grid-template-columns: 70px repeat(24, minmax(36px, 1fr));
+  gap: 2px;
+  font-size: 10px; font-variant-numeric: tabular-nums;
+  min-width: 980px;
+  position: relative;
+}
+.sg-corner {
+  font-size: 9px; color: var(--text-muted); padding: 6px 4px;
+  border-bottom: 1px solid var(--border-soft);
+  position: sticky; left: 0; background: var(--surface); z-index: 3;
+}
+.sg-hour-head {
+  text-align: center; padding: 6px 0 8px;
+  font-size: 10px; color: var(--text-muted);
+  font-family: ui-monospace, Menlo, monospace;
+  border-bottom: 1px solid var(--border-soft);
+  position: relative;
+}
+.sg-hour-head.shift-night { background: rgba(99,102,241,0.06); }
+.sg-hour-head.shift-day   { background: rgba(245,158,11,0.04); }
+.sg-hour-head.now-hour {
+  color: #fbbf24;
+  background: rgba(251,191,36,0.10);
+}
+.sg-station-cell {
+  font-weight: 700; font-family: ui-monospace, Menlo, monospace;
+  color: var(--text);
+  padding: 10px 6px;
+  position: sticky; left: 0; background: var(--surface); z-index: 2;
+  font-size: 12px;
+  border-right: 1px solid var(--border-soft);
+}
+.sg-cell {
+  padding: 8px 2px 6px;
+  text-align: center;
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  line-height: 1.2;
+  background: rgba(148,163,184,0.04);
+}
+.sg-cell .sg-mvt { font-size: 10px; font-weight: 700; letter-spacing: 0.02em; }
+.sg-cell .sg-plat {
+  font-size: 8px; font-weight: 700;
+  padding: 0 4px; border-radius: 2px;
+  font-family: ui-monospace, Menlo, monospace;
+}
+.sg-cell .sg-plat.N  { background: rgba(59,130,246,0.30); color: #dbeafe; }
+.sg-cell .sg-plat.S  { background: rgba(245,158,11,0.30); color: #fef3c7; }
+.sg-cell .sg-plat.NS { background: linear-gradient(90deg, rgba(59,130,246,0.30) 50%, rgba(245,158,11,0.30) 50%); color: #fef3c7; }
+.sg-cell.inactive {
+  background: transparent;
+  color: var(--text-muted); opacity: 0.25;
+}
+.sg-cell.inactive .sg-mvt { font-size: 11px; }
+.sg-cell:hover { outline: 1px solid var(--text-muted); }
+/* Movement colour fills */
+.sg-cell.mv-A  { background: rgba(99,102,241,0.20);  color: #e0e7ff; }
+.sg-cell.mv-B  { background: rgba(168,85,247,0.20);  color: #f3e8ff; }
+.sg-cell.mv-C  { background: rgba(244,63,94,0.22);   color: #ffe4e6; }
+.sg-cell.mv-D  { background: rgba(245,158,11,0.20);  color: #fef3c7; }
+.sg-cell.mv-E  { background: rgba(16,185,129,0.20);  color: #d1fae5; }
+.sg-cell.handover { background: rgba(56,189,248,0.18); color: #bae6fd; }
+.sg-cell.handover .sg-mvt { font-size: 9px; }
+.sg-cell.maintenance { background: rgba(245,158,11,0.06); color: var(--text-muted); }
+.sg-cell.maintenance .sg-mvt { font-size: 9px; }
+.sg-cell.ritual { background: rgba(16,185,129,0.06); color: var(--text-muted); }
+.sg-cell.ritual .sg-mvt { font-size: 9px; }
+.sg-cell.boarding { background: rgba(244,63,94,0.10); color: #fda4af; }
+.sg-cell.boarding .sg-mvt { font-size: 9px; }
+.sg-cell.transition { background: rgba(252,211,77,0.10); color: var(--text-muted); }
+.sg-cell.now-cell {
+  box-shadow: inset 0 0 0 2px #fbbf24;
+}
+
+/* Grid legend */
+.grid-legend {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  margin-top: 10px; font-size: 10px; color: var(--text-muted);
+}
+.grid-legend-item {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px; border-radius: 12px;
+  background: var(--surface-2); border: 1px solid var(--border-soft);
+}
+.grid-legend-item .swatch {
+  width: 14px; height: 10px; border-radius: 2px;
+  display: inline-block;
+}
+
+/* Mobile tweaks for the grid */
+@media (max-width: 700px) {
+  .station-grid { min-width: 880px; font-size: 9px; }
+  .sg-cell .sg-mvt { font-size: 9px; }
+  .sg-cell .sg-plat { font-size: 7px; }
+}
 </style>
 </head>
 <body>
-<script src="assets/version.js?v=0.2.54"></script>
-<script src="assets/config.js?v=0.2.54"></script>
-<script src="assets/auth.js?v=0.2.54"></script>
-<script src="assets/topbar.js?v=0.2.54"></script>
+<script src="assets/version.js?v=0.2.55"></script>
+<script src="assets/config.js?v=0.2.55"></script>
+<script src="assets/auth.js?v=0.2.55"></script>
+<script src="assets/topbar.js?v=0.2.55"></script>
 
 <div class="content">
   <div class="picker">
@@ -308,6 +455,21 @@ table.plat-tbl td.st-cell {
     Tafweej total (316,331) exceeds the train flow (303,950) because some Zone-5 holders walk down rather than board.
   </div>
   <div class="tafweej-list" id="tafweejList" style="display:none;"></div>
+
+  <!-- ─────────────── New view: 9 stations × 24 hours operational grid ─────────────── -->
+  <div class="grid-section">
+    <div class="section-title">Station × hour activity grid (24h)</div>
+    <div class="grid-intro">
+      One row per station, one column per hour. Each cell shows the active movement code and platform letter
+      (<strong>N</strong> / <strong>S</strong> / <strong>NS</strong>) for that hour. Empty cells mean the station is not in service.
+      The current hour (if you're inside the selected DH) is highlighted gold.
+      Click any cell to jump to its movement detail above.
+    </div>
+    <div class="station-grid-wrap">
+      <div class="station-grid" id="stationGrid"></div>
+    </div>
+    <div class="grid-legend" id="gridLegend"></div>
+  </div>
 </div>
 
 <script>
@@ -369,6 +531,7 @@ table.plat-tbl td.st-cell {
     paintSelectedBand(r);
     paintPaxCards(r);
     paintTafweej(r);
+    paintStationGrid(r);
   }
 
   function setLoading() {
@@ -438,6 +601,7 @@ table.plat-tbl td.st-cell {
     if (kind === 'ritual')      return '🕋';
     if (kind === 'transition')  return '⇄';
     if (kind === 'boarding')    return '🚉';
+    if (kind === 'handover')    return '🔁';
     return '—';
   }
 
@@ -451,19 +615,30 @@ table.plat-tbl td.st-cell {
     const nowMin = currentMinutesIfMatchingDH(r.dh);
 
     // Use flex-grow proportional to duration so longer periods take more space.
+    // Detect shift-change boundaries: when two adjacent bands have different
+    // shifts (and no gap between them), mark the second band with a visual cue.
     $('bandStrip').innerHTML = bands.map((b, i) => {
       const dur = b.end_min - b.start_min;
       const isNow = nowMin !== null && b.start_min <= nowMin && nowMin < b.end_min;
       const isSel = i === _selectedIdx;
       const isGap = b.type === 'gap';
+      // Shift-change detection: previous band exists, both have shifts, both shifts differ
+      const prev = i > 0 ? bands[i-1] : null;
+      const shiftChange = !isGap && prev && !prev.type==='gap' && prev.shift && b.shift && prev.shift !== b.shift && prev.end_min === b.start_min;
       const cls = 'band ' + (isGap ? 'gap ' + (b.kind || 'idle') : mvFamily(b.mvt)) +
-                  (isNow ? ' now' : '') + (isSel ? ' selected' : '');
-      const grow = Math.max(60, dur); // min 1h equivalent flex
-      const mvLabel = isGap ? (b.kind === 'ritual' ? 'WUQŪF' : b.kind === 'maintenance' ? 'MAINT' : b.kind === 'transition' ? 'TRANS' : b.kind === 'boarding' ? 'BOARDING' : 'IDLE') : b.mvt;
+                  (isNow ? ' now' : '') + (isSel ? ' selected' : '') +
+                  (shiftChange ? ' shift-change-before' : '');
+      const grow = Math.max(15, dur); // real duration ratio; CSS min-width protects readability
+      const mvLabel = isGap ? (b.kind === 'ritual' ? 'WUQŪF' : b.kind === 'maintenance' ? 'MAINT' : b.kind === 'transition' ? 'TRANS' : b.kind === 'boarding' ? 'BOARDING' : b.kind === 'handover' ? 'HANDOVER' : 'IDLE') : b.mvt;
       const sub = isGap
         ? '<div class="b-reason">' + (b.reason || '') + '</div>'
         : '<div class="b-trains">' + (b.trains || 0) + ' trains</div>';
-      return '<div class="' + cls + '" style="flex-grow:' + grow + ';" data-idx="' + i + '">'
+      // Shift badge in upper-right of active bands
+      const shiftBadge = (!isGap && b.shift)
+        ? '<div class="b-shift ' + b.shift + '" title="' + b.shift.toLowerCase() + ' shift">' + b.shift.charAt(0) + '</div>'
+        : '';
+      return '<div class="' + cls + '" style="flex-grow:' + grow + ';" data-idx="' + i + '" title="' + (isGap ? (b.reason || '') : (b.desc || b.mvt)) + '">'
+        + shiftBadge
         + '<div class="b-times">' + b.start + ' → ' + b.end + '</div>'
         + '<div class="b-mvt">' + mvLabel + '</div>'
         + sub
@@ -675,7 +850,113 @@ table.plat-tbl td.st-cell {
 
   function fmt(n) { return Number(n||0).toLocaleString('en-US'); }
 
-  function jumpToNow() {
+
+  // ─── Station × hour activity grid (24h) ─────────────────────────────
+  // 9 station rows × 24 hour columns. Each cell shows the active band
+  // for that station+hour with a color-coded background. Empty cells
+  // mean the station is not in service. Click a cell → jump to that
+  // band's detail above.
+  function paintStationGrid(r) {
+    const grid = $('stationGrid'); if (!grid) return;
+    const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+    const pfd = r.platforms_for_dh || {};
+    const bands = r.timeline_bands || [];
+    const nowMin = currentMinutesIfMatchingDH(r.dh);
+    const nowHr = nowMin !== null ? Math.floor(nowMin / 60) : null;
+
+    // Build hour → band lookup using overlap (handles 30-min bands cleanly)
+    function bandForHour(h) {
+      const hStart = h * 60;
+      const hEnd = hStart + 60;
+      // Pick the band that occupies the most of this hour
+      let best = null, bestOverlap = 0;
+      for (const b of bands) {
+        const ov = Math.max(0, Math.min(b.end_min, hEnd) - Math.max(b.start_min, hStart));
+        if (ov > bestOverlap) { bestOverlap = ov; best = b; }
+      }
+      return best;
+    }
+
+    let html = '';
+    // Top-left corner
+    html += '<div class="sg-corner">Station ↓ Hour →</div>';
+    // Hour header row
+    for (let h = 0; h < 24; h++) {
+      const b = bandForHour(h);
+      const isNight = (h < 5) || (h >= 17);
+      const shiftCls = isNight ? 'shift-night' : 'shift-day';
+      const nowCls = nowHr === h ? 'now-hour' : '';
+      html += '<div class="sg-hour-head ' + shiftCls + ' ' + nowCls + '" title="' + (b && b.type==='band' ? b.mvt : (b && b.reason) || '') + '">' + String(h).padStart(2,'0') + '</div>';
+    }
+    // Station rows
+    STATIONS.forEach(st => {
+      html += '<div class="sg-station-cell">' + st + '</div>';
+      for (let h = 0; h < 24; h++) {
+        const b = bandForHour(h);
+        if (!b) {
+          html += '<div class="sg-cell inactive" title="No data">·</div>';
+          continue;
+        }
+        if (b.type === 'gap') {
+          const kCls = b.kind || 'idle';
+          const lbl = b.kind === 'ritual' ? '🕋' : b.kind === 'maintenance' ? '🔧'
+                     : b.kind === 'transition' ? '⇄' : b.kind === 'boarding' ? '🚉'
+                     : b.kind === 'handover' ? '🔁' : '—';
+          const nowMark = nowHr === h ? ' now-cell' : '';
+          const idx = bands.indexOf(b);
+          html += '<div class="sg-cell ' + kCls + nowMark + '" data-idx="' + idx + '" title="' + (b.reason || '') + ' · ' + b.start + '-' + b.end + '"><div class="sg-mvt">' + lbl + '</div></div>';
+          continue;
+        }
+        // Active band — does this station participate?
+        const platMap = pfd[b.mvt] || [];
+        const here = platMap.find(p => p.st === st);
+        const fam = 'mv-' + b.mvt.charAt(0);
+        const idx = bands.indexOf(b);
+        const nowMark = nowHr === h ? ' now-cell' : '';
+        if (!here) {
+          html += '<div class="sg-cell inactive ' + fam + nowMark + '" data-idx="' + idx + '" title="' + b.mvt + ' · not in service at ' + st + '"><div class="sg-mvt" style="opacity:0.4;">' + b.mvt + '</div></div>';
+        } else {
+          html += '<div class="sg-cell ' + fam + nowMark + '" data-idx="' + idx + '" title="' + st + ' · ' + b.mvt + ' · platform ' + here.plat + ' · ' + here.role + '">'
+            + '<div class="sg-mvt">' + b.mvt + '</div>'
+            + '<div class="sg-plat ' + here.plat + '">' + here.plat + '</div>'
+            + '</div>';
+        }
+      }
+    });
+    grid.innerHTML = html;
+    // Wire cell clicks → select band & scroll up
+    Array.from(grid.querySelectorAll('.sg-cell[data-idx]')).forEach(el => {
+      el.addEventListener('click', () => {
+        const idx = parseInt(el.getAttribute('data-idx'), 10);
+        if (Number.isFinite(idx)) {
+          _selectedIdx = idx;
+          paintBands(_data);
+          paintSelectedBand(_data);
+          // Scroll to band detail
+          const pd = $('bandDetail');
+          if (pd) pd.scrollIntoView({behavior:'smooth', block:'center'});
+        }
+      });
+    });
+
+    // Legend — derive from the actual movements + gap kinds present
+    const present = new Set();
+    bands.forEach(b => present.add(b.type==='band' ? ('mv-' + b.mvt.charAt(0)) : b.kind));
+    const labels = {
+      'mv-A': 'A — Regular', 'mv-B': 'B — Convoy', 'mv-C': 'C — Nafra',
+      'mv-D': 'D — Skip-stop', 'mv-E': 'E — Tashriq',
+      'handover': '🔁 Handover', 'maintenance': '🔧 Maintenance',
+      'ritual': '🕋 Wuqūf', 'boarding': '🚉 Pre-boarding',
+      'transition': '⇄ Transition', 'idle': 'No ops'
+    };
+    $('gridLegend').innerHTML = Array.from(present).map(k => {
+      const swCls = k.startsWith('mv-') ? k : k;
+      return '<span class="grid-legend-item"><span class="swatch sg-cell ' + swCls + '" style="padding:0;border:0;"></span>' + (labels[k] || k) + '</span>';
+    }).join('');
+  }
+
+
+    function jumpToNow() {
     const now = new Date();
     const dateMap = (_data && _data.meta && _data.meta.dh_dates) || {
       "4":"2026-05-25","5":"2026-05-26","6":"2026-05-27","7":"2026-05-28",
