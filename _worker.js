@@ -2503,15 +2503,17 @@ const ACTIONS = {
     } : { active: false, deactivated_at: now, deactivated_by: user.nid };
 
     try {
-      await env.DB.prepare(
-        `INSERT INTO sync_state (key, value, updated_at) VALUES ('mci_status', ?1, ?2)
-         ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = ?2`
-      ).bind(JSON.stringify(mci), now).run();
-      await env.DB.prepare(
-        `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
-         VALUES (?1, ?2, 'mci', ?3, ?4)`
-      ).bind(user.nid, active ? 'mci_activate' : 'mci_deactivate',
-             mci.level || 'system', JSON.stringify(mci)).run();
+      await env.DB.batch([
+        env.DB.prepare(
+          `INSERT INTO sync_state (key, value, updated_at) VALUES ('mci_status', ?1, ?2)
+           ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = ?2`
+        ).bind(JSON.stringify(mci), now),
+        env.DB.prepare(
+          `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
+           VALUES (?1, ?2, 'mci', ?3, ?4)`
+        ).bind(user.nid, active ? 'mci_activate' : 'mci_deactivate',
+               mci.level || 'system', JSON.stringify(mci))
+      ]);
       return { ok: true, mci };
     } catch (e) {
       return { ok: false, error: 'mci_set_failed', detail: e.message };
