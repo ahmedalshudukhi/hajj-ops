@@ -419,3 +419,33 @@ body {
 @media (max-width: 480px) {
   .cad-tile-grid { grid-template-columns: 1fr; }
 }
+
+
+/* === MOBILE POLISH (Phase 6) === */
+@media (max-width: 768px) {
+  .btn, button, .select, select,
+  input[type="text"], input[type="number"], input[type="tel"], input[type="search"], input[type="date"] {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  .btn-occ, .rp-btn { min-height: 44px; }
+  body { padding-bottom: env(safe-area-inset-bottom); }
+  .cad-topbar { padding: 8px 12px; }
+  .cad-topbar-nav { gap: 4px; flex-wrap: wrap; }
+  .cad-topbar-nav a { padding: 6px 8px; font-size: 12px; }
+  table { display: block; overflow-x: auto; white-space: nowrap; }
+  .drill-overlay { padding: 0; }
+  .drill-modal { max-width: 100%; max-height: 100vh; border-radius: 0; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+
+.cad-sticky-actions {
+  position: sticky; bottom: 0; left: 0; right: 0;
+  background: linear-gradient(180deg, rgba(10,14,26,0), rgba(10,14,26,0.95) 30%);
+  padding: 16px 12px calc(12px + env(safe-area-inset-bottom));
+  display: flex; gap: 8px; flex-wrap: wrap;
+  border-top: 1px solid rgba(99,179,237,0.15);
+  margin-top: 16px;
+  z-index: 5;
+}
+.cad-sticky-actions .btn { flex: 1; min-width: 100px; }

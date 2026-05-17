@@ -4,12 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SV · HMG Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.18">
-<script src="assets/config.js?v=0.2.18"></script>
-<script src="assets/tempo.js?v=0.2.18"></script>
-<script src="assets/auth.js?v=0.2.18"></script>
-<script src="assets/sublocations.js?v=0.2.18"></script>
-<script src="assets/topbar.js?v=0.2.18"></script>
+<link rel="stylesheet" href="assets/style.css?v=0.2.53">
+<script src="assets/config.js?v=0.2.53"></script>
+<script src="assets/tempo.js?v=0.2.53"></script>
+<script src="assets/auth.js?v=0.2.61"></script>
+<script src="assets/shortcuts.js?v=0.2.53"></script>
+<script src="assets/sublocations.js?v=0.2.53"></script>
+<script src="assets/topbar.js?v=0.2.53"></script>
 <style>
   .sv-wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
   .sv-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
@@ -698,6 +699,33 @@
   </div>
 </div>
 
-<script src="assets/version.js?v=0.2.18"></script>
+<script src="assets/version.js?v=0.2.53"></script>
+<script>
+(function wireSvRelocAutoFill() {
+  ['repUnit', 'relocUnit'].forEach(function(id) {
+    const u = document.getElementById(id);
+    if (!u) return;
+    let hint = document.getElementById(id + '_currentLoc');
+    if (!hint) {
+      hint = document.createElement('div');
+      hint.id = id + '_currentLoc';
+      hint.style.cssText = 'font-size:12px; color:#94a3b8; margin-top:4px; min-height:16px;';
+      u.parentNode && u.parentNode.insertBefore(hint, u.nextSibling);
+    }
+    function updateHint() {
+      const code = u.value;
+      if (!code) { hint.textContent = ''; return; }
+      const info = (typeof UNITS_BY_CODE !== 'undefined') ? UNITS_BY_CODE[code] : null;
+      if (info && info.home_station) {
+        hint.innerHTML = '<span style="color:#a5b4fc;">Currently at:</span> <strong>' + info.home_station + '</strong>';
+      } else {
+        hint.textContent = '(home station unknown for ' + code + ')';
+      }
+    }
+    u.addEventListener('change', updateHint);
+    setTimeout(updateHint, 200);
+  });
+})();
+</script>
 </body>
 </html>

@@ -1,0 +1,2 @@
+// Per-page icons for lobby tiles — used by lobby.html (v0.9.4)
+window.LOBBY_ICONS = {"lobby": "🏠", "command": "🚨", "active": "📊", "dispatch": "🚑", "sv": "🗺", "sar": "🚆", "admin": "⚙️", "reports": "📑", "protocols": "🩺", "timeline": "📅", "incidents": "🆘", "units": "👥", "positioning": "📍", "metro": "🚇", "pcr": "📋", "escalation": "📞", "map": "🗺️", "code": "⚡", "me": "👤", "board": "🧭", "diagnostic": "🔧", "system": "🖥", "training": "🎓", "kpi": "📈", "pulse": "💓"};

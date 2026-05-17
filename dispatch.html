@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Dispatch · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.18">
+<link rel="stylesheet" href="assets/style.css?v=0.2.53">
 
 <style>
   body { background: var(--bg); }
@@ -198,14 +198,13 @@
       <option>Mina</option>
       <option>Arafat</option>
       <option>Muzdalifah</option>
-      <option>OCC</option>
     </select>
     <select class="select" id="zone">
       <option value="">Zone / Station</option>
     </select>
     <select class="select" id="source">
       <option value="">Source</option>
-      <option value="Phone">Phone (911 / hotline)</option>
+      <option value="SRCA_911">911 SRCA</option>
       <option value="Walk-in">Walk-in</option>
       <option value="Radio">Radio</option>
       <option value="Internal">Internal request</option>
@@ -214,6 +213,7 @@
       <option value="Ambulance">Ambulance handoff</option>
       <option value="Other">Other</option>
     </select>
+    <input class="select" id="srcaCase" type="text" placeholder="SRCA Case #" autocomplete="off" maxlength="40" style="display:none;">
     <select class="select" id="subLocation"><option value="">Sub-location (pick station first)</option></select>
     <select class="select" id="caseField">
       <option value="">Chief complaint</option>
@@ -265,6 +265,14 @@
     <select class="select full" id="unit">
       <option value="">Loading units…</option>
     </select>
+    <div style="display:flex; gap:8px; align-items:center; margin-top:-6px;">
+      <button type="button" id="btnSuggestUnit" style="background:rgba(99,179,237,0.14); color:#cdf1ff; border:1px solid rgba(99,179,237,0.3); padding:6px 12px; border-radius:6px; font-size:11px; cursor:pointer; white-space:nowrap;">⚡ Suggest best unit</button>
+      <div id="unitSuggestions" style="font-size:11px; color:#94a3b8; flex:1; min-height:14px;"></div>
+    </div>
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:-6px;">
+      <button type="button" id="btnTriageSuggest" style="background:rgba(168,85,247,0.16); color:#d8b4fe; border:1px solid rgba(168,85,247,0.35); padding:5px 10px; border-radius:6px; font-size:11px; cursor:pointer; white-space:nowrap;">AI Triage Suggest</button>
+      <div id="triageReason" style="font-size:11px; color:#94a3b8; flex:1;"></div>
+    </div>
     <select class="select full" id="category">
       <option value="red">🔴 Red — Resuscitation</option>
       <option value="yellow" selected>🟡 Yellow — Urgent</option>
@@ -301,12 +309,14 @@
   ⚠ <span id="repoBannerCount">0</span> reposition request<span id="repoBannerS">s</span> pending approval — click to review
 </div>
 
-<script src="assets/config.js?v=0.2.18"></script>
-<script src="assets/tempo.js?v=0.2.18"></script>
-<script src="assets/auth.js?v=0.2.18"></script>
-<script src="assets/sublocations.js?v=0.2.18"></script>
-<script src="assets/topbar.js?v=0.2.18"></script>
-<script src="assets/dateBar.js?v=0.2.18"></script>
+<script src="assets/config.js?v=0.2.53"></script>
+<script src="assets/tempo.js?v=0.2.53"></script>
+<script src="assets/auth.js?v=0.2.61"></script>
+<script src="assets/shortcuts.js?v=0.2.53"></script>
+<script src="assets/voice.js?v=0.2.53"></script>
+<script src="assets/sublocations.js?v=0.2.53"></script>
+<script src="assets/topbar.js?v=0.2.53"></script>
+<script src="assets/dateBar.js?v=0.2.53"></script>
 <script>
 (function () {
 
@@ -458,8 +468,7 @@
   const ZONES = {
     Mina:       [['MIN1','Mina 1 (MIN1)'], ['MIN2','Mina 2 (MIN2)'], ['MIN3','Mina 3 (MIN3)']],
     Arafat:     [['ARF1','Arafat 1 (ARF1)'], ['ARF2','Arafat 2 (ARF2)'], ['ARF3','Arafat 3 (ARF3)']],
-    Muzdalifah: [['MUZ1','Muzdalifah 1 (MUZ1)'], ['MUZ2','Muzdalifah 2 (MUZ2)'], ['MUZ3','Muzdalifah 3 (MUZ3)']],
-    OCC:        [['ARF1','OCC / Depot (ARF1 fallback)']]   // OCC routes to ARF1 since OCC isn't a dispatch station
+    Muzdalifah: [['MUZ1','Muzdalifah 1 (MUZ1)'], ['MUZ2','Muzdalifah 2 (MUZ2)'], ['MUZ3','Muzdalifah 3 (MUZ3)']]
   };
   const regionEl = document.getElementById('region');
   const zoneEl   = document.getElementById('zone');
@@ -802,7 +811,7 @@
       +     '</div>'
       +   '</div>'
       +   '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">'
-      +     '<div class="timer" data-start="' + startMs + '">⏱ 0:00</div>'
+      +     '<div class="timer" data-start="' + startMs + '"' + (inc.Closed_At ? ' data-end="' + new Date(inc.Closed_At).getTime() + '" data-frozen="1" style="opacity:0.65"' : '') + '>⏱ 0:00</div>'
       +     '<div style="display:flex; gap:4px;">'
       +       '<button class="btn-edit-card" data-incident-id="' + (inc.Incident_ID || '') + '" '
       +         'style="background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.3); color:#93c5fd; padding:2px 7px; border-radius:4px; cursor:pointer; font-size:10px;" '
@@ -891,6 +900,7 @@
           </label>
           <label style="font-size:12px; color:#9ca3af;">Notes (will be appended)
             <textarea id="edNotes" rows="2" placeholder="Reason for edit, additional info..." style="width:100%; margin-top:3px; padding:6px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:4px; color:#e5e7eb; font-family:inherit; resize:vertical;"></textarea>
+<button type="button" data-voice-target="edNotes" data-voice-lang="en-US" style="margin-top:6px; background:rgba(168,85,247,0.16); color:#d8b4fe; border:1px solid rgba(168,85,247,0.35); padding:5px 10px; border-radius:6px; font-size:11px; cursor:pointer;">🎤 Dictate notes</button>
           </label>
           <div id="edMsg" style="font-size:12px; min-height:16px;"></div>
           <div style="display:flex; gap:8px; justify-content:flex-end;">
@@ -985,16 +995,63 @@
 
   function buildPcrButton(inc) {
     const params = new URLSearchParams();
-    if (inc.Incident_ID) params.set('incident_id', inc.Incident_ID);
-    if (inc.Station)     params.set('prefill_station', inc.Station);
-    if (inc.Unit)        params.set('prefill_unit', inc.Unit);
+    // Identity & references
+    if (inc.Incident_ID)     params.set('incident_id', inc.Incident_ID);
+    if (inc.SRCA_Case)       params.set('srca_case', inc.SRCA_Case);
+    if (inc.Station)         params.set('prefill_station', inc.Station);
+    if (inc.Unit)            params.set('prefill_unit', inc.Unit);
+    if (inc.Region)          params.set('prefill_region', inc.Region);
+    if (inc.Sub_Location)    params.set('prefill_sub_location', inc.Sub_Location);
+    if (inc.Movement)        params.set('prefill_movement', inc.Movement);
+    // Clinical autofill
+    if (inc.Chief_Complaint) params.set('prefill_chief_complaint', inc.Chief_Complaint);
+    if (inc.Triage)          params.set('prefill_triage', inc.Triage);
+    if (inc.Source)          params.set('prefill_source', inc.Source);
+    // Staff identity for paramedic header
+    const me = (window.HAJJ && HAJJ.getUser) ? HAJJ.getUser() : null;
+    if (me) {
+      if (me.nid)  params.set('prefill_staff_nid', me.nid);
+      if (me.name) params.set('prefill_staff_name', me.name);
+      if (me.role) params.set('prefill_staff_role', me.role);
+    }
+    // Timing autofill (use dispatch + on-scene if available)
+    if (inc.Dispatch_Time)    params.set('prefill_dispatch_time', inc.Dispatch_Time);
+    if (inc.On_Scene)         params.set('prefill_on_scene', inc.On_Scene);
+    if (inc.Patient_Contact)  params.set('prefill_patient_contact', inc.Patient_Contact);
     const url = window.PCR_URL + '?' + params.toString();
     const label = inc.Q_PCR_ID
       ? '📄 PCR filed (' + inc.Q_PCR_ID + ')'
       : (inc.Long_PCR_URL ? '📄 View PCR' : '📋 File PCR');
+    // Build WhatsApp share. If we know the assigned unit, target its members' phones.
+    // Otherwise open WhatsApp picker without a recipient.
+    const incId = inc.Incident_ID || inc.id || '';
+    const unitCode = inc.Unit || inc.Assigned_Unit || '';
+    const station = inc.Station || inc.station || '';
+    const triage = inc.Triage || inc.triage || '';
+    const complaint = inc.Complaint || inc.complaint || '';
+    const waText = encodeURIComponent(
+      'PCR · case ' + incId + (unitCode ? ' · unit ' + unitCode : '') +
+      (station ? ' · ' + station : '') + (triage ? ' · ' + triage : '') +
+      (complaint ? '\n' + complaint : '') +
+      '\nFile/view: ' + url
+    );
+    // Try to extract phones from unit members (set on incident by dispatcher OR fetched)
+    let phones = [];
+    if (inc.unit_members && Array.isArray(inc.unit_members)) {
+      phones = inc.unit_members.map(m => (m.phone || '').replace(/[^0-9+]/g, '')).filter(p => p && p.length >= 7);
+    }
+    let waButtons = '';
+    if (phones.length) {
+      waButtons = phones.slice(0, 4).map((p, i) =>
+        '<a href="https://wa.me/' + p.replace(/^\+/, '') + '?text=' + waText + '" target="_blank" rel="noopener" class="btn btn--small" style="text-decoration:none; background:#25D366; color:#fff; display:inline-flex; align-items:center; margin-right:4px;">📱 #' + (i + 1) + '</a>'
+      ).join('');
+    } else {
+      waButtons = '<a href="https://wa.me/?text=' + waText + '" target="_blank" rel="noopener" class="btn btn--small" style="text-decoration:none; background:#25D366; color:#fff; display:inline-flex; align-items:center;">📱 Share to WhatsApp</a>';
+    }
     return '<div class="section-label">PCR</div>'
       + '<div class="btn-row">'
       + '<a href="' + url + '" target="_blank" rel="noopener" class="btn btn--small btn--blue" style="text-decoration:none; display:inline-flex; align-items:center;">' + label + '</a>'
+      + waButtons
       + '</div>';
   }
 
@@ -1008,10 +1065,13 @@
     document.querySelectorAll('.timer[data-start]').forEach(el => {
       const start = parseInt(el.dataset.start, 10);
       if (!start) return;
-      const ms = Date.now() - start;
+      // If incident is closed, freeze at close_at — do not tick further
+      const end = el.dataset.end ? parseInt(el.dataset.end, 10) : Date.now();
+      const ms = Math.max(0, end - start);
       const m = Math.floor(ms / 60000);
       const s = Math.floor((ms % 60000) / 1000);
-      el.textContent = '⏱ ' + m + ':' + String(s).padStart(2,'0');
+      const prefix = el.dataset.frozen ? '⏹ ' : '⏱ ';
+      el.textContent = prefix + m + ':' + String(s).padStart(2,'0');
     });
   }, 1000);
 
@@ -1142,9 +1202,154 @@
   })();
 
 
+  // === REPOSITION: auto-show 'Currently at' when unit is chosen ===
+  (function wireRelocAutoFill() {
+    const u = document.getElementById('relocUnit');
+    if (!u) return;
+    let hint = document.getElementById('relocCurrentLoc');
+    if (!hint) {
+      hint = document.createElement('div');
+      hint.id = 'relocCurrentLoc';
+      hint.style.cssText = 'font-size:12px; color:#94a3b8; margin-top:4px; min-height:16px;';
+      u.parentNode && u.parentNode.insertBefore(hint, u.nextSibling);
+    }
+    function updateHint() {
+      const code = u.value;
+      if (!code) { hint.textContent = ''; return; }
+      const info = (typeof UNITS_BY_CODE !== 'undefined') ? UNITS_BY_CODE[code] : null;
+      if (info && info.home_station) {
+        hint.innerHTML = '<span style="color:#a5b4fc;">Currently at:</span> <strong>' + info.home_station + '</strong>';
+      } else {
+        hint.textContent = '(home station unknown for ' + code + ')';
+      }
+    }
+    u.addEventListener('change', updateHint);
+    setTimeout(updateHint, 200);
+  })();
+
+  // === SMART UNIT SUGGEST ===
+  (function wireSuggest() {
+    const btn = document.getElementById('btnSuggestUnit');
+    const out = document.getElementById('unitSuggestions');
+    const unitEl = document.getElementById('unit');
+    const zoneEl = document.getElementById('zone');
+    const triageEl = document.getElementById('category');
+    if (!btn || !out || !unitEl || !zoneEl) return;
+    btn.addEventListener('click', async () => {
+      const station = zoneEl.value;
+      if (!station) { out.innerHTML = '<span style="color:#fca5a5;">Pick a station first</span>'; return; }
+      out.innerHTML = '<span style="color:#94a3b8;">⏳ Computing best unit…</span>';
+      const triage = triageEl ? triageEl.value : '';
+      const r = await HAJJ.authedCall('unit_suggest', { station, triage });
+      if (!r || !r.ok || !r.suggestions || !r.suggestions.length) {
+        out.innerHTML = '<span style="color:#fca5a5;">No suggestions available</span>';
+        return;
+      }
+      // Render top 3 with reasoning, top one auto-fills the dropdown
+      const top = r.suggestions[0];
+      // Try to set the dropdown
+      let found = false;
+      for (let i = 0; i < unitEl.options.length; i++) {
+        if (unitEl.options[i].value === top.unit_code) { unitEl.selectedIndex = i; found = true; break; }
+      }
+      const top3 = r.suggestions.slice(0, 3).map((s, i) => {
+        const me = (i === 0 ? '✓ ' : '');
+        const status = s.on_incident ? 'on incident' : (s.status || 'available');
+        const color = s.score >= 100 ? '#86efac' : s.score >= 40 ? '#fcd34d' : '#fca5a5';
+        return `<div style="margin-top:3px;"><span style="color:${color}; font-weight:600;">${me}${s.unit_code}</span> <span style="color:#6b7d9e;">(${s.home_station} · ${status} · ${s.score}pts)</span></div>`;
+      }).join('');
+      out.innerHTML = `<div style="color:#86efac; margin-bottom:4px;">→ <strong>${top.unit_code}</strong> auto-selected${found ? '' : ' (not in current dropdown — fix backend)'}</div>${top3}`;
+      // Trigger change event
+      unitEl.dispatchEvent(new Event('change'));
+    });
+  })();
+
+
+  // === KEYBOARD SHORTCUTS for dispatch ===
+  (function wireDispatchShortcuts() {
+    if (!window.CADShortcuts) return;
+    function focusForm() {
+      const el = document.getElementById('zone') || document.querySelector('input,select,textarea');
+      if (el) { el.focus(); window.scrollTo(0, 0); }
+    }
+    CADShortcuts.register('n', 'New incident - focus form', focusForm);
+    function activeIncidentId() {
+      const el = document.querySelector('[data-incident-id].is-selected') ||
+                 document.querySelector('[data-incident-id]:focus') ||
+                 document.querySelector('[data-incident-id]');
+      return el ? el.getAttribute('data-incident-id') : null;
+    }
+    CADShortcuts.register('e', 'En route - top incident', () => {
+      const id = activeIncidentId();
+      if (!id) return alert('No incident selected.');
+      HAJJ.authedCall('dispatch_event', { incident_id: id, event_type: 'en_route' }).then(() => location.reload());
+    });
+    CADShortcuts.register('o', 'On scene - top incident', () => {
+      const id = activeIncidentId();
+      if (!id) return alert('No incident selected.');
+      HAJJ.authedCall('dispatch_event', { incident_id: id, event_type: 'on_scene' }).then(() => location.reload());
+    });
+    CADShortcuts.register('t', 'Transporting - top incident', () => {
+      const id = activeIncidentId();
+      if (!id) return alert('No incident selected.');
+      HAJJ.authedCall('dispatch_event', { incident_id: id, event_type: 'transporting' }).then(() => location.reload());
+    });
+    CADShortcuts.register('c', 'Close - top incident', () => {
+      const id = activeIncidentId();
+      if (!id) return alert('No incident selected.');
+      if (!confirm('Close incident ' + id + '?')) return;
+      HAJJ.authedCall('dispatch_close', { incident_id: id }).then(() => location.reload());
+    });
+  })();
+
+
+  // === SMART TRIAGE ASSIST ===
+  (function wireTriageSuggest() {
+    const btn = document.getElementById('btnTriageSuggest');
+    const out = document.getElementById('triageReason');
+    const catEl = document.getElementById('category');
+    const caseEl = document.getElementById('caseField');
+    const cardiacEl = document.getElementById('cardiacArrest');
+    if (!btn || !out || !catEl) return;
+    btn.addEventListener('click', async () => {
+      const complaint = caseEl ? caseEl.value : '';
+      const cardiac = cardiacEl ? cardiacEl.checked : false;
+      out.innerHTML = '<span style="color:#94a3b8;">Analyzing...</span>';
+      const r = await HAJJ.authedCall('triage_suggest', { complaint, cardiac_arrest: cardiac ? '1' : '0' });
+      if (!r || !r.ok) { out.innerHTML = '<span style="color:#fca5a5;">No suggestion</span>'; return; }
+      // Auto-fill the triage category
+      catEl.value = r.suggested;
+      catEl.dispatchEvent(new Event('change'));
+      const color = r.suggested === 'red' ? '#fca5a5' : r.suggested === 'yellow' ? '#fcd34d' : r.suggested === 'green' ? '#86efac' : '#cbd5e1';
+      out.innerHTML = '<span style="color:' + color + '; font-weight:600;">' + r.suggested.toUpperCase() + '</span> <span style="color:#94a3b8;">' + (r.confidence||'') + ' confidence: ' + (r.reasons||[]).join(', ') + '</span>';
+    });
+  })();
+
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.18"></script>
+<script src="assets/version.js?v=0.2.53"></script>
+
+<script>
+// SRCA 911 secondary case number handling
+(function(){
+  const sourceSel = document.getElementById('source');
+  const srcaInput = document.getElementById('srcaCase');
+  if (!sourceSel || !srcaInput) return;
+  function update() {
+    if (sourceSel.value === 'SRCA_911') {
+      srcaInput.style.display = '';
+      srcaInput.required = true;
+    } else {
+      srcaInput.style.display = 'none';
+      srcaInput.value = '';
+      srcaInput.required = false;
+    }
+  }
+  sourceSel.addEventListener('change', update);
+  update();
+})();
+</script>
+
 </body>
 </html>

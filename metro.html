@@ -1,0 +1,1063 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#0f172a">
+<title>Metro · SAR Movements · Hajj 2026</title>
+<link rel="stylesheet" href="assets/style.css?v=0.9.5">
+<style>
+body { background: var(--bg); }
+.content { padding: 12px 14px 80px; max-width: 1280px; margin: 0 auto; }
+
+/* Picker bar */
+.picker {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: end;
+  background: var(--surface); border: 1px solid var(--border-soft);
+  border-radius: var(--radius); padding: 12px; margin-bottom: 14px;
+}
+.picker .field { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
+.picker label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-muted);
+}
+.picker select {
+  background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border-soft); border-radius: 8px;
+  padding: 8px 10px; font-size: 13px;
+}
+.picker .now-btn {
+  background: rgba(59,130,246,0.18); color: #93c5fd;
+  border: 1px solid rgba(59,130,246,0.4);
+  border-radius: 8px; padding: 8px 14px;
+  font-weight: 600; font-size: 12px; cursor: pointer;
+}
+.picker .now-btn:hover { background: rgba(59,130,246,0.28); }
+.picker .dh-label { font-size: 11px; color: var(--text-muted); align-self: center; }
+
+.section-title {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--text-muted);
+  margin: 22px 0 10px;
+}
+
+/* Active banner */
+.active-banner {
+  background: linear-gradient(135deg, rgba(99,102,241,0.18), rgba(168,85,247,0.12));
+  border: 1px solid rgba(99,102,241,0.45);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  display: grid; grid-template-columns: auto 1fr auto; gap: 18px; align-items: center;
+}
+.active-banner .ab-code {
+  font-size: 36px; font-weight: 800;
+  letter-spacing: 0.04em;
+  background: linear-gradient(180deg, #c7d2fe, #a78bfa);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  min-width: 80px; text-align: center;
+}
+.active-banner .ab-desc {
+  font-size: 13px; color: var(--text); line-height: 1.45;
+}
+.active-banner .ab-desc small {
+  display: block; color: var(--text-muted); margin-top: 4px; font-size: 11px;
+}
+.active-banner .ab-trains {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.active-banner .ab-trains .num { font-size: 26px; font-weight: 700; color: var(--text); }
+.active-banner .ab-trains .label { font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+.active-banner.idle {
+  background: rgba(148,163,184,0.06);
+  border-color: var(--border-soft);
+}
+.active-banner.idle .ab-code {
+  background: var(--text-muted); -webkit-background-clip: text; background-clip: text;
+}
+.active-banner.maintenance .ab-code { background: linear-gradient(180deg,#fde68a,#f59e0b); -webkit-background-clip:text; background-clip:text; }
+.active-banner.ritual      .ab-code { background: linear-gradient(180deg,#86efac,#10b981); -webkit-background-clip:text; background-clip:text; }
+.active-banner.transition  .ab-code { background: linear-gradient(180deg,#fcd34d,#f59e0b); -webkit-background-clip:text; background-clip:text; }
+.active-banner.boarding {
+  background: linear-gradient(135deg, rgba(244,63,94,0.15), rgba(244,63,94,0.08));
+  border-color: rgba(244,63,94,0.4);
+}
+.active-banner.boarding .ab-code { background: linear-gradient(180deg,#fda4af,#f43f5e); -webkit-background-clip:text; background-clip:text; color: transparent; }
+
+/* Band timeline (replaces hour-cell strip) — bands stretch by duration */
+.band-strip {
+  display: flex; gap: 2px; background: var(--surface-2);
+  border: 1px solid var(--border-soft); border-radius: var(--radius);
+  padding: 8px; overflow: hidden;
+}
+.band {
+  flex: 1 1 0; min-width: 70px;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  padding: 10px 12px;
+  cursor: pointer; transition: background 0.1s, border-color 0.1s;
+  display: flex; flex-direction: column; gap: 3px;
+  position: relative;
+}
+.band:hover { border-color: var(--text-muted); background: var(--surface-2); }
+.band.now { outline: 2px solid var(--accent-blue, #60a5fa); outline-offset: 2px; }
+.band.selected { background: var(--surface-2); border-color: #93c5fd; }
+.band .b-times {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px; color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.band .b-mvt {
+  font-size: 16px; font-weight: 700; color: var(--text);
+  letter-spacing: 0.04em;
+}
+.band .b-trains {
+  font-size: 10px; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.band .b-pax {
+  font-size: 11px; font-weight: 600; color: #93c5fd;
+  font-variant-numeric: tabular-nums; margin-top: 2px;
+}
+/* Movement color codes */
+.band.mv-A   { border-left: 4px solid #6366f1; }
+.band.mv-B   { border-left: 4px solid #a855f7; }
+.band.mv-C   { border-left: 4px solid #f43f5e; }
+.band.mv-D   { border-left: 4px solid #f59e0b; }
+.band.mv-E   { border-left: 4px solid #10b981; }
+.band.gap    { background: repeating-linear-gradient(135deg, var(--surface-2), var(--surface-2) 6px, var(--surface) 6px, var(--surface) 12px); }
+.band.gap .b-mvt { color: var(--text-muted); font-size: 12px; text-transform: uppercase; }
+.band.gap .b-reason { font-size: 10px; color: var(--text-muted); line-height: 1.3; margin-top: 2px; }
+.band.gap.maintenance { border-left: 4px solid #f59e0b; }
+.band.gap.ritual      { border-left: 4px solid #10b981; }
+.band.gap.transition  { border-left: 4px solid #fcd34d; }
+.band.gap.boarding    {
+  border-left: 4px solid #f43f5e;
+  background: repeating-linear-gradient(135deg, rgba(244,63,94,0.08), rgba(244,63,94,0.08) 6px, rgba(244,63,94,0.16) 6px, rgba(244,63,94,0.16) 12px);
+}
+.band.gap.boarding .b-mvt { color: #fda4af; }
+.band.gap.idle        { border-left: 4px solid var(--border-soft); }
+
+/* Band detail card */
+.band-detail {
+  background: var(--surface); border: 1px solid var(--border-soft);
+  border-radius: var(--radius); padding: 14px;
+  margin-top: 12px;
+}
+.band-detail h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--text); }
+.band-detail .bd-meta {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  font-size: 11px; color: var(--text-muted); margin-bottom: 10px;
+}
+.band-detail .bd-meta strong { color: var(--text); font-weight: 600; }
+
+/* Platform-by-station table for the selected band */
+.plat-grid {
+  background: var(--surface); border: 1px solid var(--border-soft);
+  border-radius: var(--radius); padding: 12px;
+  overflow-x: auto;
+}
+table.plat-tbl {
+  width: 100%; border-collapse: collapse;
+  font-size: 12px; font-variant-numeric: tabular-nums;
+}
+table.plat-tbl th, table.plat-tbl td {
+  padding: 8px 10px; text-align: left;
+  border-bottom: 1px solid var(--border-soft);
+}
+table.plat-tbl th {
+  font-size: 10px; color: var(--text-muted); font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+table.plat-tbl td.st-cell {
+  font-weight: 700; min-width: 64px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.pl-badge {
+  display: inline-block; padding: 3px 9px;
+  border-radius: 12px; font-size: 11px; font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.pl-N  { background: rgba(59,130,246,0.18); color: #bfdbfe; border: 1px solid rgba(59,130,246,0.35); }
+.pl-S  { background: rgba(245,158,11,0.18); color: #fde68a; border: 1px solid rgba(245,158,11,0.35); }
+.pl-NS { background: linear-gradient(90deg, rgba(59,130,246,0.18) 50%, rgba(245,158,11,0.18) 50%); color: #fef3c7; border: 1px solid rgba(99,102,241,0.35); }
+.pl-off { color: var(--text-muted); opacity: 0.4; font-size: 11px; }
+.role-tag {
+  display: inline-block; padding: 1px 6px; border-radius: 4px;
+  font-size: 10px; color: var(--text-muted); margin-left: 6px;
+  background: var(--surface-2); border: 1px solid var(--border-soft);
+}
+.role-board  { background: rgba(245,158,11,0.10); color: #fde68a; border-color: rgba(245,158,11,0.30); }
+.role-alight { background: rgba(59,130,246,0.10); color: #bfdbfe; border-color: rgba(59,130,246,0.30); }
+.role-both   { background: rgba(168,85,247,0.10); color: #e9d5ff; border-color: rgba(168,85,247,0.30); }
+
+.legend {
+  display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+  font-size: 10px; color: var(--text-muted);
+  margin-top: 10px;
+}
+.legend-swatch {
+  display: inline-block; width: 12px; height: 12px;
+  border-radius: 3px; vertical-align: middle; margin-right: 5px;
+}
+
+/* Pax flow cards (per-band aggregates) */
+.pax-cards {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+.pax-card {
+  background: var(--surface); border: 1px solid var(--border-soft);
+  border-radius: 10px; padding: 12px 14px;
+}
+.pax-card .pc-mvt {
+  font-size: 11px; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.pax-card .pc-total {
+  font-size: 26px; font-weight: 700; color: var(--text);
+  font-variant-numeric: tabular-nums; margin: 4px 0 2px;
+}
+.pax-card .pc-window {
+  font-size: 10px; color: var(--text-muted); margin-bottom: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.pax-card .pc-tops { display: flex; flex-direction: column; gap: 3px; }
+.pax-card .pc-row {
+  display: flex; justify-content: space-between; font-size: 11px;
+}
+.pax-card .pc-row .st { color: var(--text-muted); font-family: ui-monospace, monospace; }
+.pax-card .pc-row .n  { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Tafweej zones (Movement C only) */
+.tafweej-list {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+.tw-zone {
+  border: 1px solid var(--border-soft); border-radius: 8px;
+  padding: 12px; display: flex; flex-direction: column; gap: 4px;
+  color: #1f2937;
+}
+.tw-zone .tw-num { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.7; }
+.tw-zone .tw-time { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tw-zone .tw-total { font-size: 11px; font-weight: 600; opacity: 0.85; }
+
+.empty-state {
+  background: var(--surface); border: 1px dashed var(--border-soft);
+  border-radius: var(--radius); padding: 20px;
+  text-align: center; color: var(--text-muted); font-size: 13px;
+}
+
+/* handover kind: short shift/platform changeover (DH 9 05:00, DH 10 00:30) */
+.band.gap.handover {
+  border-left: 4px solid #38bdf8;
+  background: repeating-linear-gradient(135deg, rgba(56,189,248,0.10), rgba(56,189,248,0.10) 6px, rgba(56,189,248,0.18) 6px, rgba(56,189,248,0.18) 12px);
+}
+.band.gap.handover .b-mvt { color: #7dd3fc; font-size: 11px; }
+.band.gap.handover .b-reason { color: #bae6fd; }
+.active-banner.handover {
+  background: linear-gradient(135deg, rgba(56,189,248,0.18), rgba(56,189,248,0.08));
+  border-color: rgba(56,189,248,0.45);
+}
+.active-banner.handover .ab-code { background: linear-gradient(180deg,#bae6fd,#0ea5e9); -webkit-background-clip:text; background-clip:text; color: transparent; }
+
+/* Slim connector for short (≤45 min) handover/transition gaps — used in
+   place of a full band card. Compact, doesn't waste strip width. */
+.band-connector {
+  flex: 0 0 28px;
+  align-self: stretch;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; padding: 8px 2px;
+  background: rgba(56,189,248,0.10);
+  border-left: 1px dashed rgba(56,189,248,0.45);
+  border-right: 1px dashed rgba(56,189,248,0.45);
+  cursor: pointer;
+  transition: background 0.1s;
+  position: relative;
+}
+.band-connector:hover { background: rgba(56,189,248,0.20); }
+.band-connector.now { box-shadow: inset 0 0 0 2px #fbbf24; }
+.band-connector.selected { background: rgba(56,189,248,0.25); border-color: #93c5fd; }
+.band-connector .bc-icon {
+  font-size: 14px; font-weight: 800; color: #7dd3fc;
+  letter-spacing: 0;
+}
+.band-connector .bc-times {
+  font-size: 9px; font-family: ui-monospace, Menlo, monospace;
+  color: var(--text-muted);
+}
+
+/* Visible labelled shift-change chip between adjacent bands of different
+   shifts — DH 11/12 17:00 boundary, etc. */
+.shift-change-chip {
+  flex: 0 0 50px;
+  align-self: stretch;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; padding: 6px 4px;
+  background: linear-gradient(180deg, rgba(99,102,241,0.18), rgba(245,158,11,0.18));
+  border: 1px solid rgba(251,191,36,0.4);
+  border-radius: 6px;
+  font-size: 9px; cursor: help;
+}
+.shift-change-chip .scc-from,
+.shift-change-chip .scc-to {
+  font-size: 11px; font-weight: 800;
+  padding: 1px 6px; border-radius: 3px;
+  letter-spacing: 0.04em;
+  font-family: ui-monospace, Menlo, monospace;
+}
+.shift-change-chip .scc-from.NIGHT,
+.shift-change-chip .scc-to.NIGHT { background: rgba(99,102,241,0.4); color: #e0e7ff; }
+.shift-change-chip .scc-from.DAY,
+.shift-change-chip .scc-to.DAY { background: rgba(245,158,11,0.4); color: #fef3c7; }
+.shift-change-chip .scc-from.MIXED,
+.shift-change-chip .scc-to.MIXED { background: rgba(168,85,247,0.4); color: #e9d5ff; }
+.shift-change-chip .scc-arrow {
+  font-size: 11px; color: #fbbf24; font-weight: 700;
+  margin: 1px 0;
+}
+.shift-change-chip .scc-time {
+  font-size: 9px; color: var(--text-muted);
+  font-family: ui-monospace, Menlo, monospace;
+  margin-top: 2px;
+}
+
+/* Shift badge inside each active band */
+.band .b-shift {
+  position: absolute; top: 6px; right: 8px;
+  font-size: 8px; font-weight: 700; letter-spacing: 0.1em;
+  padding: 1px 5px; border-radius: 3px; text-transform: uppercase;
+}
+.band .b-shift.NIGHT { background: rgba(99,102,241,0.25); color: #c7d2fe; }
+.band .b-shift.DAY   { background: rgba(245,158,11,0.25); color: #fde68a; }
+.band .b-shift.MIXED { background: rgba(168,85,247,0.25); color: #e9d5ff; }
+
+/* ─────────── NEW VIEW: Station × Hour Activity Grid ─────────── */
+.grid-section { margin-top: 28px; }
+.grid-intro {
+  font-size: 12px; color: var(--text-muted); line-height: 1.5;
+  margin: -6px 0 10px; max-width: 780px;
+}
+.grid-intro strong { color: var(--text); font-weight: 600; }
+.station-grid-wrap {
+  background: var(--surface); border: 1px solid var(--border-soft);
+  border-radius: var(--radius); padding: 12px;
+  overflow-x: auto; max-width: 100%;
+}
+.station-grid {
+  display: grid;
+  grid-template-columns: 70px repeat(24, minmax(36px, 1fr));
+  gap: 2px;
+  font-size: 10px; font-variant-numeric: tabular-nums;
+  min-width: 980px;
+  position: relative;
+}
+.sg-corner {
+  font-size: 9px; color: var(--text-muted); padding: 6px 4px;
+  border-bottom: 1px solid var(--border-soft);
+  position: sticky; left: 0; background: var(--surface); z-index: 3;
+}
+.sg-hour-head {
+  text-align: center; padding: 6px 0 8px;
+  font-size: 10px; color: var(--text-muted);
+  font-family: ui-monospace, Menlo, monospace;
+  border-bottom: 1px solid var(--border-soft);
+  position: relative;
+}
+.sg-hour-head.shift-night { background: rgba(99,102,241,0.06); }
+.sg-hour-head.shift-day   { background: rgba(245,158,11,0.04); }
+.sg-hour-head.now-hour {
+  color: #fbbf24;
+  background: rgba(251,191,36,0.10);
+}
+.sg-station-cell {
+  font-weight: 700; font-family: ui-monospace, Menlo, monospace;
+  color: var(--text);
+  padding: 10px 6px;
+  position: sticky; left: 0; background: var(--surface); z-index: 2;
+  font-size: 12px;
+  border-right: 1px solid var(--border-soft);
+}
+.sg-cell {
+  padding: 8px 2px 6px;
+  text-align: center;
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  line-height: 1.2;
+  background: rgba(148,163,184,0.04);
+}
+.sg-cell .sg-mvt { font-size: 10px; font-weight: 700; letter-spacing: 0.02em; }
+.sg-cell .sg-plat {
+  font-size: 8px; font-weight: 700;
+  padding: 0 4px; border-radius: 2px;
+  font-family: ui-monospace, Menlo, monospace;
+}
+.sg-cell .sg-plat.N  { background: rgba(59,130,246,0.30); color: #dbeafe; }
+.sg-cell .sg-plat.S  { background: rgba(245,158,11,0.30); color: #fef3c7; }
+.sg-cell .sg-plat.NS { background: linear-gradient(90deg, rgba(59,130,246,0.30) 50%, rgba(245,158,11,0.30) 50%); color: #fef3c7; }
+.sg-cell.inactive {
+  background: transparent;
+  color: var(--text-muted); opacity: 0.25;
+}
+.sg-cell.inactive .sg-mvt { font-size: 11px; }
+.sg-cell:hover { outline: 1px solid var(--text-muted); }
+/* Movement colour fills */
+.sg-cell.mv-A  { background: rgba(99,102,241,0.20);  color: #e0e7ff; }
+.sg-cell.mv-B  { background: rgba(168,85,247,0.20);  color: #f3e8ff; }
+.sg-cell.mv-C  { background: rgba(244,63,94,0.22);   color: #ffe4e6; }
+.sg-cell.mv-D  { background: rgba(245,158,11,0.20);  color: #fef3c7; }
+.sg-cell.mv-E  { background: rgba(16,185,129,0.20);  color: #d1fae5; }
+.sg-cell.handover { background: rgba(56,189,248,0.18); color: #bae6fd; }
+.sg-cell.handover .sg-mvt { font-size: 9px; }
+.sg-cell.maintenance { background: rgba(245,158,11,0.06); color: var(--text-muted); }
+.sg-cell.maintenance .sg-mvt { font-size: 9px; }
+.sg-cell.ritual { background: rgba(16,185,129,0.06); color: var(--text-muted); }
+.sg-cell.ritual .sg-mvt { font-size: 9px; }
+.sg-cell.boarding { background: rgba(244,63,94,0.10); color: #fda4af; }
+.sg-cell.boarding .sg-mvt { font-size: 9px; }
+.sg-cell.transition { background: rgba(252,211,77,0.10); color: var(--text-muted); }
+.sg-cell.now-cell {
+  box-shadow: inset 0 0 0 2px #fbbf24;
+}
+
+/* Grid legend */
+.grid-legend {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  margin-top: 10px; font-size: 10px; color: var(--text-muted);
+}
+.grid-legend-item {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px; border-radius: 12px;
+  background: var(--surface-2); border: 1px solid var(--border-soft);
+}
+.grid-legend-item .swatch {
+  width: 14px; height: 10px; border-radius: 2px;
+  display: inline-block;
+}
+
+/* Mobile tweaks for the grid */
+@media (max-width: 700px) {
+  .station-grid { min-width: 880px; font-size: 9px; }
+  .sg-cell .sg-mvt { font-size: 9px; }
+  .sg-cell .sg-plat { font-size: 7px; }
+}
+</style>
+</head>
+<body>
+<div id="topbar"></div>
+<script src="assets/version.js?v=0.9.5"></script>
+<script src="assets/config.js?v=0.9.5"></script>
+<script src="assets/auth.js?v=0.9.9"></script>
+<script src="assets/topbar.js?v=0.9.5"></script>
+
+<div class="content">
+  <div class="picker">
+    <div class="field">
+      <label>Hajj Day</label>
+      <select id="pickDH"></select>
+    </div>
+    <div class="field">
+      <button class="now-btn" id="btnNow">⏱  Now</button>
+    </div>
+    <div class="dh-label" id="dhLabel"></div>
+  </div>
+
+  <div class="active-banner" id="activeBanner">
+    <div class="ab-code">—</div>
+    <div class="ab-desc">Loading…</div>
+    <div class="ab-trains"><span class="num">0</span><span class="label">trains</span></div>
+  </div>
+
+  <div class="section-title">Active periods (per SAR ops doc, 1447H)</div>
+  <div class="band-strip" id="bandStrip"></div>
+
+  <div class="band-detail" id="bandDetail" style="display:none;"></div>
+
+  <div class="section-title">Platform activity per station — selected period</div>
+  <div class="plat-grid">
+    <table class="plat-tbl" id="platTbl">
+      <thead><tr>
+        <th>Station</th>
+        <th>Platform</th>
+        <th>Role</th>
+        <th>Expected pax</th>
+      </tr></thead>
+      <tbody id="platBody"></tbody>
+    </table>
+    <div class="legend">
+      <span><span class="legend-swatch pl-N" style="display:inline-block;width:14px;height:14px;"></span>Northern platform (الرصيف الشمالي)</span>
+      <span><span class="legend-swatch pl-S" style="display:inline-block;width:14px;height:14px;"></span>Southern platform (الرصيف الجنوبي)</span>
+      <span><span class="legend-swatch pl-NS" style="display:inline-block;width:14px;height:14px;"></span>Both platforms in use</span>
+    </div>
+  </div>
+
+  <div class="section-title">Expected passenger flow per movement</div>
+  <div class="pax-cards" id="paxCards"></div>
+
+  <div class="section-title" id="twTitle" style="display:none;">Nafra tafweej (boarding pass schedule) — Movement C</div>
+  <div id="twSubtitle" style="display:none;font-size:11px;color:var(--text-muted);line-height:1.5;margin:-6px 0 10px;max-width:780px;">
+    Pilgrims enter Arafat stations on a colour-coded boarding pass schedule starting <strong style="color:var(--text);">18:10</strong>.
+    First Movement-C train departs at <strong style="color:var(--text);">18:57</strong> — the 47-min head start gives platform staff time to fill cars and align southbound consists.
+    Tafweej total (316,331) exceeds the train flow (303,950) because some Zone-5 holders walk down rather than board.
+  </div>
+  <div class="tafweej-list" id="tafweejList" style="display:none;"></div>
+
+  <!-- ─────────────── New view: 9 stations × 24 hours operational grid ─────────────── -->
+  <div class="grid-section">
+    <div class="section-title">Station × hour activity grid (24h)</div>
+    <div class="grid-intro">
+      One row per station, one column per hour. Each cell shows the active movement code and platform letter
+      (<strong>N</strong> / <strong>S</strong> / <strong>NS</strong>) for that hour. Empty cells mean the station is not in service.
+      The current hour (if you're inside the selected DH) is highlighted gold.
+      Click any cell to jump to its movement detail above.
+    </div>
+    <div class="station-grid-wrap">
+      <div class="station-grid" id="stationGrid"></div>
+    </div>
+    <div class="grid-legend" id="gridLegend"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  try {
+    if (typeof HAJJ === 'undefined' || !HAJJ.requireAuth) throw new Error('Auth module not loaded — refresh the page');
+    if (!HAJJ.requireAuth()) return;
+    CADTopbar.render({ title: "Metro · SAR", subtitle: "train movements & pax flow" });
+  } catch (e) {
+    console.error('Metro init error:', e);
+    document.getElementById('platBody').innerHTML =
+      '<tr><td colspan="4" style="text-align:center;color:#fca5a5;padding:24px;">Init error: ' + (e.message||e) + '</td></tr>';
+    return;
+  }
+
+  const $ = id => document.getElementById(id);
+  let _data = null;
+  let _selectedIdx = null;   // index into timeline_bands of currently-selected band
+  let _metaLoaded = false;
+
+  $('pickDH').innerHTML = ['4','5','6','7','8','9','10','11','12','13','14']
+    .map(v => '<option value="' + v + '">DH ' + v + '</option>').join('');
+  $('pickDH').value = '9';
+
+  $('pickDH').addEventListener('change', () => { _selectedIdx = null; refresh(); });
+  $('btnNow').addEventListener('click', jumpToNow);
+
+  refresh().catch(e => {
+    console.error('Refresh failed:', e);
+    $('platBody').innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px;">Error: ' + (e.message||e) + '</td></tr>';
+  });
+
+  async function refresh() {
+    const dh = $('pickDH').value || '9';
+    setLoading();
+    const r = await HAJJ.authedCall('metro_data', { dh });
+    if (!r || !r.ok) { renderError('Sync failed'); return; }
+    _data = r;
+
+    if (r.meta && !_metaLoaded) {
+      _metaLoaded = true;
+      const cur = $('pickDH').value;
+      $('pickDH').innerHTML = (r.meta.dh_days || []).map(v =>
+        '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>DH ' + v + '</option>'
+      ).join('');
+    }
+
+    // DH → Gregorian label (e.g. "DH 9 · 26 May")
+    const dateMap = (r.meta && r.meta.dh_dates) || {};
+    const greg = dateMap[r.dh];
+    $('dhLabel').textContent = greg ? ('· ' + new Date(greg).toLocaleDateString('en-GB', {day:'numeric', month:'short'})) : '';
+
+    paintActiveBanner(r);
+    paintBands(r);
+    // Auto-select the band that contains "now", else the first band
+    if (_selectedIdx === null) {
+      _selectedIdx = pickCurrentBand(r);
+    }
+    paintSelectedBand(r);
+    paintPaxCards(r);
+    paintTafweej(r);
+    paintStationGrid(r);
+  }
+
+  function setLoading() {
+    $('platBody').innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px;">Loading…</td></tr>';
+    $('bandStrip').innerHTML = '<span style="color:var(--text-muted);font-size:11px;padding:6px;">Loading…</span>';
+  }
+  function renderError(msg) {
+    $('platBody').innerHTML = '<tr><td colspan="4" style="text-align:center;color:#fca5a5;padding:24px;">' + msg + '</td></tr>';
+  }
+
+  function mvFamily(code) {
+    if (!code || code === '—') return 'mv-dash';
+    return 'mv-' + code.charAt(0);
+  }
+
+  // Pick the timeline band that contains current local time (or null if
+  // we're not in the displayed DH).
+  function pickCurrentBand(r) {
+    const nowMin = currentMinutesIfMatchingDH(r.dh);
+    if (nowMin === null) {
+      // Default: first active band, or 0
+      const bands = r.timeline_bands || [];
+      const firstActive = bands.findIndex(b => b.type === 'band');
+      return firstActive >= 0 ? firstActive : (bands.length > 0 ? 0 : null);
+    }
+    const bands = r.timeline_bands || [];
+    for (let i = 0; i < bands.length; i++) {
+      const b = bands[i];
+      if (b.start_min <= nowMin && nowMin < b.end_min) return i;
+    }
+    return bands.length > 0 ? 0 : null;
+  }
+
+  // Active banner: shows what's happening RIGHT NOW.
+  function paintActiveBanner(r) {
+    const bands = r.timeline_bands || [];
+    const nowMin = currentMinutesIfMatchingDH(r.dh);
+    let active = null;
+    if (nowMin !== null) {
+      active = bands.find(b => b.start_min <= nowMin && nowMin < b.end_min);
+    }
+    if (!active) active = bands.find(b => b.type === 'band');
+    if (!active) active = bands[0];
+    if (!active) {
+      $('activeBanner').className = 'active-banner idle';
+      $('activeBanner').innerHTML = '<div class="ab-code">—</div><div class="ab-desc">No metro data for DH ' + r.dh + '</div><div class="ab-trains"><span class="num">0</span><span class="label">trains</span></div>';
+      return;
+    }
+    const isGap = active.type === 'gap';
+    const banner = $('activeBanner');
+    banner.className = 'active-banner ' + (isGap ? (active.kind || 'idle') : '');
+    const code = isGap ? gapBadge(active.kind) : active.mvt;
+    const desc = isGap ? active.reason : (active.desc || 'Train operations in progress');
+    const trains = isGap ? 0 : (active.trains || 0);
+    // Calculate duration in human-readable form
+    const durMin = active.end_min - active.start_min;
+    const durLabel = durMin >= 60 ? (Math.floor(durMin/60) + 'h' + (durMin%60 ? ' ' + (durMin%60) + 'm' : '')) : (durMin + 'm');
+    const shiftLabel = (!isGap && active.shift) ? ' · ' + active.shift.toLowerCase() + ' shift' : '';
+    banner.innerHTML = ''
+      + '<div class="ab-code">' + code + '</div>'
+      + '<div class="ab-desc">' + desc + '<small>DH ' + r.dh + ' · ' + active.start + ' → ' + active.end + ' · ' + durLabel + shiftLabel + (nowMin !== null ? ' · current time' : '') + '</small></div>'
+      + '<div class="ab-trains"><span class="num">' + trains + '</span><span class="label">trains</span></div>';
+  }
+
+  function gapBadge(kind) {
+    if (kind === 'maintenance') return '🔧';
+    if (kind === 'ritual')      return '🕋';
+    if (kind === 'transition')  return '⇄';
+    if (kind === 'boarding')    return '🚉';
+    if (kind === 'handover')    return '🔁';
+    return '—';
+  }
+
+  // Band strip: one band per active/gap period, widths proportional to duration.
+  function paintBands(r) {
+    const bands = r.timeline_bands || [];
+    if (!bands.length) {
+      $('bandStrip').innerHTML = '<span style="color:var(--text-muted);font-size:11px;padding:6px;">No data.</span>';
+      return;
+    }
+    const nowMin = currentMinutesIfMatchingDH(r.dh);
+
+    // Render: full cards for movement bands and long gaps; slim connectors
+    // for short (<=45 min) handover/transition gaps. This kills the "tiny
+    // weird sliver" glitch at DH 9 05:00 and DH 10 00:30 — they become
+    // 🔁 connectors between the adjacent bands, not separate cards.
+    // ALSO: insert a labelled shift-change chip between adjacent bands of
+    // different shifts (DH 11/12 17:00 transition becomes visible).
+    let html = '';
+    bands.forEach((b, i) => {
+      const dur = b.end_min - b.start_min;
+      const isNow = nowMin !== null && b.start_min <= nowMin && nowMin < b.end_min;
+      const isSel = i === _selectedIdx;
+      const isGap = b.type === 'gap';
+      const prev = i > 0 ? bands[i-1] : null;
+      const prevIsBand = prev && prev.type !== 'gap';
+
+      // ─── Slim connector for short handover gaps ───
+      if (isGap && (b.kind === 'handover' || (b.kind === 'transition' && dur <= 60)) && dur <= 90) {
+        const next = bands[i+1];
+        const fromMvt = prevIsBand ? prev.mvt : '';
+        const toMvt = next && next.type !== 'gap' ? next.mvt : '';
+        const shiftChange = prev && next && prev.shift && next.shift && prev.shift !== next.shift;
+        const conLabel = shiftChange ? (prev.shift.charAt(0) + '→' + next.shift.charAt(0)) : (b.kind === 'handover' ? '🔁' : '⇄');
+        html += '<div class="band-connector ' + (isNow ? ' now' : '') + (isSel ? ' selected' : '') + '" '
+              + 'data-idx="' + i + '" '
+              + 'title="' + (b.reason || '') + ' · ' + b.start + ' → ' + b.end + ' (' + dur + ' min)">'
+              + '<div class="bc-icon">' + conLabel + '</div>'
+              + '<div class="bc-times">' + b.start + '</div>'
+              + '</div>';
+        return;
+      }
+
+      // ─── Shift-change chip between two adjacent band cards of different shifts ───
+      if (!isGap && prevIsBand && prev.shift && b.shift && prev.shift !== b.shift && prev.end_min === b.start_min) {
+        html += '<div class="shift-change-chip" title="Shift change: ' + prev.shift.toLowerCase() + ' → ' + b.shift.toLowerCase() + ' at ' + b.start + '">'
+              + '<span class="scc-from ' + prev.shift + '">' + prev.shift.charAt(0) + '</span>'
+              + '<span class="scc-arrow">→</span>'
+              + '<span class="scc-to ' + b.shift + '">' + b.shift.charAt(0) + '</span>'
+              + '<div class="scc-time">' + b.start + '</div>'
+              + '</div>';
+      }
+
+      // ─── Full band/gap card ───
+      const cls = 'band ' + (isGap ? 'gap ' + (b.kind || 'idle') : mvFamily(b.mvt)) +
+                  (isNow ? ' now' : '') + (isSel ? ' selected' : '');
+      const grow = Math.max(15, dur);
+      const mvLabel = isGap ? (b.kind === 'ritual' ? 'WUQŪF' : b.kind === 'maintenance' ? 'MAINT' : b.kind === 'transition' ? 'TRANS' : b.kind === 'boarding' ? 'BOARDING' : b.kind === 'handover' ? 'HANDOVER' : 'IDLE') : b.mvt;
+      const sub = isGap
+        ? '<div class="b-reason">' + (b.reason || '') + '</div>'
+        : '<div class="b-trains">' + (b.trains || 0) + ' trains</div>';
+      const shiftBadge = (!isGap && b.shift)
+        ? '<div class="b-shift ' + b.shift + '" title="' + b.shift.toLowerCase() + ' shift">' + b.shift.charAt(0) + '</div>'
+        : '';
+      html += '<div class="' + cls + '" style="flex-grow:' + grow + ';" data-idx="' + i + '" title="' + (isGap ? (b.reason || '') : (b.desc || b.mvt)) + '">'
+            + shiftBadge
+            + '<div class="b-times">' + b.start + ' → ' + b.end + '</div>'
+            + '<div class="b-mvt">' + mvLabel + '</div>'
+            + sub
+            + '</div>';
+    });
+    $('bandStrip').innerHTML = html;
+
+    Array.from(document.querySelectorAll('#bandStrip .band, #bandStrip .band-connector')).forEach(el => {
+      el.addEventListener('click', () => {
+        _selectedIdx = parseInt(el.getAttribute('data-idx'), 10);
+        paintSelectedBand(_data);
+      });
+    });
+  }
+
+  // When user picks a band, render the band-detail card + the platform table.
+  function paintSelectedBand(r) {
+    const bands = r.timeline_bands || [];
+    if (_selectedIdx === null || !bands[_selectedIdx]) {
+      $('bandDetail').style.display = 'none';
+      $('platBody').innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:18px;">Pick a period above to see platform activity.</td></tr>';
+      return;
+    }
+    // Mark which band is selected
+    Array.from(document.querySelectorAll('#bandStrip .band')).forEach(el => {
+      el.classList.toggle('selected', parseInt(el.getAttribute('data-idx'),10) === _selectedIdx);
+    });
+    const b = bands[_selectedIdx];
+    const isGap = b.type === 'gap';
+
+    // Detail card
+    const pd = $('bandDetail');
+    pd.style.display = 'block';
+    if (isGap) {
+      pd.innerHTML = '<h3>' + b.start + ' → ' + b.end + ' · ' + (b.kind || 'idle').toUpperCase() + '</h3>'
+        + '<div class="bd-meta"><strong>' + b.reason + '</strong></div>'
+        + '<div style="font-size:12px;color:var(--text-muted);">No train operations during this period. Station crews remain on standby per the 24/7 medical presence rule.</div>';
+    } else {
+      pd.innerHTML = '<h3>Movement ' + b.mvt + ' · ' + b.start + ' → ' + b.end + '</h3>'
+        + '<div class="bd-meta">'
+          + '<span><strong>' + (b.trains || 0) + '</strong> trains</span>'
+          + (b.shift ? '<span>· ' + b.shift.toLowerCase() + ' shift</span>' : '')
+          + (b.starts_yesterday ? '<span>· starts previous day</span>' : '')
+          + (b.crosses_midnight ? '<span>· continues into next day</span>' : '')
+        + '</div>'
+        + '<div style="font-size:12px;color:var(--text);line-height:1.5;">' + (b.desc || '') + '</div>';
+    }
+
+    // Platform table — uses the per-movement platforms map (no per-hour
+    // grid needed — within a band the platforms are constant per SAR ops).
+    paintPlatformTable(b, r);
+  }
+
+  function paintPlatformTable(band, r) {
+    const isGap = band.type === 'gap';
+    if (isGap) {
+      $('platBody').innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:18px;">No train ops — stations are not actively boarding or alighting passengers.</td></tr>';
+      return;
+    }
+    // Direct lookup via platforms_for_dh — movement code → station list.
+    // (The hourly grid loses 30-min bands due to hour-rounding; the
+    // movement-keyed map is the canonical source per SAR ops doc.)
+    const pfd = r.platforms_for_dh || {};
+    const movementPlats = pfd[band.mvt] || [];
+    const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+    // Per-station pax from pax_by_band aggregate for THIS band.
+    const bandPax = (r.pax_by_band || []).find(p =>
+      p.mvt === band.mvt && p.start === band.start && p.end === band.end
+    ) || { per_station: {}, forecast_published: false };
+    const fc = bandPax.forecast_published;
+    let rows = '';
+    let anyActive = false;
+    STATIONS.forEach(st => {
+      const here = movementPlats.find(p => p.st === st);
+      if (!here) {
+        rows += '<tr><td class="st-cell">' + st + '</td>'
+              + '<td><span class="pl-off">— not in service —</span></td>'
+              + '<td>—</td><td>—</td></tr>';
+        return;
+      }
+      anyActive = true;
+      const plat = here.plat || '?';
+      const role = here.role || '';
+      // Per-station pax for this band aggregate (only meaningful when SAR
+      // published a forecast — for A/E we show "—" rather than misleading 0).
+      let paxDisplay;
+      if (!fc) {
+        paxDisplay = '<span class="pl-off" title="No published forecast for Movement ' + band.mvt + '">—</span>';
+      } else {
+        const stPax = bandPax.per_station[st] || 0;
+        paxDisplay = stPax > 0 ? fmt(stPax) : '<span class="pl-off">—</span>';
+      }
+      rows += '<tr>'
+        + '<td class="st-cell">' + st + '</td>'
+        + '<td><span class="pl-badge pl-' + plat + '">' + plat + '</span></td>'
+        + '<td><span class="role-tag role-' + role + '">' + role + '</span></td>'
+        + '<td style="font-variant-numeric:tabular-nums;">' + paxDisplay + '</td>'
+        + '</tr>';
+    });
+    if (!anyActive) {
+      $('platBody').innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:18px;">No station map defined for Movement ' + band.mvt + '.</td></tr>';
+    } else {
+      $('platBody').innerHTML = rows;
+    }
+  }
+
+  // Pax-by-movement cards (already aggregated server-side via pax_by_band).
+  // Movements with forecast_published=false (A, E) show a "no published
+  // forecast" pill instead of being hidden — the period is operating, the
+  // SAR PDF just didn't publish pax estimates for it.
+  function paintPaxCards(r) {
+    const pbb = r.pax_by_band || [];
+    if (!pbb.length) {
+      $('paxCards').innerHTML = '<div class="empty-state">No movements scheduled for DH ' + r.dh + '.</div>';
+      return;
+    }
+    // Collapse duplicate-movement entries (e.g. multiple E1 bands on same DH)
+    // by keeping the first occurrence's window labels; sum totals.
+    const seen = new Map();
+    pbb.forEach(p => {
+      if (seen.has(p.mvt)) {
+        const e = seen.get(p.mvt);
+        e.total += p.total;
+        e.windows.push(p.start + '→' + p.end);
+        Object.entries(p.per_station || {}).forEach(([st, n]) => {
+          e.per_station[st] = (e.per_station[st] || 0) + n;
+        });
+      } else {
+        seen.set(p.mvt, {
+          mvt: p.mvt, total: p.total, forecast_published: p.forecast_published,
+          windows: [p.start + '→' + p.end],
+          per_station: Object.assign({}, p.per_station || {}),
+        });
+      }
+    });
+    const cards = Array.from(seen.values()).map(e => {
+      const top = Object.entries(e.per_station)
+        .map(([st, n]) => ({ st, n }))
+        .sort((a, b) => b.n - a.n).slice(0, 4);
+      return Object.assign(e, { top });
+    });
+    $('paxCards').innerHTML = cards.map(p => {
+      const family = p.mvt.charAt(0);
+      const colorClass = 'mv-' + family;
+      const winLabel = p.windows.length > 1
+        ? p.windows.length + ' periods · ' + p.windows[0]
+        : p.windows[0];
+      if (!p.forecast_published) {
+        return '<div class="pax-card ' + colorClass + '" style="border-left:4px solid ' + mvColor(family) + ';opacity:0.85;">'
+          + '<div class="pc-mvt">Movement ' + p.mvt + '</div>'
+          + '<div class="pc-total" style="font-size:14px;color:var(--text-muted);line-height:1.4;margin:6px 0 4px;">No published forecast</div>'
+          + '<div class="pc-window">' + winLabel + '</div>'
+          + '<div style="font-size:10px;color:var(--text-muted);margin-top:6px;line-height:1.4;">SAR ops doc publishes pax flow for Movements B, C, D only. Trains run on schedule; passenger count is operationally tracked, not pre-forecasted.</div>'
+          + '</div>';
+      }
+      let topsHtml = '';
+      p.top.forEach(t => {
+        topsHtml += '<div class="pc-row"><span class="st">' + t.st + '</span><span class="n">' + fmt(t.n) + '</span></div>';
+      });
+      return '<div class="pax-card ' + colorClass + '" style="border-left:4px solid ' + mvColor(family) + ';">'
+        + '<div class="pc-mvt">Movement ' + p.mvt + '</div>'
+        + '<div class="pc-total">' + fmt(p.total) + '</div>'
+        + '<div class="pc-window">' + winLabel + '</div>'
+        + '<div class="pc-tops">' + topsHtml + '</div>'
+        + '</div>';
+    }).join('');
+  }
+  function mvColor(family) {
+    return {A:'#6366f1', B:'#a855f7', C:'#f43f5e', D:'#f59e0b', E:'#10b981'}[family] || '#64748b';
+  }
+
+  function paintTafweej(r) {
+    const tw = r.tafweej || [];
+    const show = tw.length > 0;
+    $('twTitle').style.display  = show ? '' : 'none';
+    $('tafweejList').style.display = show ? '' : 'none';
+    const sub = $('twSubtitle'); if (sub) sub.style.display = show ? '' : 'none';
+    if (!show) return;
+    $('tafweejList').innerHTML = tw.map(z =>
+      '<div class="tw-zone" style="background:' + z.color + ';">'
+        + '<span class="tw-num">Zone ' + z.zone + ' · ' + z.color_name + '</span>'
+        + '<span class="tw-time">' + z.start + ' → ' + z.end + '</span>'
+        + '<span class="tw-total">' + fmt(z.total) + ' pilgrims</span>'
+      + '</div>'
+    ).join('');
+  }
+
+  // Minutes from local midnight if we're currently inside the selected DH; else null.
+  // DH 1 = 2026-05-22 per Saudi 1447H calendar (DH 7 = May 28, DH 9 = May 30).
+  function currentMinutesIfMatchingDH(dh) {
+    // Use dh_dates from response if available (more authoritative)
+    const dateMap = (_data && _data.meta && _data.meta.dh_dates) || {};
+    const greg = dateMap[String(dh)];
+    if (greg) {
+      const dhDate = new Date(greg + 'T00:00:00+03:00');  // Riyadh time
+      const now = new Date();
+      const sameDay = now.getFullYear() === dhDate.getFullYear()
+        && now.getMonth() === dhDate.getMonth()
+        && now.getDate() === dhDate.getDate();
+      if (!sameDay) return null;
+      return now.getHours() * 60 + now.getMinutes();
+    }
+    // Fallback to DH-1 anchor at 2026-05-22 (DH 1)
+    const DH1 = new Date('2026-05-22T00:00:00+03:00');
+    const now = new Date();
+    const days = Math.floor((now - DH1) / 86400000) + 1;
+    if (String(days) !== String(dh)) return null;
+    return now.getHours() * 60 + now.getMinutes();
+  }
+
+  function fmt(n) { return Number(n||0).toLocaleString('en-US'); }
+
+
+  // ─── Station × hour activity grid (24h) ─────────────────────────────
+  // 9 station rows × 24 hour columns. Each cell shows the active band
+  // for that station+hour with a color-coded background. Empty cells
+  // mean the station is not in service. Click a cell → jump to that
+  // band's detail above.
+  function paintStationGrid(r) {
+    const grid = $('stationGrid'); if (!grid) return;
+    const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+    const pfd = r.platforms_for_dh || {};
+    const bands = r.timeline_bands || [];
+    const nowMin = currentMinutesIfMatchingDH(r.dh);
+    const nowHr = nowMin !== null ? Math.floor(nowMin / 60) : null;
+
+    // Build hour → band lookup using overlap (handles 30-min bands cleanly)
+    function bandForHour(h) {
+      const hStart = h * 60;
+      const hEnd = hStart + 60;
+      // Pick the band that occupies the most of this hour
+      let best = null, bestOverlap = 0;
+      for (const b of bands) {
+        const ov = Math.max(0, Math.min(b.end_min, hEnd) - Math.max(b.start_min, hStart));
+        if (ov > bestOverlap) { bestOverlap = ov; best = b; }
+      }
+      return best;
+    }
+
+    let html = '';
+    // Top-left corner
+    html += '<div class="sg-corner">Station ↓ Hour →</div>';
+    // Hour header row
+    for (let h = 0; h < 24; h++) {
+      const b = bandForHour(h);
+      const isNight = (h < 5) || (h >= 17);
+      const shiftCls = isNight ? 'shift-night' : 'shift-day';
+      const nowCls = nowHr === h ? 'now-hour' : '';
+      html += '<div class="sg-hour-head ' + shiftCls + ' ' + nowCls + '" title="' + (b && b.type==='band' ? b.mvt : (b && b.reason) || '') + '">' + String(h).padStart(2,'0') + '</div>';
+    }
+    // Station rows
+    STATIONS.forEach(st => {
+      html += '<div class="sg-station-cell">' + st + '</div>';
+      for (let h = 0; h < 24; h++) {
+        const b = bandForHour(h);
+        if (!b) {
+          html += '<div class="sg-cell inactive" title="No data">·</div>';
+          continue;
+        }
+        if (b.type === 'gap') {
+          const kCls = b.kind || 'idle';
+          const lbl = b.kind === 'ritual' ? '🕋' : b.kind === 'maintenance' ? '🔧'
+                     : b.kind === 'transition' ? '⇄' : b.kind === 'boarding' ? '🚉'
+                     : b.kind === 'handover' ? '🔁' : '—';
+          const nowMark = nowHr === h ? ' now-cell' : '';
+          const idx = bands.indexOf(b);
+          html += '<div class="sg-cell ' + kCls + nowMark + '" data-idx="' + idx + '" title="' + (b.reason || '') + ' · ' + b.start + '-' + b.end + '"><div class="sg-mvt">' + lbl + '</div></div>';
+          continue;
+        }
+        // Active band — does this station participate?
+        const platMap = pfd[b.mvt] || [];
+        const here = platMap.find(p => p.st === st);
+        const fam = 'mv-' + b.mvt.charAt(0);
+        const idx = bands.indexOf(b);
+        const nowMark = nowHr === h ? ' now-cell' : '';
+        if (!here) {
+          html += '<div class="sg-cell inactive ' + fam + nowMark + '" data-idx="' + idx + '" title="' + b.mvt + ' · not in service at ' + st + '"><div class="sg-mvt" style="opacity:0.4;">' + b.mvt + '</div></div>';
+        } else {
+          html += '<div class="sg-cell ' + fam + nowMark + '" data-idx="' + idx + '" title="' + st + ' · ' + b.mvt + ' · platform ' + here.plat + ' · ' + here.role + '">'
+            + '<div class="sg-mvt">' + b.mvt + '</div>'
+            + '<div class="sg-plat ' + here.plat + '">' + here.plat + '</div>'
+            + '</div>';
+        }
+      }
+    });
+    grid.innerHTML = html;
+    // Wire cell clicks → select band & scroll up
+    Array.from(grid.querySelectorAll('.sg-cell[data-idx]')).forEach(el => {
+      el.addEventListener('click', () => {
+        const idx = parseInt(el.getAttribute('data-idx'), 10);
+        if (Number.isFinite(idx)) {
+          _selectedIdx = idx;
+          paintBands(_data);
+          paintSelectedBand(_data);
+          // Scroll to band detail
+          const pd = $('bandDetail');
+          if (pd) pd.scrollIntoView({behavior:'smooth', block:'center'});
+        }
+      });
+    });
+
+    // Legend — derive from the actual movements + gap kinds present
+    const present = new Set();
+    bands.forEach(b => present.add(b.type==='band' ? ('mv-' + b.mvt.charAt(0)) : b.kind));
+    const labels = {
+      'mv-A': 'A — Regular', 'mv-B': 'B — Convoy', 'mv-C': 'C — Nafra',
+      'mv-D': 'D — Skip-stop', 'mv-E': 'E — Tashriq',
+      'handover': '🔁 Handover', 'maintenance': '🔧 Maintenance',
+      'ritual': '🕋 Wuqūf', 'boarding': '🚉 Pre-boarding',
+      'transition': '⇄ Transition', 'idle': 'No ops'
+    };
+    $('gridLegend').innerHTML = Array.from(present).map(k => {
+      const swCls = k.startsWith('mv-') ? k : k;
+      return '<span class="grid-legend-item"><span class="swatch sg-cell ' + swCls + '" style="padding:0;border:0;"></span>' + (labels[k] || k) + '</span>';
+    }).join('');
+  }
+
+
+    function jumpToNow() {
+    const now = new Date();
+    const dateMap = (_data && _data.meta && _data.meta.dh_dates) || {
+      "4":"2026-05-25","5":"2026-05-26","6":"2026-05-27","7":"2026-05-28",
+      "8":"2026-05-29","9":"2026-05-30","10":"2026-05-31","11":"2026-06-01",
+      "12":"2026-06-02","13":"2026-06-03","14":"2026-06-04",
+    };
+    let matched = null;
+    for (const [d, g] of Object.entries(dateMap)) {
+      const dhDate = new Date(g + 'T00:00:00+03:00');
+      if (now.getFullYear() === dhDate.getFullYear()
+        && now.getMonth() === dhDate.getMonth()
+        && now.getDate() === dhDate.getDate()) {
+        matched = d; break;
+      }
+    }
+    const dh = matched || '9';
+    $('pickDH').value = dh;
+    _selectedIdx = null;  // let pickCurrentBand decide
+    refresh();
+  }
+})();
+</script>
+</body>
+</html>

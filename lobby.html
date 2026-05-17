@@ -4,11 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lobby · Hajj CAD</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.18">
-<script src="assets/config.js?v=0.2.18"></script>
-<script src="assets/tempo.js?v=0.2.18"></script>
-<script src="assets/auth.js?v=0.2.18"></script>
-<script src="assets/topbar.js?v=0.2.18"></script>
+<link rel="stylesheet" href="assets/style.css?v=0.9.5">
+<script src="assets/config.js?v=0.9.5"></script>
+<script src="assets/tempo.js?v=0.9.5"></script>
+<script src="assets/auth.js?v=0.9.9"></script>
+<script src="assets/shortcuts.js?v=0.9.5"></script>
+<script src="assets/lobby-icons.js?v=0.9.5"></script>
+<script src="assets/topbar.js?v=0.9.5"></script>
 <style>
   .lobby-hero {
     max-width: 1400px; margin: 0 auto; padding: 4px 16px 20px;
@@ -102,6 +104,33 @@
   }
 })();
 </script>
-<script src="assets/version.js?v=0.2.18"></script>
+<script src="assets/version.js?v=0.9.5"></script>
+
+<script>
+// v0.9.4: Inject per-page icons into lobby tiles
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(function() {
+    if (!window.LOBBY_ICONS) return;
+    document.querySelectorAll('a[href]').forEach(function(a) {
+      const href = a.getAttribute('href') || '';
+      const m = href.match(/^\/?([a-z0-9_-]+)(?:\.html)?$/i);
+      if (!m) return;
+      const key = m[1].toLowerCase();
+      const icon = window.LOBBY_ICONS[key];
+      if (!icon) return;
+      // Don't double-inject
+      if (a.querySelector('.tile-icon')) return;
+      // Only inject if this looks like a tile (has a card class or contains a label)
+      const isLikelyTile = a.classList.contains('tile') || a.classList.contains('lobby-tile') || a.classList.contains('lobby-card') || a.closest('.lobby-grid, .lobby-section, .lobby-row');
+      if (!isLikelyTile) return;
+      const span = document.createElement('span');
+      span.className = 'tile-icon';
+      span.style.cssText = 'font-size:24px;margin-right:8px;line-height:1;vertical-align:middle;display:inline-block;';
+      span.textContent = icon;
+      a.prepend(span);
+    });
+  }, 100);
+});
+</script>
 </body>
 </html>

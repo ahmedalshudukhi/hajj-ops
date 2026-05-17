@@ -17,6 +17,7 @@
   const COMMON_TEMPLATE = [
     { group: 'Clinics',     items: ['North clinic', 'South clinic'] },
     { group: 'Platforms',   items: [
+      'North platform','South platform',
       'North platform · Ramp 1','North platform · Ramp 2','North platform · Ramp 3',
       'North platform · Ramp 4','North platform · Ramp 5','North platform · Ramp 6',
       'South platform · Ramp 1','South platform · Ramp 2','South platform · Ramp 3',

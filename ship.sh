@@ -1,62 +1,66 @@
 #!/usr/bin/env bash
-# ship.sh — one-command deploy: bump version, commit, pull, push, verify.
-# Usage: ./ship.sh "your commit message"
+# ship.sh — branch-aware deploy with hard guardrails.
+# Testing branch -> hajj-ops-test Worker (testhajj.shuki.tech)
+# Main branch    -> Cloudflare Pages (hajj.shuki.tech)
 set -e
 
 if [ -z "$1" ]; then
   echo "Usage: ./ship.sh \"commit message\""
-  echo "Example: ./ship.sh \"fix: triage dropdown\""
   exit 1
 fi
 
 MSG="$1"
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
-# Detect if any app code changed (HTML, JS, _worker.js) — only bump version then.
-# Data-only commits (CSV, JSON in /data) don't need a cache-bust.
-APP_CHANGED=$(git diff --name-only HEAD 2>/dev/null | grep -E '\.(html|js|sql)$|^_worker\.js$' | head -1)
-
-if [ -n "$APP_CHANGED" ]; then
-  echo "▸ App code changed — bumping version"
-  ./bump.sh patch
-else
-  echo "▸ No app code changes — skipping version bump"
+# === HARD GUARDRAIL: wrangler.jsonc must target hajj-ops-test ===
+WRANGLER_NAME=$(python3 -c "import re, sys; m=re.search(r'\"name\"\s*:\s*\"([^\"]+)\"', open('wrangler.jsonc').read()); print(m.group(1) if m else '')")
+if [ "$WRANGLER_NAME" != "hajj-ops-test" ]; then
+  echo "ABORT: wrangler.jsonc 'name' is '$WRANGLER_NAME', expected 'hajj-ops-test'."
+  echo "This protects against accidentally deploying testing code to production."
+  exit 1
 fi
 
-# Stage everything
-git add -A
+APP_CHANGED=$(git diff --name-only HEAD 2>/dev/null | grep -E '\.(html|js|sql|jsonc)$|^_worker\.js$' | head -1)
+if [ -n "$APP_CHANGED" ]; then
+  echo "App code changed -> bumping version"
+  ./bump.sh patch
+fi
 
-# Allow empty commit if just pulling
+git add -A
 if git diff --cached --quiet; then
-  echo "▸ Nothing to commit"
+  echo "Nothing to commit"
   exit 0
 fi
 
-# Commit
 git -c user.email=alshudukhi.a@gmail.com \
     -c user.name="Ahmed Alshudukhi" \
     commit -m "$MSG"
 
-# Pull (no rebase, allow merge if needed)
-git pull --no-rebase origin main 2>&1 | tail -2
+echo "Pulling $BRANCH (no rebase)..."
+git pull --no-rebase origin "$BRANCH" 2>&1 | tail -2 || true
 
-# Push
-echo "▸ Pushing to origin/main..."
-git push origin main 2>&1 | tail -2
+echo "Pushing $BRANCH to origin..."
+git push origin "$BRANCH" 2>&1 | tail -2
 
-# Wait for Cloudflare Pages deploy
-if [ -n "$APP_CHANGED" ]; then
-  echo "▸ Waiting 100s for Cloudflare deploy..."
+if [ "$BRANCH" = "testing" ]; then
+  echo "Local wrangler deploy to hajj-ops-test..."
+  wrangler deploy 2>&1 | tail -8
+  VERIFY_URL="https://hajj-ops-test.alshudukhi-a.workers.dev"
+  sleep 10
+elif [ "$BRANCH" = "main" ]; then
+  VERIFY_URL="https://hajj.shuki.tech"
+  echo "Cloudflare Pages auto-deploys from main; waiting 100s..."
   sleep 100
+fi
 
-  # Verify via version.js
-  PROD_V=$(curl -s "https://hajj.shuki.tech/assets/version.js?nocache=$RANDOM" | grep -oE '"[0-9]+\.[0-9]+\.[0-9]+"' | tr -d '"')
+if [ -n "$APP_CHANGED" ] && [ -n "$VERIFY_URL" ]; then
+  RAND="ship-$(date +%s%N)-$RANDOM"
+  PROD_V=$(curl -sH "Cache-Control: no-cache" "$VERIFY_URL/assets/version.js?$RAND" | grep -oE '"[0-9]+\.[0-9]+\.[0-9]+"' | head -1 | tr -d '"')
   LOCAL_V=$(cat VERSION)
-
   if [ "$PROD_V" = "$LOCAL_V" ]; then
-    echo "✅ Deployed: v$PROD_V is live at https://hajj.shuki.tech"
+    echo "OK deployed: v$PROD_V live at $VERIFY_URL"
+    [ "$BRANCH" = "testing" ] && echo "   Custom domain: https://testhajj.shuki.tech (Cloudflare direct)"
   else
-    echo "⚠️  Mismatch — local: v$LOCAL_V, prod: v$PROD_V (deploy may still be running)"
+    echo "MISMATCH: local v$LOCAL_V, prod v$PROD_V (edge cache may need 1-2 min)"
   fi
-else
-  echo "✓ Pushed (no deploy verification needed)"
 fi

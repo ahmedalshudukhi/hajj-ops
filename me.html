@@ -1,337 +1,56 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
-<meta name="theme-color" content="#0f172a">
-<title>My Schedule · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.18">
-
-<style>
-  .me-header {
-    display: flex; align-items: flex-start; justify-content: space-between;
-    gap: 12px; margin-bottom: 16px;
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My Page</title><link rel="stylesheet" href="assets/style.css?v=0.9.5"><style>body { background:#0a0e1a; color:#e7ecf7; font-family:Inter,system-ui,sans-serif; }.me-shell { max-width:1100px; margin:0 auto; padding:20px; }.me-banner { background:linear-gradient(135deg,rgba(56,189,248,0.15),rgba(168,85,247,0.10)); border:1px solid rgba(99,179,237,0.3); border-radius:14px; padding:24px 28px; margin:14px 0 18px; }.me-banner h2 { margin:0; font-size:28px; color:#cdf1ff; }.me-banner .role { display:inline-block; padding:3px 10px; background:rgba(67,232,249,0.18); color:#67e8f9; border-radius:5px; font-size:11px; letter-spacing:0.13em; text-transform:uppercase; margin-top:6px; }.me-banner .sub { color:#93a4cd; font-size:13px; margin-top:8px; }.me-tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin-bottom:14px; }.me-tile { background:rgba(20,28,50,0.5); border:1px solid rgba(99,179,237,0.18); border-radius:12px; padding:16px 18px; }.me-tile .l { font-size:10px; color:#93a4cd; letter-spacing:0.13em; text-transform:uppercase; }.me-tile .v { font-size:34px; font-weight:800; line-height:1; margin-top:5px; color:#e8f1ff; font-variant-numeric:tabular-nums; }.me-tile.unread .v { color:#fcd34d; }.me-tile.dispatches .v { color:#67e8f9; }.me-tile.pcrs .v { color:#86efac; }.me-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }@media (max-width:900px) { .me-grid { grid-template-columns:1fr; } }.me-card { background:rgba(20,28,50,0.5); border:1px solid rgba(99,179,237,0.18); border-radius:12px; padding:18px 22px; }.me-card h3 { margin:0 0 12px; font-size:13px; color:#cdf1ff; letter-spacing:0.06em; text-transform:uppercase; padding-bottom:8px; border-bottom:1px solid rgba(99,179,237,0.12); }.me-row { padding:10px 14px; background:rgba(15,23,42,0.5); border-radius:7px; margin-bottom:6px; display:flex; justify-content:space-between; gap:10px; align-items:start; font-size:13px; }.me-row .name { color:#cdf1ff; font-weight:600; }.me-row .sub { color:#93a4cd; font-size:11px; }.me-row .badge { font-size:10px; padding:2px 8px; border-radius:4px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; }.me-row .badge.red { background:rgba(239,68,68,0.20); color:#fca5a5; }.me-row .badge.yellow { background:rgba(245,158,11,0.18); color:#fcd34d; }.me-row .badge.green { background:rgba(34,197,94,0.18); color:#86efac; }.me-row .badge.draft { background:rgba(245,158,11,0.18); color:#fcd34d; }.me-row .badge.signed { background:rgba(34,197,94,0.18); color:#86efac; }.me-quick { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; margin-top:12px; }.me-quick a { background:rgba(56,189,248,0.18); color:#cdf1ff; border:1px solid rgba(56,189,248,0.4); padding:12px 14px; border-radius:9px; text-decoration:none; text-align:center; font-weight:600; font-size:13px; transition:all 0.12s; }.me-quick a:hover { background:rgba(56,189,248,0.28); transform:translateY(-1px); }.me-quick a.danger { background:rgba(239,68,68,0.18); color:#fca5a5; border-color:rgba(239,68,68,0.4); }.me-quick a.warn { background:rgba(245,158,11,0.18); color:#fcd34d; border-color:rgba(245,158,11,0.4); }.me-quick a.good { background:rgba(34,197,94,0.18); color:#86efac; border-color:rgba(34,197,94,0.4); }</style></head><body><div id="topbar"></div><div class="me-shell"><div class="me-banner"><h2 id="meName">Loading...</h2><div class="role" id="meRole">--</div><div class="sub" id="meSub"></div></div><div class="me-tiles" id="meTiles"></div><div class="me-card" style="margin-bottom:14px;"><h3>Quick Actions</h3><div class="me-quick"><a href="/dispatch" class="warn">New Dispatch</a><a href="/code" class="danger">Code Blue</a><a href="/pcr">My PCRs</a><a href="/protocols">Protocols</a><a href="/schedule" class="good">My Schedule</a><a href="/board">Board</a></div></div><div class="me-card" style="margin-bottom:14px;"><h3>My Schedule</h3><div id="meSchedule"><div style="color:#6b7d9e;">Loading shift schedule…</div></div><div style="margin-top:10px;text-align:center;"><a href="/schedule" style="font-size:11px;color:#67e8f9;text-decoration:none;letter-spacing:0.06em;text-transform:uppercase;">→ Open full schedule</a></div></div><div class="me-grid"><div class="me-card"><h3>My Dispatches Today</h3><div id="meDispatches"><div style="color:#6b7d9e;">Loading...</div></div></div><div class="me-card"><h3>My Recent PCRs</h3><div id="mePcrs"><div style="color:#6b7d9e;">Loading...</div></div></div></div></div><script src="assets/auth.js?v=0.9.9"></script><script src="assets/shortcuts.js?v=0.9.5"></script><script src="assets/topbar.js?v=0.9.5"></script><script>
+(async function loadMySchedule() {
+  try {
+    const u = (window.HAJJ && HAJJ.getUser) ? HAJJ.getUser() : null;
+    if (!u || !u.nid) return;
+    const r = await HAJJ.authedCall('my_schedule', { nid: u.nid });
+    const box = document.getElementById('meSchedule');
+    if (!box) return;
+    if (!r || !r.ok) { box.innerHTML = '<div style="color:#6b7d9e;">Schedule unavailable</div>'; return; }
+    const shifts = (r.shifts || []).slice(0, 5);
+    if (!shifts.length) { box.innerHTML = '<div style="color:#6b7d9e;">No upcoming shifts</div>'; return; }
+    box.innerHTML = shifts.map(s => 
+      `<div class="me-row"><div><div class="name">${s.unit_id || '—'} · ${s.shift_code || ''}</div><div class="sub">DH ${s.dh} · ${s.label || ''} · ${s.station || ''}</div></div></div>`
+    ).join('');
+  } catch (e) {
+    const box = document.getElementById('meSchedule');
+    if (box) box.innerHTML = '<div style="color:#6b7d9e;">Schedule unavailable</div>';
   }
-  .identity h1 {
-    margin: 0; font-size: 22px; font-weight: 700;
-    letter-spacing: -0.01em; line-height: 1.2;
-  }
-  .identity .name-ar {
-    margin-top: 2px; font-size: 16px; color: var(--text-dim);
-    direction: rtl; text-align: left;
-  }
-  .identity .role-line {
-    margin-top: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
-    color: var(--text-muted); font-size: 13px;
-  }
-  .today-card {
-    background: linear-gradient(180deg, #1f2937 0%, #161e2c 100%);
-    border-color: var(--border);
-  }
-  .today-row {
-    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
-  }
-  .today-row .now-dh {
-    font-size: 28px; font-weight: 700; letter-spacing: -0.02em;
-    font-variant-numeric: tabular-nums;
-  }
-  .today-row .now-meta { text-align: right; color: var(--text-dim); }
-  .today-row .now-meta strong { color: var(--text); display: block; }
-
-  .grid-wrap {
-    overflow-x: auto; -webkit-overflow-scrolling: touch;
-    margin: 0 -18px; padding: 0 18px 4px;
-  }
-  .schedule-grid {
-    display: grid; grid-auto-flow: column; grid-auto-columns: 64px; gap: 6px;
-    min-width: 100%;
-  }
-  .day-cell {
-    background: var(--surface-2); border: 1px solid var(--border);
-    border-radius: var(--radius-sm); padding: 8px 6px;
-    text-align: center; font-size: 12px; line-height: 1.35;
-  }
-  .day-cell .dh { font-weight: 700; font-size: 13px; letter-spacing: -0.01em; color: var(--text); font-variant-numeric: tabular-nums; }
-  .day-cell .shift { margin-top: 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
-  .day-cell .station { margin-top: 2px; color: var(--text-muted); font-size: 10px; font-variant-numeric: tabular-nums; }
-  .day-cell.is-today { border-color: var(--info); box-shadow: 0 0 0 1px var(--info) inset; }
-  .day-cell.is-day   .shift { color: #fcd34d; }
-  .day-cell.is-night .shift { color: #93c5fd; }
-  .day-cell.is-off   .shift { color: var(--text-muted); }
-  .day-cell.is-empty .shift { color: var(--text-muted); }
-
-  .grid-empty { text-align: center; color: var(--text-muted); padding: 12px 0 4px; font-size: 13px; }
-  .footer { margin-top: 24px; text-align: center; color: var(--text-muted); font-size: 12px; }
-  .quick-link {
-    display: block; padding: 10px 14px;
-    background: var(--surface-2); border: 1px solid var(--border);
-    border-radius: var(--radius-sm); color: var(--text);
-    text-decoration: none; font-size: 14px; margin-bottom: 8px;
-    display: flex; justify-content: space-between; align-items: center;
-  }
-  .quick-link:hover { background: var(--surface-3); }
-  .quick-link .arrow { color: var(--text-muted); }
-</style>
-</head>
-<body>
-<div id="topbar"></div>
-
-<div class="app">
-
-  <div class="app-header">
-    <div>
-      <h1>My Schedule</h1>
-      <div class="sub">Hajj 2026 · MMMP-SL</div>
-      <div class="nav-strip" id="navStrip" style="margin-top:8px;">
-        <a href="lobby.html" class="nav-pill" id="navLobby" hidden>← Lobby</a>
-        <a href="dispatch.html" class="nav-pill" id="navDispatch" hidden>Dispatch</a>
-        <a href="active.html" class="nav-pill" id="navActive" hidden>Active insights</a>
-      </div>
-    </div>
-    <button class="btn btn--ghost btn--auto-width btn--small" id="logoutBtn">Sign out</button>
-  </div>
-
-  <div class="card" id="identityCard">
-    <div class="me-header">
-      <div class="identity">
-        <h1 id="name">—</h1>
-        <div class="name-ar bidi-auto" id="nameAr"></div>
-        <div class="role-line">
-          <span id="roleBadge" class="badge">—</span>
-          <span id="callsign" class="num"></span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="card today-card" id="todayCard" hidden>
-    <div class="card-title">Today</div>
-    <div class="today-row">
-      <div>
-        <div class="now-dh" id="todayDH">—</div>
-        <div style="color:var(--text-muted); font-size:12px;" id="todayDate">—</div>
-      </div>
-      <div class="now-meta">
-        <strong id="todayShift">—</strong>
-        <span id="todayStation">—</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Assignment</div>
-    <dl class="dl">
-      <div class="dl-row"><dt>Station</dt><dd id="assignStation">—</dd></div>
-      <div class="dl-row"><dt>Zone</dt><dd id="assignZone">—</dd></div>
-      <div class="dl-row"><dt>Unit</dt><dd id="assignUnit">—</dd></div>
-      <div class="dl-row"><dt>Callsign</dt><dd id="assignCallsign">—</dd></div>
-      <div class="dl-row"><dt>Team lead</dt><dd id="assignLead">—</dd></div>
-    </dl>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Accommodation</div>
-    <div id="accomBody">—</div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Schedule · 4 DH → 14 DH</div>
-    <div class="grid-wrap">
-      <div class="schedule-grid" id="scheduleGrid"></div>
-    </div>
-    <div class="grid-empty" id="scheduleEmpty" hidden>
-      No schedule rows for your account.<br>
-      <span style="font-size:12px; color:#9ca3af; display:block; margin-top:8px;">
-        This page reads the <strong>Schedule</strong> tab in the Mob Sheet — wide-format Unit×DH-Slot grid.
-        It looks up your <strong>Unit</strong> from Allowlist, then finds that unit's row in Schedule.
-        If your Allowlist row has an empty Unit field (typical for leadership/admin), there's nothing to show.
-        Paramedics and GPs with assigned units will see their full 11-day shift grid (DH 4 → DH 14).
-      </span>
-    </div>
-  </div>
-
-  <div class="card" id="quickLinks" hidden>
-    <div class="card-title">Tools</div>
-    <a href="#" class="quick-link" id="lnkQpcr" target="_blank" rel="noopener" hidden>
-      <span>File a Q-PCR</span><span class="arrow">↗</span>
-    </a>
-    <a href="dispatch.html" class="quick-link" id="lnkDispatch" hidden>
-      <span>Open dispatch console</span><span class="arrow">→</span>
-    </a>
-    <a href="lobby.html" class="quick-link" id="lnkLobby" hidden>
-      <span>Leadership lobby</span><span class="arrow">→</span>
-    </a>
-  </div>
-
-  <div class="footer">
-    Hajj 2026 · v1.0 · session expires in <span id="sessionTimer" class="num">—</span>
-  </div>
-
-</div>
-
-<script src="assets/config.js?v=0.2.18"></script>
-<script src="assets/auth.js?v=0.2.18"></script>
-<script src="assets/topbar.js?v=0.2.18"></script>
-<script>
-(function () {
-  if (!HAJJ.requireAuth()) return;
-  CADTopbar.render({ title: "My schedule" });
-
-  // logoutBtn handled by topbar.js (cadSignOut)
-
-  const cached = HAJJ.getUser();
-  if (cached) renderIdentity(cached);
-  renderSchedule([]);
-
-  load();
-
-  async function load() {
-    const r = await HAJJ.authedCallSWR('roster');
-    if (!r || !r.ok) { console.error('roster fetch failed', r); return; }
-    renderIdentity(r.user);
-    HAJJ.setSession(HAJJ.getToken(), r.user, sessionStorage.getItem('hajj_expires'));
-    renderSchedule(r.schedule || []);
-    renderToday(r.user, r.schedule || []);
-    renderQuickLinks(r.user);
-  }
-
-  function renderIdentity(user) {
-    document.getElementById('name').textContent = user.name || '—';
-    const arEl = document.getElementById('nameAr');
-    if (user.name_ar) { arEl.textContent = user.name_ar; arEl.style.display = ''; }
-    else { arEl.style.display = 'none'; }
-    const role = String(user.role || '').replace(/_/g, ' ');
-    const roleBadge = document.getElementById('roleBadge');
-    roleBadge.textContent = role || '—';
-    roleBadge.className = 'badge ' + roleClass(user.role);
-    document.getElementById('callsign').textContent = user.callsign ? '· ' + user.callsign : '';
-
-    set('assignStation', user.station);
-    set('assignZone', user.zone);
-    set('assignUnit', user.unit);
-    set('assignCallsign', user.callsign);
-    if (user.team_lead) {
-      const mob = user.team_lead_mobile;
-      document.getElementById('assignLead').innerHTML = mob
-        ? user.team_lead + ' <a href="tel:' + mob + '">' + mob + '</a>'
-        : user.team_lead;
-    } else {
-      document.getElementById('assignLead').textContent = '—';
-    }
-    document.getElementById('accomBody').textContent = user.accommodation || 'Not assigned yet';
-  }
-
-  function set(id, v) {
-    document.getElementById(id).textContent = (v === undefined || v === '' || v === null) ? '—' : v;
-  }
-
-  function roleClass(role) {
-    role = String(role || '').toLowerCase();
-    if (role === 'admin' || role === 'leadership')   return 'badge--blue';
-    if (role === 'dispatcher')                       return 'badge--amber';
-    if (role === 'cluster_supervisor')               return 'badge--amber';
-    if (role === 'gp')                               return 'badge--green';
-    return '';
-  }
-
-  function renderSchedule(rows) {
-    const grid = document.getElementById('scheduleGrid');
-    grid.innerHTML = '';
-    document.getElementById('scheduleEmpty').hidden = true;
-    const today = HAJJ.todayDH();
-    const byDH = {};
-    for (let i = 0; i < rows.length; i++) {
-      const dh = String(rows[i].DH_Day || '').trim();
-      if (!byDH[dh]) byDH[dh] = rows[i];
-    }
-    let hasAny = false;
-    Object.keys(HAJJ.DH_DATES).forEach(function (dh) {
-      const row = byDH[dh];
-      if (row) hasAny = true;
-      const shift = row && row.Shift ? String(row.Shift) : '';
-      const station = row && row.Station ? String(row.Station) : '';
-      const isToday = dh === today;
-      const cell = document.createElement('div');
-      const klass = ['day-cell'];
-      if (isToday) klass.push('is-today');
-      if (shift.toLowerCase() === 'day')         klass.push('is-day');
-      else if (shift.toLowerCase() === 'night')  klass.push('is-night');
-      else if (shift.toLowerCase() === 'off')    klass.push('is-off');
-      else                                       klass.push('is-empty');
-      cell.className = klass.join(' ');
-      cell.innerHTML =
-        '<div class="dh">' + dh + '</div>' +
-        '<div class="shift">' + (shift || '—') + '</div>' +
-        '<div class="station">' + (station || '·') + '</div>';
-      grid.appendChild(cell);
-    });
-    if (!hasAny) document.getElementById('scheduleEmpty').hidden = false;
-  }
-
-  function renderToday(user, rows) {
-    const dh = HAJJ.todayDH();
-    const card = document.getElementById('todayCard');
-    if (!dh) { card.hidden = true; return; }
-    card.hidden = false;
-    document.getElementById('todayDH').textContent = dh;
-    document.getElementById('todayDate').textContent = formatDate(HAJJ.DH_DATES[dh]);
-    const todayRow = rows.find(function (r) { return String(r.DH_Day || '').trim() === dh; });
-    if (todayRow) {
-      document.getElementById('todayShift').textContent = todayRow.Shift || '—';
-      document.getElementById('todayStation').textContent = todayRow.Station || user.station || '—';
-    } else {
-      document.getElementById('todayShift').textContent = 'No shift assigned';
-      document.getElementById('todayStation').textContent = user.station || '—';
-    }
-  }
-
-  function renderQuickLinks(user) {
-    const role = String(user.role || '').toLowerCase();
-    const wrap = document.getElementById('quickLinks');
-    let any = false;
-
-    // Q-PCR: anyone clinical (not pure dispatchers). Opens DCH's form in a new tab.
-    if (role !== 'dispatcher') {
-      const lnk = document.getElementById('lnkQpcr');
-      if (window.PCR_URL && window.PCR_URL.indexOf('PASTE_') === -1) {
-        lnk.href = window.PCR_URL;
-        lnk.hidden = false;
-        any = true;
-      }
-    }
-    // Dispatch console: dispatchers + leadership + admin
-    if (role === 'dispatcher' || role === 'leadership' || role === 'admin') {
-      document.getElementById('lnkDispatch').hidden = false; any = true;
-    }
-    // Leadership lobby: leadership + admin
-    if (role === 'leadership' || role === 'admin') {
-      document.getElementById('lnkLobby').hidden = false; any = true;
-    }
-
-    wrap.hidden = !any;
-  }
-
-  function formatDate(iso) {
-    if (!iso) return '';
-    const d = new Date(iso + 'T00:00:00');
-    return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-  }
-
-  function tickSessionTimer() {
-    const exp = sessionStorage.getItem('hajj_expires');
-    const el = document.getElementById('sessionTimer');
-    if (!exp) { el.textContent = '—'; return; }
-    const ms = new Date(exp) - new Date();
-    if (ms <= 0) { el.textContent = 'expired'; return; }
-    const h = Math.floor(ms / 3600000);
-    const m = Math.floor((ms % 3600000) / 60000);
-    el.textContent = h + 'h ' + m + 'm';
-  }
-  tickSessionTimer();
-  setInterval(tickSessionTimer, 30000);
 })();
 </script>
-
-<script src="assets/version.js?v=0.2.18"></script>
-</body>
-</html>
+<script src="assets/version.js?v=0.9.5"></script><script>
+(async function() {
+  if (!await HAJJ.requireRole(['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'])) return;
+  CADTopbar.render({ title: "My Page" });
+  async function refresh() {
+    const r = await HAJJ.authedCall('me_summary', {});
+    if (!r || !r.ok) { document.getElementById('meName').textContent = 'Error loading'; return; }
+    const u = r.user;
+    document.getElementById('meName').textContent = u.name || u.nid;
+    document.getElementById('meRole').textContent = u.role || '--';
+    const lastSeen = r.last_presence ? new Date(r.last_presence * 1000).toLocaleString() : 'never';
+    document.getElementById('meSub').textContent = 'Today: ' + r.today + ' (KSA) · last activity: ' + lastSeen;
+    document.getElementById('meTiles').innerHTML =
+      '<div class="me-tile dispatches"><div class="l">Dispatches today</div><div class="v">' + r.my_dispatches_count + '</div></div>' +
+      '<div class="me-tile pcrs"><div class="l">PCRs (all-time)</div><div class="v">' + r.my_pcrs_count + '</div></div>' +
+      '<div class="me-tile unread"><div class="l">Unread messages</div><div class="v">' + r.unread_messages + '</div></div>';
+    if (!r.my_dispatches_today.length) {
+      document.getElementById('meDispatches').innerHTML = '<div style="color:#6b7d9e; padding:14px;">None yet today</div>';
+    } else {
+      document.getElementById('meDispatches').innerHTML = r.my_dispatches_today.map(function(d) {
+        return '<div class="me-row"><div><div class="name">' + d.incident_id + '</div><div class="sub">' + (d.station || '--') + ' · ' + (d.complaint || '--').slice(0, 40) + '</div></div><div><span class="badge ' + (d.triage || '') + '">' + (d.triage || '--').toUpperCase() + '</span></div></div>';
+      }).join('');
+    }
+    if (!r.my_pcrs.length) {
+      document.getElementById('mePcrs').innerHTML = '<div style="color:#6b7d9e; padding:14px;">No PCRs yet — head to <a href="/pcr" style="color:#67e8f9;">PCR</a> to start one</div>';
+    } else {
+      document.getElementById('mePcrs').innerHTML = r.my_pcrs.map(function(p) {
+        const updated = p.updated_at ? new Date(p.updated_at * 1000).toLocaleString() : '--';
+        return '<div class="me-row"><div><div class="name">' + p.incident_id + '</div><div class="sub">' + (p.chief_complaint || 'no complaint').slice(0, 40) + '<br>' + updated + '</div></div><div><span class="badge ' + (p.status || 'draft') + '">' + (p.status || 'draft') + '</span></div></div>';
+      }).join('');
+    }
+  }
+  refresh();
+  setInterval(refresh, 30000);
+})();
+</script></body></html>

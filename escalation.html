@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Escalation Matrix · Hajj 2026</title>
+<link rel="stylesheet" href="assets/style.css?v=0.9.5">
+<style>
+body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-serif; }
+.es-shell { max-width:1100px; margin:0 auto; padding:20px; }
+.es-list { display:flex; flex-direction:column; gap:10px; margin-top:14px; }
+.es-tier { background:rgba(20,28,50,0.5); border:1px solid rgba(99,179,237,0.18); border-radius:12px; padding:16px 20px; display:grid; grid-template-columns:60px 1.2fr 1.4fr 200px; gap:14px; align-items:center; }
+.es-tier .phone { font-size:13px; color:#67e8f9; font-weight:600; font-family:ui-monospace,Menlo,monospace; padding:8px 12px; background:rgba(15,23,42,0.5); border-radius:6px; text-align:center; }
+.es-tier .phone a { color:#67e8f9; text-decoration:none; }
+.es-tier .phone a:hover { color:#a5f3fc; text-decoration:underline; }
+.es-tier .name { font-size:12px; color:#cdf1ff; margin-top:2px; opacity:0.85; }
+.es-tier .num { font-size:30px; font-weight:800; line-height:1; text-align:center; }
+.es-tier[data-tier="1"] .num { color:#22c55e; }
+.es-tier[data-tier="2"] .num { color:#3b82f6; }
+.es-tier[data-tier="3"] .num { color:#06b6d4; }
+.es-tier[data-tier="4"] .num { color:#a855f7; }
+.es-tier[data-tier="5"] .num { color:#f59e0b; }
+.es-tier[data-tier="6"] .num { color:#ef4444; }
+.es-tier[data-tier="7"] .num { color:#dc2626; }
+.es-tier[data-tier="8"] .num { color:#7c3aed; }
+.es-tier .role { font-size:15px; font-weight:700; color:#cdf1ff; }
+.es-tier .when { font-size:12px; color:#93a4cd; }
+.es-tier .contact { font-size:13px; color:#cbd5e1; padding:8px 12px; background:rgba(15,23,42,0.5); border-radius:6px; }
+@media (max-width:800px) { .es-tier { grid-template-columns:1fr; } }
+</style>
+</head><body>
+<div id="topbar"></div>
+<div class="es-shell">
+  <h1 style="font-size:28px; margin:16px 0 4px;">Escalation Matrix</h1>
+  <p style="color:#93a4cd; margin:0 0 4px;">Tier-based escalation contacts. Choose the lowest tier that can resolve.</p>
+  <div class="es-list" id="esList"><div style="color:#6b7d9e; padding:30px;">Loading...</div></div>
+  <div style="margin-top:24px; padding:16px 20px; background:rgba(245,158,11,0.10); border:1px solid rgba(245,158,11,0.3); border-radius:10px;">
+    <strong style="color:#fcd34d;">Important:</strong>
+    <div style="font-size:12px; color:#fde68a; margin-top:5px;">
+      For immediate life threats: bypass tiers, contact CHF directly.<br>
+      For MCI: declare MCI in /command first, then notify tier 4+.<br>
+      All escalations must be documented in the audit log.
+    </div>
+  </div>
+</div>
+<script src="assets/auth.js?v=0.9.9"></script>
+<script src="assets/shortcuts.js?v=0.9.5"></script>
+<script src="assets/topbar.js?v=0.9.5"></script>
+<script src="assets/version.js?v=0.9.5"></script>
+<script>
+(async function() {
+  if (!await HAJJ.requireRole(['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'])) return;
+  CADTopbar.render({ title: "Escalation" });
+  const r = await HAJJ.authedCall('escalation_matrix', {});
+  if (!r || !r.ok) { document.getElementById('esList').innerHTML = '<div style="color:#fca5a5;">Error</div>'; return; }
+  document.getElementById('esList').innerHTML = r.levels.map(l => {
+    const phoneHtml = l.phone && l.phone.match(/^\+?[0-9 ]+$/)
+      ? `<a href="tel:${l.phone.replace(/\s/g,'')}">${l.phone}</a>`
+      : (l.phone || '—');
+    return `
+    <div class="es-tier" data-tier="${l.tier}">
+      <div class="num">${l.tier}</div>
+      <div>
+        <div class="role">${l.role}</div>
+        ${l.name ? `<div class="name">${l.name}</div>` : ''}
+      </div>
+      <div class="when">${l.when}</div>
+      <div class="phone">${phoneHtml}</div>
+    </div>`;
+  }).join('');
+})();
+</script>
+</body></html>

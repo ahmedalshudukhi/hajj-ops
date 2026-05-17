@@ -14,9 +14,12 @@ from datetime import datetime, timezone, time as dtime
 from collections import defaultdict, Counter
 import openpyxl
 
-DEFAULT_FILE_ID = "1USar5JRbsZR_YAjW_XnPSHvYLYFOYuOl"
+# Source: Backend Google Sheet (live edits) — export as xlsx on every build.
+# This replaces the older static xlsx file (1USar5...) which would go stale
+# whenever Ahmed edited the Backend Sheet without re-exporting.
+DEFAULT_FILE_ID = "16nlZuencav9uB9o9Kscgmb5UvVGeKcu4e3YxqdKohiw"
 FILE_ID = os.environ.get("GDRIVE_FILE_ID", DEFAULT_FILE_ID)
-DOWNLOAD_URL = f"https://docs.google.com/uc?export=download&id={FILE_ID}"
+DOWNLOAD_URL = f"https://docs.google.com/spreadsheets/d/{FILE_ID}/export?format=xlsx"
 
 STATIONS = ["ARF1","ARF2","ARF3","MUZ1","MUZ2","MUZ3","MIN1","MIN2","MIN3"]
 SITES_ALL = STATIONS + ["OCC"]                    # 10 fixed sites (SRCA dropped v11.7)
@@ -66,19 +69,219 @@ MOVEMENTS = [
     {"code":"DEMOB","shift":"DAY","dh":"14+ DH","label":"Demobilization","staff":160,"para":160,"amb":12},
 ]
 MOVEMENT_PHASES = [
-    {"mvt":"PRE-B","start_dh":"4 DH","start_hour":"06:00","end_dh":"8 DH","end_hour":"17:00","shift":"DAY","duration_hrs":60},
-    {"mvt":"B1A","start_dh":"8 DH","start_hour":"20:00","end_dh":"9 DH","end_hour":"01:00","shift":"NIGHT","duration_hrs":6},
-    {"mvt":"B1B","start_dh":"9 DH","start_hour":"02:00","end_dh":"9 DH","end_hour":"04:00","shift":"NIGHT","duration_hrs":3},
-    {"mvt":"B2A","start_dh":"9 DH","start_hour":"05:00","end_dh":"9 DH","end_hour":"07:00","shift":"DAY","duration_hrs":3},
-    {"mvt":"B2B","start_dh":"9 DH","start_hour":"08:00","end_dh":"9 DH","end_hour":"10:00","shift":"DAY","duration_hrs":3},
-    {"mvt":"GAP","start_dh":"9 DH","start_hour":"13:00","end_dh":"9 DH","end_hour":"19:00","shift":"DAY","duration_hrs":7},
-    {"mvt":"C","start_dh":"9 DH","start_hour":"22:00","end_dh":"10 DH","end_hour":"00:00","shift":"NIGHT","duration_hrs":3},
-    {"mvt":"D","start_dh":"10 DH","start_hour":"00:00","end_dh":"10 DH","end_hour":"08:00","shift":"NIGHT","duration_hrs":9},
-    {"mvt":"E1","start_dh":"10 DH","start_hour":"09:00","end_dh":"10 DH","end_hour":"12:00","shift":"DAY","duration_hrs":4},
-    {"mvt":"E2","start_dh":"10 DH","start_hour":"13:00","end_dh":"10 DH","end_hour":"17:00","shift":"DAY","duration_hrs":5},
-    {"mvt":"E3","start_dh":"10 DH","start_hour":"18:00","end_dh":"13 DH","end_hour":"23:00","shift":"MIXED","duration_hrs":78},
-    {"mvt":"DEMOB","start_dh":"14 DH","start_hour":"00:00","end_dh":"14 DH","end_hour":"23:00","shift":"DAY","duration_hrs":24},
+    # ─── Metro movements (per SAR official ops doc, 1447H) ──────────
+    # Movement A — regular metro, all 9 stations, both platforms
+    # (operators and tawafa shuttle)
+    {"mvt":"A",  "start_dh":"7 DH",  "start_hour":"08:00", "end_dh":"8 DH",  "end_hour":"00:00", "shift":"MIXED", "trains":7,  "desc":"Regular metro — all stations"},
+    {"mvt":"A",  "start_dh":"8 DH",  "start_hour":"00:00", "end_dh":"8 DH",  "end_hour":"02:00", "shift":"NIGHT", "trains":7,  "desc":"Regular metro — all stations"},
+    {"mvt":"A",  "start_dh":"8 DH",  "start_hour":"04:00", "end_dh":"8 DH",  "end_hour":"16:00", "shift":"DAY",   "trains":7,  "desc":"Regular metro — all stations"},
+
+    # Movement B — Convoy: Mina (south side) → Arafat (north/south)
+    # Four sub-phases B1A → B1B → B2A → B2B as pilgrims ascend.
+    {"mvt":"B1A","start_dh":"8 DH",  "start_hour":"18:00", "end_dh":"9 DH",  "end_hour":"02:00", "shift":"NIGHT", "trains":12, "desc":"Convoy ascent — Mina(S) → Arafat(N), via Muz3"},
+    {"mvt":"B1B","start_dh":"9 DH",  "start_hour":"02:00", "end_dh":"9 DH",  "end_hour":"05:00", "shift":"NIGHT", "trains":15, "desc":"Convoy ascent — Mina(S) → Arafat(N), incl. Mina3"},
+    {"mvt":"B2A","start_dh":"9 DH",  "start_hour":"05:30", "end_dh":"9 DH",  "end_hour":"08:00", "shift":"DAY",   "trains":15, "desc":"Convoy ascent — Mina(S) → Arafat(S+N), via Muz3"},
+    {"mvt":"B2B","start_dh":"9 DH",  "start_hour":"08:00", "end_dh":"9 DH",  "end_hour":"11:00", "shift":"DAY",   "trains":15, "desc":"Convoy ascent — Mina(S) → Arafat(S only)"},
+
+    # Movement C — Shuttle convoy / Nafra: Arafat → Muzdalifah
+    # Critical 5h window after sunset on Day of Arafah.
+    {"mvt":"C",  "start_dh":"9 DH",  "start_hour":"18:57", "end_dh":"10 DH", "end_hour":"00:30", "shift":"NIGHT", "trains":12, "desc":"Nafra shuttle — Arafat → Muzdalifah (3 paired stations)"},
+
+    # Movement D — Skip-stop: Muzdalifah → Jamarat
+    {"mvt":"D",  "start_dh":"10 DH", "start_hour":"01:00", "end_dh":"10 DH", "end_hour":"09:00", "shift":"NIGHT", "trains":12, "desc":"Skip-stop — Muzdalifah → Jamarat (3 patterns)"},
+
+    # Movement E — Jamarat shuttling (DH 10-13), with daily 02:00-04:00 maintenance
+    {"mvt":"E1", "start_dh":"10 DH", "start_hour":"09:00", "end_dh":"11 DH", "end_hour":"02:00", "shift":"MIXED", "trains":12, "desc":"Metro-type — Jamarat throwing (E1: 5 stations)"},
+    {"mvt":"E1", "start_dh":"11 DH", "start_hour":"04:00", "end_dh":"11 DH", "end_hour":"11:00", "shift":"DAY",   "trains":12, "desc":"Metro-type — Jamarat throwing"},
+    {"mvt":"E2", "start_dh":"11 DH", "start_hour":"11:00", "end_dh":"11 DH", "end_hour":"17:00", "shift":"DAY",   "trains":12, "desc":"Metro-type — Jamarat (E2: dedicated north trains)"},
+    {"mvt":"E1", "start_dh":"11 DH", "start_hour":"17:00", "end_dh":"12 DH", "end_hour":"02:00", "shift":"MIXED", "trains":12, "desc":"Metro-type — Jamarat throwing"},
+    {"mvt":"E1", "start_dh":"12 DH", "start_hour":"04:00", "end_dh":"12 DH", "end_hour":"11:00", "shift":"DAY",   "trains":12, "desc":"Metro-type — Jamarat throwing"},
+    {"mvt":"E2", "start_dh":"12 DH", "start_hour":"11:00", "end_dh":"12 DH", "end_hour":"17:00", "shift":"DAY",   "trains":12, "desc":"Metro-type — Jamarat (E2: dedicated north trains)"},
+    {"mvt":"E1", "start_dh":"12 DH", "start_hour":"17:00", "end_dh":"13 DH", "end_hour":"02:00", "shift":"MIXED", "trains":12, "desc":"Metro-type — Jamarat throwing"},
+    {"mvt":"E1", "start_dh":"13 DH", "start_hour":"04:00", "end_dh":"13 DH", "end_hour":"18:00", "shift":"MIXED", "trains":12, "desc":"Metro-type — Jamarat throwing (final)"},
+
+    # ─── Medical operational phases (fallback labels for non-train hours) ──
+    # These appear AFTER metro entries so the metro label wins when both
+    # match (e.g. hour DH 7 12:00 → "A" not "PRE-B").
+    {"mvt":"PRE-B","start_dh":"4 DH","start_hour":"06:00", "end_dh":"8 DH",  "end_hour":"18:00", "shift":"DAY",   "trains":0,  "desc":"Pre-mobilization (medical setup)"},
+    {"mvt":"DEMOB","start_dh":"14 DH","start_hour":"00:00","end_dh":"14 DH", "end_hour":"23:00", "shift":"DAY",   "trains":0,  "desc":"Demobilization"},
 ]
+
+# ─── SAR Metro reference data (from official 1447H operations doc) ───────
+# Per-movement, per-station platform activity. Platform codes:
+#   'N' = northern platform (الرصيف الشمالي)
+#   'S' = southern platform (الرصيف الجنوبي)
+#   'NS' = both platforms in use
+# Role: 'board' (alighting passengers depart here), 'alight' (arrivals),
+# 'pass' (train passes through but doesn't stop), 'both' (board + alight)
+METRO_PLATFORMS = {
+    "A": [  # Regular metro — all 9 stations, both platforms
+        {"st":"ARF1","plat":"NS","role":"both"}, {"st":"ARF2","plat":"NS","role":"both"}, {"st":"ARF3","plat":"NS","role":"both"},
+        {"st":"MUZ1","plat":"NS","role":"both"}, {"st":"MUZ2","plat":"NS","role":"both"}, {"st":"MUZ3","plat":"NS","role":"both"},
+        {"st":"MIN1","plat":"NS","role":"both"}, {"st":"MIN2","plat":"NS","role":"both"}, {"st":"MIN3","plat":"NS","role":"both"},
+    ],
+    "B1A": [  # Mina(S) → Muz3 → Arafat(N) — convoy ascent, no Mina 3
+        {"st":"MIN1","plat":"S","role":"board"}, {"st":"MIN2","plat":"S","role":"board"},
+        {"st":"MUZ3","plat":"S","role":"board"},
+        {"st":"ARF1","plat":"N","role":"alight"}, {"st":"ARF2","plat":"N","role":"alight"}, {"st":"ARF3","plat":"N","role":"alight"},
+    ],
+    "B1B": [  # Adds Mina 3; Arafat 3 also gets south side for Mina-3 passengers
+        {"st":"MIN1","plat":"S","role":"board"}, {"st":"MIN2","plat":"S","role":"board"}, {"st":"MIN3","plat":"S","role":"board"},
+        {"st":"MUZ3","plat":"S","role":"board"},
+        {"st":"ARF1","plat":"N","role":"alight"}, {"st":"ARF2","plat":"N","role":"alight"}, {"st":"ARF3","plat":"NS","role":"alight"},
+    ],
+    "B2A": [  # Arrivals switch to south side at Arafat (north remains for Muz-3 traffic)
+        {"st":"MIN1","plat":"S","role":"board"}, {"st":"MIN2","plat":"S","role":"board"}, {"st":"MIN3","plat":"S","role":"board"},
+        {"st":"MUZ3","plat":"S","role":"board"},
+        {"st":"ARF1","plat":"S","role":"alight"}, {"st":"ARF2","plat":"S","role":"alight"}, {"st":"ARF3","plat":"NS","role":"alight"},
+    ],
+    "B2B": [  # Mina only, all Arafat south
+        {"st":"MIN1","plat":"S","role":"board"}, {"st":"MIN2","plat":"S","role":"board"}, {"st":"MIN3","plat":"S","role":"board"},
+        {"st":"ARF1","plat":"S","role":"alight"}, {"st":"ARF2","plat":"S","role":"alight"}, {"st":"ARF3","plat":"S","role":"alight"},
+    ],
+    "C": [  # Nafra — paired stations Arafat-N → Muz-N
+        {"st":"ARF1","plat":"NS","role":"board"}, {"st":"ARF2","plat":"NS","role":"board"}, {"st":"ARF3","plat":"NS","role":"board"},
+        {"st":"MUZ1","plat":"NS","role":"alight"}, {"st":"MUZ2","plat":"NS","role":"alight"}, {"st":"MUZ3","plat":"NS","role":"alight"},
+    ],
+    "D": [  # Skip-stop: 3 patterns from each Muz to Jamarat with intermediate stops
+        {"st":"MUZ1","plat":"N","role":"board"}, {"st":"MUZ2","plat":"N","role":"board"}, {"st":"MUZ3","plat":"N","role":"board"},
+        {"st":"MIN1","plat":"N","role":"alight"}, {"st":"MIN2","plat":"N","role":"alight"}, {"st":"MIN3","plat":"N","role":"alight"},
+    ],
+    "E1": [  # Metro-type Jamarat: 5 stops only — Arafat 3, Muz 3, Mina 1, Mina 2, Jamarat
+        {"st":"ARF3","plat":"NS","role":"both"}, {"st":"MUZ3","plat":"NS","role":"both"},
+        {"st":"MIN1","plat":"NS","role":"both"}, {"st":"MIN2","plat":"NS","role":"both"}, {"st":"MIN3","plat":"NS","role":"both"},
+    ],
+    "E2": [  # Dedicated north-platform trains, each Arafat/Muz station has its own train to Jamarat
+        {"st":"ARF1","plat":"N","role":"board"}, {"st":"ARF2","plat":"N","role":"board"}, {"st":"ARF3","plat":"N","role":"board"},
+        {"st":"MUZ1","plat":"N","role":"board"}, {"st":"MUZ2","plat":"N","role":"board"}, {"st":"MUZ3","plat":"N","role":"board"},
+        {"st":"MIN1","plat":"N","role":"both"}, {"st":"MIN2","plat":"N","role":"both"}, {"st":"MIN3","plat":"N","role":"alight"},
+    ],
+    "PRE-B": [],   # No train operations during medical pre-mob
+    "DEMOB": [],   # No train operations during medical demob
+}
+
+# Hourly passenger flow per station (counts ARRIVING at the station during
+# the movement, per SAR doc Section 4). Keyed by (dh, hour, station).
+# Values in pilgrim-headcount. Used for the operational forecast view.
+METRO_PAX_FLOW = {
+    # Movement B — Mina → Arafat (counts of pilgrims arriving at the station)
+    # Source: SAR doc page "تدفقات الحشود — الحركة B — أيام التشغيل 8 و 9"
+    "B": [
+        # (dh, hour, station, count)
+        (8,18,"MUZ3",4630),
+        (8,19,"MUZ3",3197),
+        (8,20,"MUZ3",3001), (8,20,"MIN1",10694), (8,20,"MIN2",13412), (8,20,"MIN3",9847),
+        (8,21,"MUZ3",1530), (8,21,"MIN1",9586),  (8,21,"MIN2",11922), (8,21,"MIN3",7727),
+        (8,22,"MUZ3",2059), (8,22,"MIN1",8294),  (8,22,"MIN2",10565), (8,22,"MIN3",6972),
+        (8,23,"MUZ3",1937), (8,23,"MIN1",7207),  (8,23,"MIN2",9024),  (8,23,"MIN3",3962),
+        (9,0,"MIN1",6151),  (9,0,"MIN2",7708),   (9,0,"MIN3",5573),
+        (9,2,"MUZ3",3589),  (9,2,"MIN1",4888),   (9,2,"MIN2",6768),   (9,2,"MIN3",5644),
+        (9,3,"MUZ3",1942),  (9,3,"MIN1",2102),   (9,3,"MIN2",2068),   (9,3,"MIN3",5728),
+        (9,4,"MUZ3",2508),  (9,4,"MIN3",4891),
+        (9,5,"MUZ3",2383),  (9,5,"MIN1",7149),   (9,5,"MIN2",7314),   (9,5,"MIN3",1081),
+        (9,6,"MUZ3",1977),  (9,6,"MIN1",13562),  (9,6,"MIN2",13006),
+        (9,7,"MIN1",11521), (9,7,"MIN2",11719),
+        (9,8,"MIN1",11061), (9,8,"MIN2",11591),
+        (9,9,"MIN1",11144), (9,9,"MIN2",10992),
+        (9,10,"MIN1",2068), (9,10,"MIN2",2256),
+    ],
+    # Movement C — Nafra (Arafat → Muzdalifah). Boarding counts at Arafat
+    # stations during 5 tafweej periods (zones).
+    "C": [
+        # Period 1: 18:10-19:10 — N=Northern, S=Southern platform
+        (9,18,"ARF1_N",13515),(9,18,"ARF1_S",12302),(9,18,"ARF2_N",14397),(9,18,"ARF2_S",15170),(9,18,"ARF3_N",10585),(9,18,"ARF3_S",12548),
+        # Period 2: 19:30-20:10
+        (9,19,"ARF1_N",11536),(9,19,"ARF1_S",12558),(9,19,"ARF2_N",12875),(9,19,"ARF2_S",10029),(9,19,"ARF3_N",9718), (9,19,"ARF3_S",11048),
+        # Period 3: 20:30-21:20
+        (9,20,"ARF1_N",13066),(9,20,"ARF1_S",12142),(9,20,"ARF2_N",12461),(9,20,"ARF2_S",12491),(9,20,"ARF3_N",10696),(9,20,"ARF3_S",11691),
+        # Period 4: 21:30-22:20
+        (9,21,"ARF1_N",14030),(9,21,"ARF1_S",16278),(9,21,"ARF2_N",10998),(9,21,"ARF2_S",11188),(9,21,"ARF3_N",7518), (9,21,"ARF3_S",6374),
+        # Period 5: 22:30-23:20 (only ARF2 active)
+        (9,22,"ARF2_N",10736),(9,22,"ARF2_S",8000),
+    ],
+    # Movement D — Muzdalifah → Jamarat. Pax arriving at each Muz station.
+    "D": [
+        (10,1,"MUZ1",6367),  (10,1,"MUZ2",12260), (10,1,"MUZ3",11630),
+        (10,2,"MUZ1",2846),  (10,2,"MUZ2",12472), (10,2,"MUZ3",9551),
+        (10,3,"MUZ1",2406),  (10,3,"MUZ2",12229), (10,3,"MUZ3",4820),
+        (10,4,"MUZ1",2274),  (10,4,"MUZ2",12381), (10,4,"MUZ3",4931),
+        (10,5,"MUZ1",19246), (10,5,"MUZ2",15482), (10,5,"MUZ3",5207),
+        (10,6,"MUZ1",23073), (10,6,"MUZ2",16811), (10,6,"MUZ3",4591),
+        (10,7,"MUZ1",22919), (10,7,"MUZ2",17019), (10,7,"MUZ3",4712),
+        (10,8,"MUZ1",22468), (10,8,"MUZ2",16872), (10,8,"MUZ3",5131),
+        (10,9,"MUZ1",3828),  (10,9,"MUZ2",2819),  (10,9,"MUZ3",852),
+    ],
+}
+
+# Tafweej (boarding pass) zones for Arafat→Muzdalifah Nafra (Movement C).
+# Five colored zones, each releases pilgrims in a defined window.
+METRO_TAFWEEJ = [
+    {"zone":1, "color":"#9ED65E", "color_name":"green",  "start":"18:10","end":"19:30","total":80166},
+    {"zone":2, "color":"#FEFE19", "color_name":"yellow", "start":"19:10","end":"20:30","total":72412},
+    {"zone":3, "color":"#1AB8EF", "color_name":"blue",   "start":"20:00","end":"21:30","total":73718},
+    {"zone":4, "color":"#DC7BCF", "color_name":"purple", "start":"21:00","end":"22:30","total":57309},
+    {"zone":5, "color":"#FFC518", "color_name":"orange", "start":"22:00","end":"23:30","total":32726},
+]
+
+# Operational gaps — hours where NO train movement is active but the metro
+# is in a defined operational state. Used by /metro.html so non-train hours
+# show their reason (maintenance, pilgrims at Arafat, demob) instead of "—".
+# Each entry: kind in {'maint','transition','wait','closed'}, plus desc.
+METRO_GAPS = [
+    # DH 4-6: Pre-mobilization (no train ops scheduled, system in setup)
+    {"kind":"closed", "start_dh":"4 DH", "start_hour":"00:00", "end_dh":"7 DH", "end_hour":"08:00",
+     "label":"PRE-OPS", "desc":"System pre-mobilization — metro not operating"},
+    # DH 8: gap 02:00-04:00 = nightly maintenance window
+    {"kind":"maint", "start_dh":"8 DH", "start_hour":"02:00", "end_dh":"8 DH", "end_hour":"04:00",
+     "label":"MAINT", "desc":"Nightly maintenance window — no train service"},
+    # DH 8: gap 16:00-18:00 = pre-B convoy staging window
+    {"kind":"transition", "start_dh":"8 DH", "start_hour":"16:00", "end_dh":"8 DH", "end_hour":"18:00",
+     "label":"PRE-B", "desc":"Pre-convoy transition — switching to ascent mode"},
+    # DH 9: gap 05:00-05:30 (B1B → B2A short turnaround)
+    {"kind":"transition", "start_dh":"9 DH", "start_hour":"05:00", "end_dh":"9 DH", "end_hour":"05:30",
+     "label":"B-TRN", "desc":"B1B → B2A turnaround — platform reconfiguration"},
+    # DH 9: gap 11:00-18:57 = pilgrims at Arafat (the Wuquf — actual pilgrimage rite)
+    {"kind":"wait", "start_dh":"9 DH", "start_hour":"11:00", "end_dh":"9 DH", "end_hour":"18:57",
+     "label":"WUQUF", "desc":"Pilgrims at Arafat (Wuquf) — metro standby, station crews on watch"},
+    # DH 10: gap 00:30-01:00 (C wind-down → D start)
+    {"kind":"transition", "start_dh":"10 DH", "start_hour":"00:30", "end_dh":"10 DH", "end_hour":"01:00",
+     "label":"C→D", "desc":"Nafra wind-down — final ARF→MUZ shuttles, prep for skip-stop"},
+    # DH 11, 12, 13: nightly maintenance 02:00-04:00
+    {"kind":"maint", "start_dh":"11 DH", "start_hour":"02:00", "end_dh":"11 DH", "end_hour":"04:00",
+     "label":"MAINT", "desc":"Nightly maintenance window — no train service"},
+    {"kind":"maint", "start_dh":"12 DH", "start_hour":"02:00", "end_dh":"12 DH", "end_hour":"04:00",
+     "label":"MAINT", "desc":"Nightly maintenance window — no train service"},
+    {"kind":"maint", "start_dh":"13 DH", "start_hour":"02:00", "end_dh":"13 DH", "end_hour":"04:00",
+     "label":"MAINT", "desc":"Nightly maintenance window — no train service"},
+    # DH 13: gap 18:00 onward = operations end
+    {"kind":"closed", "start_dh":"13 DH", "start_hour":"18:00", "end_dh":"14 DH", "end_hour":"00:00",
+     "label":"END", "desc":"Train operations complete — final E1 returned"},
+    # DH 14: demob
+    {"kind":"closed", "start_dh":"14 DH", "start_hour":"00:00", "end_dh":"14 DH", "end_hour":"23:59",
+     "label":"DEMOB", "desc":"Demobilization — fleet released, gates closed"},
+]
+
+# Station opening / closing times per movement (from SAR doc Section 2).
+# Used to flag whether each station is "open" or "closed" during the
+# selected hour. Times in 24h ISO HH:MM format, anchored to Hijri DH day.
+METRO_STATION_HOURS = {
+    "ARF1": [
+        {"mvt":"A","dh":7,"open":"07:30","close":None},
+        {"mvt":"A","dh":8,"open":None,"close":"01:30"}, {"mvt":"A","dh":8,"open":"03:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"15:30"},
+        {"mvt":"B","dh":8,"open":"17:30","close":None},
+        {"mvt":"B","dh":9,"open":None,"close":"11:45"},
+        {"mvt":"C","dh":9,"open":"17:58","close":None},
+        {"mvt":"C","dh":9,"open":None,"close":"23:30"},
+    ],
+    "ARF2": [{"mvt":"A","dh":7,"open":"07:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"01:30"}, {"mvt":"A","dh":8,"open":"03:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"15:30"}, {"mvt":"B","dh":8,"open":"17:30","close":None}, {"mvt":"B","dh":9,"open":None,"close":"11:45"}, {"mvt":"C","dh":9,"open":"17:58","close":None}, {"mvt":"C","dh":9,"open":None,"close":"23:30"}],
+    "ARF3": [{"mvt":"A","dh":7,"open":"07:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"01:30"}, {"mvt":"A","dh":8,"open":"03:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"15:30"}, {"mvt":"B","dh":8,"open":"17:30","close":None}, {"mvt":"B","dh":9,"open":None,"close":"11:45"}, {"mvt":"C","dh":9,"open":"17:58","close":None}, {"mvt":"C","dh":9,"open":None,"close":"23:30"}],
+    "MUZ1": [{"mvt":"A","dh":7,"open":"07:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"01:30"}, {"mvt":"A","dh":8,"open":"03:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"15:30"}, {"mvt":"C","dh":9,"open":"17:58","close":None}, {"mvt":"D","dh":10,"open":"00:00","close":None}, {"mvt":"D","dh":10,"open":None,"close":"08:30"}],
+    "MUZ2": [{"mvt":"A","dh":7,"open":"07:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"01:30"}, {"mvt":"A","dh":8,"open":"03:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"15:30"}, {"mvt":"C","dh":9,"open":"17:58","close":None}, {"mvt":"D","dh":10,"open":"00:00","close":None}, {"mvt":"D","dh":10,"open":None,"close":"08:30"}],
+    "MUZ3": [{"mvt":"A","dh":7,"open":"07:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"01:30"}, {"mvt":"A","dh":8,"open":"03:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"15:30"}, {"mvt":"B","dh":8,"open":"17:30","close":None}, {"mvt":"B","dh":9,"open":None,"close":"10:30"}, {"mvt":"C","dh":9,"open":"17:58","close":None}, {"mvt":"D","dh":10,"open":"00:00","close":None}, {"mvt":"D","dh":10,"open":None,"close":"08:30"}],
+    "MIN1": [{"mvt":"A","dh":7,"open":"07:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"01:30"}, {"mvt":"A","dh":8,"open":"03:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"15:30"}, {"mvt":"B","dh":8,"open":"17:30","close":None}, {"mvt":"B","dh":9,"open":None,"close":"07:15"}, {"mvt":"D","dh":10,"open":"08:30","close":None}, {"mvt":"E","dh":10,"open":None,"close":None}],
+    "MIN2": [{"mvt":"A","dh":7,"open":"07:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"01:30"}, {"mvt":"A","dh":8,"open":"03:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"15:30"}, {"mvt":"B","dh":8,"open":"17:30","close":None}, {"mvt":"B","dh":9,"open":None,"close":"10:30"}, {"mvt":"D","dh":10,"open":"08:30","close":None}, {"mvt":"E","dh":10,"open":None,"close":None}],
+    "MIN3": [{"mvt":"A","dh":7,"open":"07:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"01:30"}, {"mvt":"A","dh":8,"open":"03:30","close":None}, {"mvt":"A","dh":8,"open":None,"close":"15:30"}, {"mvt":"B","dh":9,"open":None,"close":"01:30"}, {"mvt":"D","dh":10,"open":"08:30","close":None}, {"mvt":"E","dh":10,"open":None,"close":None}],
+}
 GP_COVERAGE = [
     {"station":"ARF1","gp_day":"GP-01","gp_night":"GP-11","covers":"Mike-1, Mike-2","notes":""},
     {"station":"ARF2","gp_day":"GP-02","gp_night":"GP-12","covers":"Mike-3, Mike-4","notes":""},
@@ -112,14 +315,135 @@ def num(v, default=0):
 
 def s(v): return str(v).strip() if v is not None else ""
 
+def resolve_duration(code, shift_dur, shift_map):
+    """
+    Return shift duration in hours for a code. First tries shift_dur (which
+    is computed from the Shifts tab). If the code isn't there, infers from
+    the code structure.
+    """
+    if code in shift_dur and shift_dur[code]:
+        return shift_dur[code]
+    r = infer_shift_from_code(code)
+    if r is None: return 0
+    sh, eh = r
+    if sh == eh: return 24.0
+    return float((24 - sh) + eh) if eh < sh else float(eh - sh)
+
+
+def compute_shift_duration(start_time, end_time):
+    """Calculate shift duration in hours from start/end time cells.
+    Handles midnight wrap (e.g. 19:00 → 07:00 = 12 h, 20:00 → 02:00 = 6 h).
+    Treats same start==end as 24h (full-day rotation, e.g. 24/7 shift).
+    Falls back to 0 for unparseable inputs.
+
+    Why this exists: the 'Duration (h)' cells in the Shifts sheet are
+    formatted as Excel time/date values (e.g. cells show as 12:00 but
+    serialize as datetime.datetime(1900,1,12,0,0)), so the previous
+    `num(r.get('Duration (h)'))` call returned 0 for nearly every shift.
+    Always compute from Start/End instead — single source of truth.
+    """
+    if not hasattr(start_time, 'hour') or not hasattr(end_time, 'hour'):
+        return 0.0
+    sh_ = start_time.hour + start_time.minute / 60
+    eh_ = end_time.hour + end_time.minute / 60
+    if sh_ == eh_:
+        return 24.0
+    if eh_ < sh_:
+        return (24 - sh_) + eh_
+    return eh_ - sh_
+
+def compute_phase_duration(start_dh, start_hour, end_dh, end_hour):
+    """Calculate movement phase duration in hours (wall-clock elapsed) from
+    start/end DH+hour strings.
+    Args:
+        start_dh / end_dh: '4 DH' format
+        start_hour / end_hour: '06:00' format (24-hour)
+
+    Why this exists: the hand-maintained `duration_hrs` field on each
+    MOVEMENT_PHASES entry drifted from the start/end times (e.g. B1A was
+    stored as 6 h but 8 DH 20:00 → 9 DH 01:00 is 5 h; PRE-B was stored as
+    60 h but 4 DH 06:00 → 8 DH 17:00 is 107 h). Always derive at build time
+    from start_dh/start_hour/end_dh/end_hour — single source of truth.
+    """
+    def _dh(x): return int(str(x).split()[0])
+    def _hr(x):
+        parts = str(x).split(':')
+        return int(parts[0]) + (int(parts[1]) / 60 if len(parts) >= 2 else 0)
+    return (_dh(end_dh) - _dh(start_dh)) * 24 + (_hr(end_hour) - _hr(start_hour))
+
 def download_xlsx():
+    # SINGLE SOURCE OF TRUTH: live Google Sheet backend, fetched via Drive API.
+    # Per Ahmed's instruction (2026-05-16): NEVER read from a local static
+    # XLSX file. If service-account auth fails, the build fails loudly —
+    # we do NOT silently fall back to a stale local cache.
+    here = os.path.dirname(os.path.abspath(__file__))
+
+    # Refuse to run if a local xlsx is accidentally present. This catches
+    # the case where someone copies backend.xlsx into the repo for testing
+    # and forgets to remove it before pushing. Crashing here is correct —
+    # production must never read from anything except the Google Sheet.
+    for legacy in ("backend.xlsx", "_backend_cache.xlsx"):
+        p = os.path.join(here, legacy)
+        if os.path.exists(p):
+            raise RuntimeError(
+                f"REFUSED TO BUILD: a stale local file is present at {p}. "
+                f"Per project policy, data must ONLY come from the live "
+                f"Google Sheet backend (FILE_ID={FILE_ID}). "
+                f"Delete this file and re-run the build."
+            )
+
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx"); tmp.close()
-    print(f"  Downloading from Google Drive (file: {FILE_ID})...")
-    req = urllib.request.Request(DOWNLOAD_URL, headers={"User-Agent": "hajj-ops/5.0"})
-    with urllib.request.urlopen(req, timeout=30) as resp, open(tmp.name, "wb") as out:
-        out.write(resp.read())
-    print(f"  ✓ Downloaded {os.path.getsize(tmp.name):,} bytes")
-    return tmp.name
+
+    # Try service-account auth if credentials are provided. The cron sets
+    # GOOGLE_SERVICE_ACCOUNT_JSON from a GitHub secret; locally Ahmed can set
+    # GOOGLE_SERVICE_ACCOUNT_PATH to a JSON key file.
+    sa_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+    sa_path = os.environ.get("GOOGLE_SERVICE_ACCOUNT_PATH", "").strip()
+    if sa_json or sa_path:
+        try:
+            import json as _json
+            from google.oauth2 import service_account
+            from google.auth.transport.requests import Request as _GAuthRequest
+            info = _json.loads(sa_json) if sa_json else None
+            scopes = ["https://www.googleapis.com/auth/drive.readonly"]
+            if info:
+                creds = service_account.Credentials.from_service_account_info(info, scopes=scopes)
+            else:
+                creds = service_account.Credentials.from_service_account_file(sa_path, scopes=scopes)
+            creds.refresh(_GAuthRequest())
+            # Drive v3 export endpoint converts a Google Sheet to xlsx server-side.
+            url = (
+                f"https://www.googleapis.com/drive/v3/files/{FILE_ID}/export"
+                f"?mimeType=application%2Fvnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+            print(f"  Fetching via service account (file: {FILE_ID})...")
+            req = urllib.request.Request(url, headers={
+                "Authorization": f"Bearer {creds.token}",
+                "User-Agent": "hajj-ops/5.0",
+            })
+            with urllib.request.urlopen(req, timeout=60) as resp, open(tmp.name, "wb") as out:
+                out.write(resp.read())
+            print(f"  ✓ Downloaded {os.path.getsize(tmp.name):,} bytes (authenticated)")
+            return tmp.name
+        except Exception as e:
+            # Per policy: do NOT fall back. If the authenticated path fails,
+            # the build fails. This prevents serving stale or wrong data.
+            raise RuntimeError(
+                f"BUILD FAILED: service-account auth to Google Sheet failed: {e}. "
+                f"Refusing to fall back to unauthenticated export — Hajj operations "
+                f"require live backend data only. Fix the service account credential "
+                f"(GOOGLE_SERVICE_ACCOUNT_JSON env var) and re-run."
+            )
+
+    # No service account configured at all. Refuse to use the public export
+    # URL because (a) the sheet is private (would 401) and (b) policy
+    # forbids any data source except the authenticated Google Sheet pull.
+    raise RuntimeError(
+        f"BUILD FAILED: no service-account credentials configured. "
+        f"GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_SERVICE_ACCOUNT_PATH must be set. "
+        f"Per project policy, this build will not fall back to an unauthenticated "
+        f"public export URL."
+    )
 
 def read_sheet(wb, name, valid_first_col_pattern=None):
     if name not in wb.sheetnames:
@@ -152,6 +476,140 @@ def parse_time_str(t):
 def shift_covers_hour(start_t, end_t, target_hour):
     sh = parse_time_str(start_t); eh = parse_time_str(end_t)
     if sh is None or eh is None: return False
+    if sh < eh: return sh <= target_hour < eh
+    elif sh > eh: return target_hour >= sh or target_hour < eh
+    else: return True
+
+import re as _re
+_SHIFT_CODE_RX = _re.compile(r'^([DN])(\d{1,2})(?:-(\d{1,2}))?$', _re.IGNORECASE)
+
+def infer_shift_from_code(code):
+    """
+    Given a shift code like 'D12', 'D6-12', 'N18', 'N18-00', '24/7',
+    return a tuple (start_hour:int, end_hour:int) usable by shift_covers_hour.
+
+    Rules:
+      • '24/7' or '24-7' → (0, 0) which shift_covers_hour treats as always-on
+      • 'D{S}' alone     → Day shift starting hour S, ending S+12 (mod 24).
+                            Default 12-hour duration.
+      • 'D{S}-{E}'       → Day shift from S to E (E may be < S to wrap midnight).
+      • 'N{S}' alone     → Night shift starting hour S, ending S+12 (mod 24).
+      • 'N{S}-{E}'       → Night shift from S to E.
+
+    Returns None if code is malformed (so the caller can skip the unit).
+    """
+    if not code: return None
+    u = str(code).upper().strip()
+    if u in ('24/7', '24-7'):
+        # Same start and end → shift_covers_hour treats as covering all 24h.
+        return (0, 0)
+    m = _SHIFT_CODE_RX.match(u)
+    if not m: return None
+    prefix = m.group(1)  # D or N
+    start  = int(m.group(2)) % 24
+    end    = int(m.group(3)) % 24 if m.group(3) else (start + 12) % 24
+    return (start, end)
+
+# Module-level audit dict — accumulates how each code was resolved across
+# the whole build. Keyed by code. Values: 'backend' | 'inferred_missing' |
+# 'inferred_malformed' | 'unresolvable'. Reported at end of build via
+# print_shift_audit().
+SHIFT_AUDIT = {}
+
+def resolve_shift(code, shift_map):
+    """
+    Resolve a shift code to (start_hour, end_hour).
+
+    Precedence (units NEVER drop because of resolution failure):
+      1. Backend Shifts tab with VALID Start/End → use those. Backend wins.
+      2. Backend Shifts tab present but Start/End malformed → fall back to
+         inference, AND mark the code as 'inferred_malformed' in the audit
+         so the build log warns the user to fix their Shifts tab.
+      3. Code missing from backend Shifts tab → infer from code structure,
+         mark as 'inferred_missing'. The build log lists these so the user
+         can decide whether to add explicit Shifts-tab rows.
+      4. Inference fails (code doesn't match D{N} / N{N} / 24/7 patterns) →
+         mark 'unresolvable' and return None. ONLY case where the unit drops
+         at this hour. Logged loudly.
+
+    Returns (start_hour, end_hour) or None.
+    """
+    if not code:
+        return None
+    if code in shift_map:
+        st, en = shift_map[code]
+        sh = parse_time_str(st); eh = parse_time_str(en)
+        if sh is not None and eh is not None:
+            # Backend has valid values. Use them.
+            SHIFT_AUDIT.setdefault(code, 'backend')
+            return (sh, eh)
+        # Backend defined the code but the cells are unparseable. Don't
+        # drop the unit — fall back to inference. Mark for audit so the
+        # build log surfaces the data error.
+        inferred = infer_shift_from_code(code)
+        if inferred is not None:
+            SHIFT_AUDIT[code] = 'inferred_malformed'  # always overrides
+            return inferred
+        SHIFT_AUDIT[code] = 'unresolvable'
+        return None
+    # Code is not in backend Shifts tab. Infer from structure.
+    inferred = infer_shift_from_code(code)
+    if inferred is not None:
+        SHIFT_AUDIT.setdefault(code, 'inferred_missing')
+        return inferred
+    SHIFT_AUDIT.setdefault(code, 'unresolvable')
+    return None
+
+def print_shift_audit():
+    """Print a clear audit of every shift code's resolution source.
+    Called at end of build. Output goes to stdout (captured in GH Actions logs).
+    """
+    if not SHIFT_AUDIT:
+        return
+    from collections import defaultdict
+    by_status = defaultdict(list)
+    for code, status in SHIFT_AUDIT.items():
+        by_status[status].append(code)
+    print()
+    print("=" * 60)
+    print("SHIFT CODE RESOLUTION AUDIT")
+    print("=" * 60)
+    for status, codes in sorted(by_status.items()):
+        codes_sorted = sorted(codes)
+        if status == 'backend':
+            print(f"  ✅ Resolved from backend Shifts tab ({len(codes)}):")
+            print(f"     {', '.join(codes_sorted)}")
+        elif status == 'inferred_missing':
+            print(f"  ⚠️  Missing from backend Shifts tab, inferred from code ({len(codes)}):")
+            print(f"     {', '.join(codes_sorted)}")
+            print(f"     → Recommendation: add explicit rows to the Shifts tab in")
+            print(f"       Mobilization_Plan.xlsx → Shifts so the user-defined times")
+            print(f"       are authoritative rather than inferred.")
+        elif status == 'inferred_malformed':
+            print(f"  ❌ Backend Shifts tab has these codes but Start/End cells are")
+            print(f"     unparseable — falling back to inference ({len(codes)}):")
+            print(f"     {', '.join(codes_sorted)}")
+            print(f"     → ACTION REQUIRED: fix the Start/End cells for these codes")
+            print(f"       in Mobilization_Plan.xlsx → Shifts tab. Cells must be")
+            print(f"       time-formatted (HH:MM) or proper time values.")
+        elif status == 'unresolvable':
+            print(f"  🚨 UNRESOLVABLE — code does not match any pattern, units on this")
+            print(f"     code at hour-level will be DROPPED ({len(codes)}):")
+            print(f"     {', '.join(codes_sorted)}")
+            print(f"     → ACTION REQUIRED: add to Shifts tab with explicit Start/End,")
+            print(f"       or rename to D{{H}}[-{{H}}] / N{{H}}[-{{H}}] / 24/7 format.")
+    print("=" * 60)
+    print()
+
+
+def covers_hour_resolved(code, shift_map, target_hour):
+    """
+    Convenience: resolve `code` (with shift_map fallback) and check if the
+    resolved shift covers `target_hour`.
+    """
+    r = resolve_shift(code, shift_map)
+    if r is None: return False
+    sh, eh = r
     if sh < eh: return sh <= target_hour < eh
     elif sh > eh: return target_hour >= sh or target_hour < eh
     else: return True
@@ -253,10 +711,11 @@ def compute_org_structure(units_rows):
                     "total":total_paras,"notes":f"{m['M']} Mike + {m['A']} Alpha + {m['R']} Romeo = {total_units} units"})
     return out
 
-def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows):
+def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows, ambulance_rows=None):
     shift_map = {s(r.get("Code")): (r.get("Start"), r.get("End")) for r in shifts_rows if s(r.get("Code"))}
     unit_size = {s(u.get("Unit ID")): int(num(u.get("Size", 2))) for u in units_rows}
     unit_home = {s(u.get("Unit ID")): s(u.get("Home Station")) for u in units_rows}
+    unit_type = {s(u.get("Unit ID")): s(u.get("Unit Type")) for u in units_rows}
     schedule = defaultdict(lambda: defaultdict(list))
     for r in schedule_rows:
         uid = s(r.get("Unit ID"))
@@ -266,53 +725,223 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows):
                 code = s(r.get(f"{dh}DH-S{slot}"))
                 if code: schedule[uid][dh].append(code)
 
-    DH_RANGE = list(range(4, 14))
+    # Pre-compute roster totals (sum of unit sizes) overall and by zone.
+    # Used by the positioning page to display "Off Duty" counts.
+    def _zone_of(home):
+        if home.startswith("ARF"): return "Arafat"
+        if home.startswith("MUZ"): return "Muzdalifah"
+        if home.startswith("MIN"): return "Mina"
+        return "Support"
+    total_roster_by_zone = {"Arafat":0, "Muzdalifah":0, "Mina":0, "Support":0}
+    for uid, sz in unit_size.items():
+        total_roster_by_zone[_zone_of(unit_home.get(uid, ""))] += sz
+    total_roster = sum(total_roster_by_zone.values())
+
+    # Index ambulances by home station for hourly active-amb counts
+    amb_by_home = defaultdict(list)
+    for a in (ambulance_rows or []):
+        home = s(a.get("Home Station"))
+        if not home: continue
+        amb_by_home[home].append({
+            "id": s(a.get("Ambulance ID")),
+            "day_crew": s(a.get("Day Alpha Crew")),
+            "night_crew": s(a.get("Night Alpha Crew")),
+        })
+
+    # Sites that get per-station detail (9 clinical + OCC depot).
+    SITES = STATIONS + ["OCC"]
+
+    # Static physical ambulance count per site: ambulances are parked at
+    # their home station 24/7, independent of which crew is currently on
+    # duty. The earlier "crewed count" hid 5+ ambulances during shift gaps,
+    # which was misleading — the vehicles never left.
+    static_amb_by_home = {st: 0 for st in SITES}
+    for st, ambs in amb_by_home.items():
+        if st in static_amb_by_home:
+            static_amb_by_home[st] = len(ambs)
+
+    DH_RANGE = list(range(4, 15))  # DH 4 through DH 14 inclusive
     out_hours = []
     for dh in DH_RANGE:
-        start_hour = 6 if dh in [4,5,6,7] else 0
-        end_hour = 18 if dh in [4,5,6,7] else 24
+        # DH 4-6: medical pre-mob, day-hours only. DH 7-14: full 24h
+        # (Movement A regular metro starts DH 7 08:00 and runs to DH 8 00:00).
+        start_hour = 6 if dh in [4,5,6] else 0
+        end_hour = 18 if dh in [4,5,6] else 24
         for h in range(start_hour, end_hour):
-            mvt_code = "PRE-B"; shift_label = "DAY" if 6 <= h < 18 else "NIGHT"
+            # Movement label — strict membership: an hour is labeled with a
+            # movement ONLY when it falls inside that movement's declared
+            # window [start, end). Hours outside any defined window get "—"
+            # (not GAP — GAP is itself an explicit movement window). This
+            # matches operational reality: gaps between movements (e.g.
+            # 11:00-12:00 on DH 9, 20:00-21:00 on DH 9) are TRANSITION
+            # periods, not part of the prior or next phase.
+            cur = dh*100 + h
+            mvt_code = "—"; shift_label = "DAY" if 6 <= h < 18 else "NIGHT"
             for ph in MOVEMENT_PHASES:
                 sd = int(ph["start_dh"].split()[0]); ed = int(ph["end_dh"].split()[0])
                 sh_p = int(ph["start_hour"].split(":")[0]); eh_p = int(ph["end_hour"].split(":")[0])
-                cur = dh*100 + h; start = sd*100 + sh_p; end = ed*100 + eh_p
-                if start <= cur <= end:
+                start = sd*100 + sh_p; end = ed*100 + eh_p
+                if start <= cur < end:
                     mvt_code = ph["mvt"]; shift_label = ph["shift"]
                     break
+
             zones = {"Arafat":0, "Muzdalifah":0, "Mina":0, "Support":0}
-            stations = {st:0 for st in STATIONS}
+            stations = {st:0 for st in SITES}
+            by_type = defaultdict(int)
+            by_zone_type = {
+                "Arafat": defaultdict(int),
+                "Muzdalifah": defaultdict(int),
+                "Mina": defaultdict(int),
+                "Support": defaultdict(int),
+            }
+            active_units = set()
+            # Per-site detail: track everything operationally useful.
+            sd_paras       = {st: 0 for st in SITES}
+            sd_by_type     = {st: defaultdict(int) for st in SITES}
+            sd_units       = {st: [] for st in SITES}
+            sd_shifts      = {st: set() for st in SITES}
+            sd_doctors     = {st: 0 for st in SITES}
+
+            # Per-station per-shift-family breakdown so we can compute the
+            # operational headcount as max(day, night) + always_on instead of
+            # naively summing both shifts at handover hours. The sum was
+            # over-counting paramedics at 05:00 and 17:00 (the deliberate
+            # 1-hour overlap when outgoing crew briefs incoming crew).
+            sd_paras_day    = {st: 0 for st in SITES}
+            sd_paras_night  = {st: 0 for st in SITES}
+            sd_paras_always = {st: 0 for st in SITES}
+            sd_units_per_family = {st: {'D': [], 'N': [], 'A': []} for st in SITES}
+            # Also store the matched shift per unit so downstream can build
+            # per-unit Gantt visualizations.
+            unit_shift_at_hour = {}  # uid -> matched_shift_code
+
+            def _shift_family(code):
+                u = (code or "").upper().strip()
+                if u == "24/7" or u == "24-7": return 'A'  # always-on
+                if u.startswith("D"): return 'D'
+                if u.startswith("N"): return 'N'
+                return 'A'  # unknown family treated as always-on (conservative)
+
             for uid, day_shifts in schedule.items():
                 if dh not in day_shifts: continue
-                covers_hour = False
+                matched_shift = None
                 for code in day_shifts[dh]:
-                    if code in shift_map:
-                        start_t, end_t = shift_map[code]
-                        if shift_covers_hour(start_t, end_t, h):
-                            covers_hour = True
-                            break
-                if not covers_hour: continue
+                    # Use resolved matcher so codes like D12 / D14 that aren't
+                    # in the Shifts tab still resolve via infer_shift_from_code.
+                    if covers_hour_resolved(code, shift_map, h):
+                        matched_shift = code
+                        break
+                if not matched_shift: continue
+                active_units.add(uid)
+                unit_shift_at_hour[uid] = matched_shift
                 size = unit_size.get(uid, 2)
                 home = unit_home.get(uid, "")
+                utype = unit_type.get(uid, "") or "Other"
+                by_type[utype] += 1
+                zone_name = _zone_of(home)
+                by_zone_type[zone_name][utype] += 1
+                fam = _shift_family(matched_shift)
                 if home.startswith("ARF"):
                     zones["Arafat"] += size
-                    if home in stations: stations[home] += size
                 elif home.startswith("MUZ"):
                     zones["Muzdalifah"] += size
-                    if home in stations: stations[home] += size
                 elif home.startswith("MIN"):
                     zones["Mina"] += size
-                    if home in stations: stations[home] += size
                 else:
                     zones["Support"] += size
+                if home in SITES:
+                    if fam == 'D': sd_paras_day[home] += size
+                    elif fam == 'N': sd_paras_night[home] += size
+                    else:           sd_paras_always[home] += size
+                    sd_units_per_family[home][fam].append(uid)
+                    sd_by_type[home][utype] += 1
+                    sd_units[home].append(uid)
+                    sd_shifts[home].add(matched_shift)
+                    if utype == "Doctor":
+                        sd_doctors[home] += 1
+
+            # Collapse to operational headcount per station:
+            #   effective = max(day_crew, night_crew) + always_on_baseline
+            # This is the correct operational reading at every hour, including
+            # handover hours (05:00 / 17:00) where day and night shifts physically
+            # overlap for 1 hour. The previous code summed both shifts which
+            # inflated the count by the incoming/outgoing crew size.
+            for st in SITES:
+                effective = max(sd_paras_day[st], sd_paras_night[st]) + sd_paras_always[st]
+                sd_paras[st] = effective
+                if st in stations:
+                    stations[st] = effective
+
+            # Also collapse the zone sums: zones[zone] currently has the
+            # naive sum across all stations. Rebuild from effective station
+            # values so the zone totals are consistent.
+            zones = {"Arafat":0, "Muzdalifah":0, "Mina":0, "Support":0}
+            for st in SITES:
+                zones[_zone_of(st)] += stations.get(st, 0)
+
+            # Crewed ambulance presence at each station — the "currently
+            # has a crew on duty" view. This is what `stations_amb` shows
+            # by default. The static physical count is kept as a secondary
+            # `stations_amb_total` field so the detail panel can show "x/y".
+            stations_amb = {st: 0 for st in SITES}
+            for st, ambs in amb_by_home.items():
+                if st not in stations_amb: continue
+                for a in ambs:
+                    day_crew = a["day_crew"]; night_crew = a["night_crew"]
+                    if (day_crew and day_crew in active_units) or (night_crew and night_crew in active_units):
+                        stations_amb[st] += 1
+
+            stations_amb_total = dict(static_amb_by_home)
+
+            # Doctors per station: derived from active Doctor-type units
+            # (Delta-*). Each station has 2 Delta units (day GP slot + night
+            # GP slot) — sd_doctors picks up both when both are on duty,
+            # which is the correct picture during handover overlap hours.
+            stations_doctors = dict(sd_doctors)
+            total_doctors = sum(stations_doctors.values())
+
+            # Build per-site detail blob for the positioning view's expander.
+            stations_detail = {}
+            for st in SITES:
+                stations_detail[st] = {
+                    "paras":          sd_paras[st],
+                    "paras_day":      sd_paras_day[st],
+                    "paras_night":    sd_paras_night[st],
+                    "paras_always":   sd_paras_always[st],
+                    "by_type":        dict(sd_by_type[st]),
+                    "doctors":        stations_doctors[st],
+                    "amb_crewed":     stations_amb[st],
+                    "amb_total":      stations_amb_total.get(st, 0),
+                    "active_units":   sorted(sd_units[st]),
+                    "active_shifts":  sorted(sd_shifts[st]),
+                    "units_day":      sorted(sd_units_per_family[st]['D']),
+                    "units_night":    sorted(sd_units_per_family[st]['N']),
+                    "units_always":   sorted(sd_units_per_family[st]['A']),
+                }
+
+            arf_a = stations_amb.get("ARF1",0)+stations_amb.get("ARF2",0)+stations_amb.get("ARF3",0)
+            muz_a = stations_amb.get("MUZ1",0)+stations_amb.get("MUZ2",0)+stations_amb.get("MUZ3",0)
+            min_a = stations_amb.get("MIN1",0)+stations_amb.get("MIN2",0)+stations_amb.get("MIN3",0)
+            grand_a = sum(stations_amb.values())
+            grand_a_total = sum(stations_amb_total.values())
+
             out_hours.append({
                 "dh":f"{dh} DH","hour":f"{h:02d}:00","mvt":mvt_code,"shift":shift_label,
                 "label":f"{dh} DH {h:02d}:00",
                 "arf_s":zones["Arafat"],"muz_s":zones["Muzdalifah"],"min_s":zones["Mina"],
-                "arf_a":0,"muz_a":0,"min_a":0,"rov_c":0,"fwd_c":0,"dep_c":0,
+                "arf_a":arf_a,"muz_a":muz_a,"min_a":min_a,
+                "rov_c":0,"fwd_c":0,"dep_c":0,
                 "support":zones["Support"],"rov_a":0,"fwd_a":0,"dep_a":0,
-                "stations":stations, "stations_amb":{st:0 for st in STATIONS},
-                "grand_s":sum(zones.values()),"grand_a":0,
+                "stations":stations, "stations_amb":stations_amb,
+                "stations_amb_total": stations_amb_total,
+                "stations_doctors":  stations_doctors,
+                "stations_detail":   stations_detail,
+                "doctors":           total_doctors,
+                "grand_s":sum(zones.values()),"grand_a":grand_a,
+                "grand_a_total":     grand_a_total,
+                "by_type": dict(by_type),
+                "by_zone_type": {z: dict(d) for z, d in by_zone_type.items()},
+                "units_active": len(active_units),
             })
 
     return {
@@ -321,6 +950,8 @@ def build_hourly(staff_rows, schedule_rows, shifts_rows, units_rows):
         "peak_muzdalifah":max((h["muz_s"] for h in out_hours), default=0),
         "peak_mina":max((h["min_s"] for h in out_hours), default=0),
         "movement_peaks":{},"total_hours":len(out_hours),
+        "total_roster": total_roster,
+        "total_roster_by_zone": total_roster_by_zone,
     }
 
 def compute_augmentations(aug_rows):
@@ -365,7 +996,7 @@ def compute_status_counts(units_rows):
 
 def compute_schedule_grid(schedule_rows, units_rows, shifts_rows):
     """Per-station per-day-slot summary: how many units & paras on each shift."""
-    shift_dur = {s(r.get("Code")): num(r.get("Duration (h)"), 0) for r in shifts_rows if s(r.get("Code"))}
+    shift_dur = {s(r.get("Code")): compute_shift_duration(r.get("Start"), r.get("End")) for r in shifts_rows if s(r.get("Code"))}
     unit_size = {s(u.get("Unit ID")): int(num(u.get("Size", 1))) for u in units_rows}
     unit_home = {s(u.get("Unit ID")): s(u.get("Home Station")) for u in units_rows}
     unit_type = {s(u.get("Unit ID")): s(u.get("Unit Type")) for u in units_rows}
@@ -398,7 +1029,7 @@ def compute_schedule_grid(schedule_rows, units_rows, shifts_rows):
 
 def compute_daily_view(schedule_rows, units_rows, shifts_rows):
     """One row per (DH day, slot) with totals. For day-by-day overview."""
-    shift_dur = {s(r.get("Code")): num(r.get("Duration (h)"), 0) for r in shifts_rows if s(r.get("Code"))}
+    shift_dur = {s(r.get("Code")): compute_shift_duration(r.get("Start"), r.get("End")) for r in shifts_rows if s(r.get("Code"))}
     shift_type = {s(r.get("Code")): s(r.get("Type")) for r in shifts_rows if s(r.get("Code"))}
     unit_size = {s(u.get("Unit ID")): int(num(u.get("Size", 1))) for u in units_rows}
     unit_home = {s(u.get("Unit ID")): s(u.get("Home Station")) for u in units_rows}
@@ -511,9 +1142,10 @@ def compute_zone_movement(schedule_rows, units_rows, shifts_rows):
                     candidates.append((dh_p - 1, 2))
                 for col_dh, slot in candidates:
                     code = s(r.get(f"{col_dh}DH-S{slot}"))
-                    if not code or code not in shift_map: continue
-                    start_t, end_t = shift_map[code]
-                    if shift_covers_hour(start_t, end_t, h_p):
+                    if not code: continue
+                    if not covers_hour_resolved(code, shift_map, h_p): continue
+                    # Resolved (either from Shifts tab or inferred from code structure)
+                    if True:
                         unit_active = True
                         break
             if unit_active:
@@ -670,7 +1302,7 @@ def compute_ambulance_dashboards(amb_rows, units_rows, schedule_rows, shifts_row
     """
     unit_home = {s(u.get("Unit ID")): s(u.get("Home Station")) for u in units_rows}
     schedule_by_uid = {s(r.get("Unit ID")): r for r in schedule_rows if s(r.get("Unit ID"))}
-    shift_dur = {s(r.get("Code")): num(r.get("Duration (h)"), 0) for r in shifts_rows if s(r.get("Code"))}
+    shift_dur = {s(r.get("Code")): compute_shift_duration(r.get("Start"), r.get("End")) for r in shifts_rows if s(r.get("Code"))}
     shift_type = {s(r.get("Code")): s(r.get("Type")) for r in shifts_rows if s(r.get("Code"))}
 
     DH_DAYS = list(range(4, 15))
@@ -979,12 +1611,22 @@ def compute_insights(stations_detail, day_night_station, amb_by_station, hourly_
 
 def main():
     print("Hajj Ops Builder v8 (v11.8 schema)")
+
+    # Auto-derive movement phase durations from start/end times. The hand-
+    # maintained `duration_hrs` field had drifted (B1A stored 6 h, actual 5 h;
+    # PRE-B stored 60 h, actual 107 h; etc.). Single source of truth: the
+    # start_dh/start_hour/end_dh/end_hour fields.
+    for _ph in MOVEMENT_PHASES:
+        _ph["duration_hrs"] = compute_phase_duration(
+            _ph["start_dh"], _ph["start_hour"], _ph["end_dh"], _ph["end_hour"]
+        )
+
     xlsx_path = download_xlsx()
     wb = openpyxl.load_workbook(xlsx_path, data_only=True)
     print(f"  Sheets: {wb.sheetnames}")
 
     roles = read_sheet(wb, "Roles")
-    units = read_sheet(wb, "Units", r"^(PM|DPM|ADM|MDL|CHF|DCH|LOG|OCC|DPT|TRN|SUP|Mike|Alpha|Romeo)")
+    units = read_sheet(wb, "Units", r"^(PM|DPM|ADM|MDL|CHF|DCH|LOG|OCC|DPT|TRN|SUP|Mike|Alpha|Romeo|Delta)")
     staff = read_sheet(wb, "Staff")
     shifts = read_sheet(wb, "Shifts")
     schedule = read_sheet(wb, "Schedule")
@@ -998,7 +1640,7 @@ def main():
     org = compute_org_structure(units)
     aug = compute_augmentations(augs)
     status_counts = compute_status_counts(units)
-    hourly = build_hourly(staff, schedule, shifts, units)
+    hourly = build_hourly(staff, schedule, shifts, units, ambulances)
     stations_detail = compute_stations_detail(units, staff, unit_readiness)
     ambulance_roster, amb_by_station, amb_by_station_type = compute_ambulance_data(ambulances, units)
     units_detail = compute_units_detail(units, staff)
@@ -1026,6 +1668,21 @@ def main():
         "org_structure": org,
         "movements": MOVEMENTS,
         "movement_phases": MOVEMENT_PHASES,
+        # Metro reference (SAR official ops doc, 1447H) — used by the
+        # /metro.html operational viewer to show train movements, active
+        # platforms per station, expected pax flow, and tafweej zones.
+        "metro": {
+            "phases": MOVEMENT_PHASES,
+            "platforms": METRO_PLATFORMS,
+            "pax_flow": [
+                {"movement_group":g, "dh":dh, "hour":h, "station":st, "count":c}
+                for g, rows in METRO_PAX_FLOW.items()
+                for (dh, h, st, c) in rows
+            ],
+            "tafweej": METRO_TAFWEEJ,
+            "gaps": METRO_GAPS,
+            "station_hours": METRO_STATION_HOURS,
+        },
         "status_counts": status_counts,
         "zone_by_mvt": {},
         "roster": roster,
@@ -1050,7 +1707,14 @@ def main():
     }
 
     with open("data.json", "w") as f:
-        json.dump(data, f, ensure_ascii=False, indent=None, separators=(",", ":"))
+        # Custom default: openpyxl returns datetime.time / datetime.date /
+        # datetime.datetime objects for time- and date-typed cells (e.g. the
+        # shift Start/End columns). Stringify them rather than crashing.
+        def _json_default(o):
+            if hasattr(o, 'isoformat'):
+                return o.isoformat()
+            return str(o)
+        json.dump(data, f, ensure_ascii=False, indent=None, separators=(",", ":"), default=_json_default)
 
     size = os.path.getsize("data.json")
     print(f"  ✓ Wrote data.json ({size:,} bytes)")
@@ -1100,6 +1764,10 @@ def main():
             "timeline": data.get("timeline", []),
             "refreshed_at": data["refreshed_at"],
         },
+        "api/v1/metro.json": {
+            "metro": data.get("metro", {}),
+            "refreshed_at": data["refreshed_at"],
+        },
         "api/v1/index.json": {
             "api": "hajj-ops v1",
             "version": "v11.8",
@@ -1111,6 +1779,7 @@ def main():
                 "/api/v1/movements.json",
                 "/api/v1/ambulances.json",
                 "/api/v1/calendar.json",
+                "/api/v1/metro.json",
                 "/data.json",
             ],
             "docs": "https://hajj.shuki.tech/api-docs.html",
@@ -1118,8 +1787,11 @@ def main():
     }
     for _path, _payload in _api_endpoints.items():
         with open(_path, "w") as _f:
-            json.dump(_payload, _f, ensure_ascii=False, separators=(",", ":"))
+            json.dump(_payload, _f, ensure_ascii=False, separators=(",", ":"), default=_json_default)
     print(f"  \u2713 Wrote {len(_api_endpoints)} /api/v1/*.json files")
+
+    # Shift code resolution audit — runs AFTER build_hourly populated SHIFT_AUDIT.
+    print_shift_audit()
 
     try: os.unlink(xlsx_path)
     except: pass

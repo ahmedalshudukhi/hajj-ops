@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Active Insights · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.18">
+<link rel="stylesheet" href="assets/style.css?v=0.9.5">
 
 <style>
   body { background: var(--bg); }
@@ -384,19 +384,39 @@
 
 </div>
 
-<script src="assets/config.js?v=0.2.18"></script>
-<script src="assets/tempo.js?v=0.2.18"></script>
-<script src="assets/auth.js?v=0.2.18"></script>
-<script src="assets/topbar.js?v=0.2.18"></script>
-<script src="assets/dateBar.js?v=0.2.18"></script>
+<script src="assets/config.js?v=0.9.5"></script>
+<script src="assets/tempo.js?v=0.9.5"></script>
+<script src="assets/auth.js?v=0.9.9"></script>
+<script src="assets/shortcuts.js?v=0.9.5"></script>
+<script src="assets/topbar.js?v=0.9.5"></script>
+<script src="assets/dateBar.js?v=0.9.5"></script>
 <script>
 (function () {
 
   if (!HAJJ.requireRole(['leadership', 'admin', 'cluster_supervisor'])) return;
   CADTopbar.render({ title: "Active", subtitle: "live operations" });
 
+  // Clear stale SWR cache to ensure initial paint always fetches fresh — this
+  // fixes the issue where numbers stayed blank until user clicked "Today".
+  try {
+    Object.keys(sessionStorage).forEach(k => {
+      if (k.indexOf('swr:active_summary') === 0 || k.indexOf('swr:unit_positions') === 0 || k.indexOf('swr:unit_availability') === 0) {
+        sessionStorage.removeItem(k);
+      }
+    });
+  } catch (_) {}
 
   // logoutBtn handled by topbar.js (cadSignOut)
+
+  // Date-bar state: declared HERE (before refresh() is called) to avoid
+  // temporal dead zone — the initial refresh() reads these synchronously
+  // before its first await. Previously these were declared near the
+  // date-bar widget setup, causing refresh() to throw ReferenceError on
+  // page load, which is why nothing painted until the user clicked Today.
+  let _selectedDate = (new Date()).toISOString().slice(0,10);
+  let _endDate = _selectedDate;
+  let _isRange = false;
+  let _selectedMovement = '';
 
   let lastOk = null;
   refresh();
@@ -589,18 +609,36 @@
 
   function renderResponseTime(rt) {
     rt = rt || {};
+    // Hero strip (top-right)
     const meanEl = document.getElementById('hMeanRt');
-    const p95El = document.getElementById('hP95Rt');
-    const cntEl = document.getElementById('hRtCount');
+    const p95El  = document.getElementById('hP95Rt');
+    const cntEl  = document.getElementById('hRtCount');
+    // Dedicated Response Time panel (3 tiles)
+    const rtMeanEl = document.getElementById('rtMean');
+    const rtP50El  = document.getElementById('rtP50');
+    const rtP95El  = document.getElementById('rtP95');
+    const rtMetaEl = document.getElementById('rtMeta');
+
     if (!rt.count || rt.count === 0) {
       if (meanEl) meanEl.textContent = '—';
       if (p95El) p95El.textContent = '—';
       if (cntEl) cntEl.textContent = '0 samples';
+      if (rtMeanEl) rtMeanEl.textContent = '—';
+      if (rtP50El)  rtP50El.textContent  = '—';
+      if (rtP95El)  rtP95El.textContent  = '—';
+      if (rtMetaEl) rtMetaEl.textContent = 'no closed incidents';
       return;
     }
-    if (meanEl) meanEl.textContent = msToMin(rt.mean_ms);
-    if (p95El) p95El.textContent = msToMin(rt.p95_ms);
+    const meanTxt = msToMin(rt.mean_ms);
+    const p50Txt  = msToMin(rt.p50_ms);
+    const p95Txt  = msToMin(rt.p95_ms);
+    if (meanEl) meanEl.textContent = meanTxt;
+    if (p95El) p95El.textContent = p95Txt;
     if (cntEl) cntEl.textContent = rt.count + ' samples';
+    if (rtMeanEl) rtMeanEl.textContent = meanTxt;
+    if (rtP50El)  rtP50El.textContent  = p50Txt;
+    if (rtP95El)  rtP95El.textContent  = p95Txt;
+    if (rtMetaEl) rtMetaEl.textContent = 'n=' + rt.count;
   }
 
   function renderAcuity(p) {
@@ -910,10 +948,8 @@
 
   // ===== Filter strip =====
   let _allAugRows = [];
-  let _selectedDate = '';
-  let _endDate = '';
-  let _isRange = false;
-  let _selectedMovement = '';
+  // _selectedDate / _endDate / _isRange / _selectedMovement declared at top
+  // of IIFE (above the initial refresh()) to avoid temporal dead zone.
 
   function dhDayFromDate(yyyy_mm_dd) {
     if (!yyyy_mm_dd) return null;
@@ -1118,6 +1154,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.18"></script>
+<script src="assets/version.js?v=0.9.5"></script>
 </body>
 </html>
