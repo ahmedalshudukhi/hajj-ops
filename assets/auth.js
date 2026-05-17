@@ -358,7 +358,11 @@
     reposition_planned_create:  { method: 'GET', exec: true },
     reposition_planned_list:    { method: 'GET', exec: true },
     reposition_planned_cancel:  { method: 'GET', exec: true },
-    reposition_planned_execute: { method: 'GET', exec: true }
+    reposition_planned_execute: { method: 'GET', exec: true },
+
+    // Escalation editor (D1 overrides)
+    escalation_set:    { method: 'GET', exec: true },
+    escalation_delete: { method: 'GET', exec: true }
   };
 
   async function waitForGasToken(timeoutMs) {

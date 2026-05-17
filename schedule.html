@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Schedule · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.9.5">
-<script src="assets/config.js?v=0.9.5"></script>
-<script src="assets/auth.js?v=0.9.6"></script>
-<script src="assets/shortcuts.js?v=0.9.5"></script>
-<script src="assets/topbar.js?v=0.9.5"></script>
+<link rel="stylesheet" href="assets/style.css?v=0.9.7">
+<script src="assets/config.js?v=0.9.7"></script>
+<script src="assets/auth.js?v=0.9.7"></script>
+<script src="assets/shortcuts.js?v=0.9.7"></script>
+<script src="assets/topbar.js?v=0.9.7"></script>
 <style>
 body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-serif; }
 .s-shell { max-width:1300px; margin:0 auto; padding:20px; }
@@ -45,6 +45,10 @@ body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-ser
   <h1 style="font-size:24px; margin:8px 0;">Schedule · Staff and Units</h1>
   <p style="color:#93a4cd; margin:0 0 14px; font-size:13px;">
     DH4 → DH14 (May 25 → June 4). Each row shows when a unit (and its members) are on duty.
+    <span style="display:inline-block;margin-left:10px;padding:2px 6px;background:rgba(245,158,11,0.45);color:#fef3c7;border-radius:2px;font-size:10px;font-family:ui-monospace,Menlo,monospace;">day shift</span>
+    <span style="display:inline-block;margin-left:4px;padding:2px 6px;background:rgba(99,102,241,0.45);color:#e0e7ff;border-radius:2px;font-size:10px;font-family:ui-monospace,Menlo,monospace;">night shift</span>
+    <span style="display:inline-block;margin-left:4px;padding:2px 6px;background:rgba(148,163,184,0.4);color:#f1f5f9;border-radius:2px;font-size:10px;font-family:ui-monospace,Menlo,monospace;">24/7</span>
+    <span style="display:inline-block;margin-left:4px;padding:2px 6px;background:rgba(148,163,184,0.08);color:#94a3b8;border-radius:2px;font-size:10px;font-family:ui-monospace,Menlo,monospace;">off</span>
   </p>
   <div class="s-tabs">
     <button class="s-tab active" data-tab="units">By Unit</button>
@@ -71,7 +75,7 @@ body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-ser
   </div>
   <div id="sBody"><div class="empty">Loading schedule…</div></div>
 </div>
-<script src="assets/version.js?v=0.9.5"></script>
+<script src="assets/version.js?v=0.9.7"></script>
 <script>
 (async function() {
   if (!HAJJ.requireAuth()) return;
@@ -140,10 +144,16 @@ body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-ser
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]); }
 
-  function dhStrip(shiftCode) {
+  function dhStrip(shiftCode, activeDh) {
     const fam = shiftFamily(shiftCode);
     const famCls = fam === 'D' ? 'on' : fam === 'N' ? 'on-n' : 'on-a';
-    return '<div class="dh-grid">' + DH_DAYS.map(d => '<div class="dh-cell ' + famCls + '">' + d + '</div>').join('') + '</div>';
+    // If activeDh array provided, only color those days; the rest are dim/off
+    const activeSet = new Set((activeDh || []).map(d => parseInt(d, 10)));
+    const hasFilter = (activeDh && activeDh.length > 0);
+    return '<div class="dh-grid">' + DH_DAYS.map(d => {
+      const onCls = (hasFilter ? (activeSet.has(d) ? famCls : '') : famCls);
+      return '<div class="dh-cell ' + onCls + '">' + d + '</div>';
+    }).join('') + '</div>';
   }
 
   function unitCard(u) {
@@ -160,7 +170,7 @@ body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-ser
         '<span class="pill ' + fillCls + '">' + filled + '/' + total + ' staffed</span>' +
         '<span class="pill">' + esc(u.category || '—') + '</span>' +
       '</div>' +
-      dhStrip(u.default_shift) +
+      dhStrip(u.default_shift, u.active_dh) +
       (members ? '<div class="members">' + members + '</div>' : '') +
     '</div>';
   }
@@ -175,7 +185,7 @@ body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-ser
         '<span class="pill">' + esc(u.home_station || '—') + '</span>' +
         '<span class="pill ' + stat + '">' + esc(m.status || 'Vacant') + '</span>' +
       '</div>' +
-      dhStrip(u.default_shift) +
+      dhStrip(u.default_shift, u.active_dh) +
     '</div>';
   }
 

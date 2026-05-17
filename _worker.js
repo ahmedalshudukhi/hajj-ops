@@ -428,6 +428,8 @@ const ROLE_GATE = {
   reposition_planned_list: null,
   reposition_planned_cancel: ['cluster_supervisor','dispatcher','leadership','admin'],
   reposition_planned_execute: ['cluster_supervisor','dispatcher','leadership','admin'],
+  escalation_set: ['leadership','admin'],
+  escalation_delete: ['admin'],
   me_summary: null,
   board_summary: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'],
   pulse_feed: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'],
@@ -3652,8 +3654,37 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
   // hardcoded list. Add an 'Escalation' tab to Mobilization_Plan
   // with columns: tier, role, when, name, phone, contact.
   // ==============================================================
+  async _ensureEscalationTable(env) {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS escalation_overrides (
+      tier INTEGER PRIMARY KEY,
+      role TEXT,
+      when_text TEXT,
+      name TEXT,
+      phone TEXT,
+      contact TEXT,
+      updated_by_nid TEXT,
+      updated_by_name TEXT,
+      updated_at INTEGER
+    )`).run();
+  },
+
   async escalation_matrix(user, env, params, dj) {
-    // Prefer the Google-Sheet-driven list if present in data.json
+    // Hybrid pattern: D1 overrides > Google Sheet > hardcoded fallback.
+    await ACTIONS._ensureEscalationTable(env);
+    let d1List = [];
+    try {
+      const r = await env.DB.prepare(`SELECT * FROM escalation_overrides ORDER BY tier ASC`).all();
+      d1List = (r.results || []).map(row => ({
+        tier: row.tier,
+        role: row.role || '',
+        when: row.when_text || '',
+        name: row.name || '',
+        phone: row.phone || '',
+        contact: row.contact || ((row.name || '') + (row.phone ? ' · ' + row.phone : ''))
+      }));
+    } catch (_) {}
+
+    // Build sheet-driven list (from data.json.escalation if present)
     const sheetList = (dj && dj.escalation && Array.isArray(dj.escalation) && dj.escalation.length)
       ? dj.escalation.map(r => ({
           tier: parseInt(r.tier || r.Tier || 0, 10) || 0,
@@ -3664,11 +3695,21 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
           contact: String(r.contact || r.Contact ||
             (r.name + (r.phone ? ' · ' + r.phone : ''))).trim()
         })).sort((a,b) => a.tier - b.tier)
-      : null;
-    if (sheetList && sheetList.length) {
-      return { ok: true, levels: sheetList, source: 'google_sheet' };
+      : [];
+
+    // Merge D1 overrides over sheet (tier-keyed)
+    if (d1List.length || sheetList.length) {
+      const byTier = {};
+      sheetList.forEach(r => { byTier[r.tier] = r; });
+      // D1 overrides take precedence
+      d1List.forEach(r => { byTier[r.tier] = r; });
+      const merged = Object.values(byTier).sort((a,b) => a.tier - b.tier);
+      const source = d1List.length && sheetList.length ? 'd1_overrides_sheet'
+                   : d1List.length ? 'd1_only'
+                   : 'google_sheet';
+      return { ok: true, levels: merged, source };
     }
-    // Fallback: hardcoded list (legacy). Edit the Google Sheet to override.
+    // Fallback: hardcoded list (legacy). Edit /escalation tab or admin UI to override.
     return { ok: true, source: 'hardcoded_fallback', levels: [
       { tier: 1, role: 'Cluster Supervisor', when: 'First-line clinical/operational issue',
         name: 'Cluster supervisors (Arafat / Muzdalifah / Mina)', phone: 'Radio CH-2/3/4',
@@ -3859,6 +3900,45 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
     }
   },
 
+
+
+  // ==============================================================
+  // escalation_set — admin writes an override for a tier into D1
+  // (takes precedence over the Google Sheet)
+  // ==============================================================
+  async escalation_set(user, env, params) {
+    await ACTIONS._ensureEscalationTable(env);
+    const tier = parseInt(params.tier, 10);
+    if (!tier || tier < 1 || tier > 99) return { ok: false, error: 'invalid_tier' };
+    const role = String(params.role || '').slice(0, 200);
+    const when_text = String(params.when || params.when_text || '').slice(0, 500);
+    const name = String(params.name || '').slice(0, 200);
+    const phone = String(params.phone || '').slice(0, 60);
+    const contact = String(params.contact || (name + (phone ? ' · ' + phone : ''))).slice(0, 500);
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      await env.DB.prepare(
+        `INSERT INTO escalation_overrides (tier, role, when_text, name, phone, contact, updated_by_nid, updated_by_name, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?)
+         ON CONFLICT(tier) DO UPDATE SET role=excluded.role, when_text=excluded.when_text, name=excluded.name, phone=excluded.phone, contact=excluded.contact, updated_by_nid=excluded.updated_by_nid, updated_by_name=excluded.updated_by_name, updated_at=excluded.updated_at`
+      ).bind(tier, role, when_text, name, phone, contact, user.nid, user.name || '', now).run();
+      return { ok: true, tier };
+    } catch (e) {
+      return { ok: false, error: 'db_error', detail: String(e.message) };
+    }
+  },
+
+  async escalation_delete(user, env, params) {
+    await ACTIONS._ensureEscalationTable(env);
+    const tier = parseInt(params.tier, 10);
+    if (!tier) return { ok: false, error: 'invalid_tier' };
+    try {
+      await env.DB.prepare(`DELETE FROM escalation_overrides WHERE tier = ?`).bind(tier).run();
+      return { ok: true, tier };
+    } catch (e) {
+      return { ok: false, error: 'db_error', detail: String(e.message) };
+    }
+  },
 
   // ==============================================================
   // shift_status — current shift indicator for UI
@@ -4238,29 +4318,71 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
   // ==============================================================
   async schedule_overview(user, env, params, dj) {
     const detail = (dj && dj.units_detail) || [];
+    const dailyView = (dj && dj.daily_view) || [];
     const filter_station = String(params.station || '').toUpperCase();
     const filter_cat = String(params.category || '');
-    let units = detail.map(u => ({
-      code: u.id || '',
-      type: u.type || '',
-      home_station: u.home || '',
-      category: u.category || '',
-      default_shift: u.default_shift || '',
-      size: u.size || u.total_count || 0,
-      filled_count: u.filled_count || 0,
-      members: (u.members || []).map(m => ({
-        staff_id: m.staff_id || '',
-        name: m.name || '',
-        role: m.role || '',
-        call_sign: m.call_sign || '',
-        phone: m.phone || '',
-        status: m.status || ''
-      }))
-    })).filter(u => u.code);
+
+    // Build map: DH day → Set of active shift codes (from daily_view)
+    const activeShiftsByDH = {};
+    dailyView.forEach(row => {
+      const dh = parseInt(row.dh, 10);
+      const codes = Object.keys(row.shifts || {});
+      activeShiftsByDH[dh] = new Set(codes);
+    });
+    const DH_RANGE = [4,5,6,7,8,9,10,11,12,13,14];
+
+    function activeDhsForShift(shiftCode) {
+      // Compute which DH days this shift code is active on.
+      // A unit's shift can be "D7", "N15", "24/7", "D3-12" (compound), etc.
+      // We check daily_view; if a DH lists this shift code, the unit is on.
+      // Also handle compound codes like "D3-12" (synonym for D3 between DH 3-12).
+      const out = [];
+      const base = String(shiftCode || '').trim();
+      if (!base) return out;
+      DH_RANGE.forEach(dh => {
+        const codes = activeShiftsByDH[dh];
+        if (!codes) return;
+        // Exact match
+        if (codes.has(base)) { out.push(dh); return; }
+        // Compound match — e.g. "D3-12" appears for DH9 alongside "D3"
+        for (const c of codes) {
+          if (c.startsWith(base + '-') || c.startsWith(base + ' ')) { out.push(dh); return; }
+          // Reverse: if unit shift is "D3-12" but daily_view shows "D3"
+          if (base.startsWith(c + '-') || base.startsWith(c + ' ')) { out.push(dh); return; }
+        }
+      });
+      return out;
+    }
+
+    let units = detail.map(u => {
+      const shift = u.default_shift || '';
+      const active_dh = activeDhsForShift(shift);
+      return {
+        code: u.id || '',
+        type: u.type || '',
+        home_station: u.home || '',
+        category: u.category || '',
+        default_shift: shift,
+        size: u.size || u.total_count || 0,
+        filled_count: u.filled_count || 0,
+        // NEW: actual days this unit is on-duty (derived from daily_view)
+        active_dh: active_dh,
+        // If we couldn't derive (no daily_view), assume all 11 days
+        active_dh_fallback: active_dh.length === 0,
+        members: (u.members || []).map(m => ({
+          staff_id: m.staff_id || '',
+          name: m.name || '',
+          role: m.role || '',
+          call_sign: m.call_sign || '',
+          phone: m.phone || '',
+          status: m.status || ''
+        }))
+      };
+    }).filter(u => u.code);
     if (filter_station) units = units.filter(u => u.home_station === filter_station);
     if (filter_cat) units = units.filter(u => u.category === filter_cat);
     units.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
-    return { ok: true, units, dh_range: [4,5,6,7,8,9,10,11,12,13,14], total: units.length };
+    return { ok: true, units, dh_range: DH_RANGE, total: units.length };
   },
 
   // me_summary — personal page data (your shift, your stats)

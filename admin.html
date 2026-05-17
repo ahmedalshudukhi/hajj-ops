@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Admin · HMG Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.53">
-<script src="assets/config.js?v=0.2.53"></script>
-<script src="assets/tempo.js?v=0.2.53"></script>
-<script src="assets/auth.js?v=0.2.61"></script>
-<script src="assets/shortcuts.js?v=0.2.53"></script>
-<script src="assets/topbar.js?v=0.2.53"></script>
+<link rel="stylesheet" href="assets/style.css?v=0.9.7">
+<script src="assets/config.js?v=0.9.7"></script>
+<script src="assets/tempo.js?v=0.9.7"></script>
+<script src="assets/auth.js?v=0.9.7"></script>
+<script src="assets/shortcuts.js?v=0.9.7"></script>
+<script src="assets/topbar.js?v=0.9.7"></script>
 <style>
   .admin-wrap { max-width: 1200px; margin: 0 auto; padding: 16px; }
   .admin-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; overflow-x: auto; }
@@ -71,6 +71,34 @@
   .reposition-status.auto_approved { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; }
   .reposition-status.rejected     { background: rgba(239, 68, 68, 0.15);  color: #fca5a5; }
   .reposition-status.active       { background: rgba(34, 197, 94, 0.15); color: #86efac; }
+  .reposition-status.executed     { background: rgba(34, 197, 94, 0.15); color: #86efac; }
+  .reposition-status.cancelled    { background: rgba(107, 114, 128, 0.20); color: #9ca3af; }
+
+  /* Planned reposition form */
+  .form-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
+  .form-card h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+  .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; align-items: end; }
+  .form-row label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 600; display: block; margin-bottom: 4px; }
+  .form-row input, .form-row select { width: 100%; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 8px 10px; font-size: 13px; box-sizing: border-box; }
+  .form-row input:focus, .form-row select:focus { outline: 1px solid #3b82f6; outline-offset: -1px; }
+  .form-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .btn-primary { background: #3b82f6; color: white; border: 0; padding: 8px 14px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; }
+  .btn-primary:hover { background: #2563eb; }
+  .btn-secondary { background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border); padding: 7px 12px; border-radius: 6px; font-weight: 500; font-size: 13px; cursor: pointer; }
+  .btn-secondary:hover { background: rgba(255,255,255,0.10); }
+  .btn-danger { background: rgba(239, 68, 68, 0.12); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); padding: 5px 10px; border-radius: 4px; font-size: 11px; font-weight: 500; cursor: pointer; }
+  .btn-success { background: rgba(34, 197, 94, 0.18); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.3); padding: 5px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer; }
+
+  /* Escalation editor */
+  .esc-edit-row td input { width: 100%; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 4px 8px; font-size: 13px; box-sizing: border-box; }
+  .esc-source-pill { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+  .esc-source-pill.d1 { background: rgba(34, 197, 94, 0.15); color: #86efac; }
+  .esc-source-pill.sheet { background: rgba(59, 130, 246, 0.15); color: #93c5fd; }
+  .esc-source-pill.fallback { background: rgba(245, 158, 11, 0.15); color: #fcd34d; }
+  .toast { position: fixed; bottom: 20px; right: 20px; background: rgba(20, 28, 50, 0.95); color: #e7ecf7; padding: 12px 16px; border-radius: 8px; border: 1px solid #3b82f6; font-size: 13px; max-width: 360px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); z-index: 1000; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .toast.error { border-color: #ef4444; color: #fca5a5; }
+  .toast.success { border-color: #22c55e; color: #86efac; }
 </style>
 </head>
 <body>
@@ -87,6 +115,8 @@
     <button class="admin-tab active" data-tab="allowlist">Allowlist <span class="badge" id="allowlistCount">—</span></button>
     <button class="admin-tab" data-tab="sessions">Active Sessions <span class="badge" id="sessionsCount">—</span></button>
     <button class="admin-tab" data-tab="reposition">Reposition Queue <span class="badge" id="repositionCount">—</span></button>
+    <button class="admin-tab" data-tab="planned">Planned Repos <span class="badge" id="plannedCount">—</span></button>
+    <button class="admin-tab" data-tab="escalation">Escalation <span class="badge" id="escalationCount">—</span></button>
     <button class="admin-tab" data-tab="audit">Audit Log <span class="badge" id="auditCount">—</span></button>
   </div>
 
@@ -185,7 +215,123 @@
     </div>
   </div>
 
-  <!-- AUDIT -->
+  <!-- PLANNED REPOSITION -->
+  <div class="admin-panel" data-panel="planned">
+    <div class="form-card">
+      <h3>Schedule a unit move</h3>
+      <div class="form-row">
+        <div>
+          <label for="prpUnit">Unit</label>
+          <select id="prpUnit"><option value="">Loading units…</option></select>
+        </div>
+        <div>
+          <label for="prpToStation">To station</label>
+          <select id="prpToStation">
+            <option value="">— select —</option>
+            <option>ARF1</option><option>ARF2</option><option>ARF3</option>
+            <option>MUZ1</option><option>MUZ2</option><option>MUZ3</option>
+            <option>MIN1</option><option>MIN2</option><option>MIN3</option>
+            <option>OCC</option>
+          </select>
+        </div>
+        <div>
+          <label for="prpDH">DH day</label>
+          <select id="prpDH">
+            <option value="">— select —</option>
+            <option value="4">DH 4 · 25 May</option>
+            <option value="5">DH 5 · 26 May</option>
+            <option value="6">DH 6 · 27 May</option>
+            <option value="7">DH 7 · 28 May</option>
+            <option value="8">DH 8 · 29 May (Tarwiyah)</option>
+            <option value="9">DH 9 · 30 May (Arafah)</option>
+            <option value="10">DH 10 · 31 May (Eid)</option>
+            <option value="11">DH 11 · 1 Jun</option>
+            <option value="12">DH 12 · 2 Jun</option>
+            <option value="13">DH 13 · 3 Jun</option>
+            <option value="14">DH 14 · 4 Jun</option>
+          </select>
+        </div>
+        <div>
+          <label for="prpHour">Hour (KSA)</label>
+          <select id="prpHour"><option value="00:00">00:00</option></select>
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label for="prpReason">Reason / notes</label>
+          <input type="text" id="prpReason" placeholder="e.g. Nafra surge backup at MIN3" maxlength="500">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn-primary" id="prpSubmit">Schedule move</button>
+        <button class="btn-secondary" id="prpReset">Reset</button>
+        <span id="prpMsg" style="font-size:12px; color:var(--text-muted); align-self:center; margin-left:auto;"></span>
+      </div>
+    </div>
+
+    <h3 style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 16px 0 8px;">Scheduled (pending)</h3>
+    <div style="overflow-x: auto;">
+      <table class="admin-table">
+        <thead>
+          <tr><th>Unit</th><th>To Station</th><th>DH</th><th>Hour</th><th>Reason</th><th>Created by</th><th>Created</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="plannedPendingBody">
+          <tr><td colspan="8" class="empty-state">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 24px 0 8px;">Executed / Cancelled</h3>
+    <div style="overflow-x: auto;">
+      <table class="admin-table">
+        <thead>
+          <tr><th>Status</th><th>Unit</th><th>To Station</th><th>DH</th><th>Hour</th><th>Reason</th><th>Created</th><th>Resolved</th></tr>
+        </thead>
+        <tbody id="plannedDoneBody">
+          <tr><td colspan="8" class="empty-state">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ESCALATION EDITOR -->
+  <div class="admin-panel" data-panel="escalation">
+    <div class="form-card">
+      <h3 style="margin-bottom:6px;">Escalation matrix editor</h3>
+      <div style="font-size:12px;color:var(--text-muted);line-height:1.5;margin-bottom:10px;">
+        Hybrid editing model. Three sources of truth, in priority order:
+        <br>1. <span class="esc-source-pill d1">D1 override</span> — edited from this page, applies instantly.
+        <br>2. <span class="esc-source-pill sheet">Google Sheet</span> — add an "Escalation" tab to Mobilization_Plan (tier · role · when · name · phone · contact). Cron pulls in 15 min.
+        <br>3. <span class="esc-source-pill fallback">Hardcoded fallback</span> — only used when neither D1 nor sheet has the tier.
+        <br>Click "Edit" on a row to override; "Reset" removes the D1 override (revealing the sheet/fallback again).
+      </div>
+      <div id="escSourceLabel" style="font-size:11px; color:var(--text-muted);">—</div>
+    </div>
+    <div style="overflow-x: auto;">
+      <table class="admin-table">
+        <thead>
+          <tr><th>Tier</th><th>Role</th><th>When</th><th>Name</th><th>Phone</th><th>Source</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="escBody">
+          <tr><td colspan="7" class="empty-state">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="form-card" style="margin-top:14px;">
+      <h3>Add new tier</h3>
+      <div class="form-row">
+        <div><label for="escNewTier">Tier #</label><input type="number" id="escNewTier" min="1" max="99" placeholder="e.g. 9"></div>
+        <div><label for="escNewRole">Role</label><input type="text" id="escNewRole" placeholder="e.g. Hospital liaison"></div>
+        <div><label for="escNewName">Name</label><input type="text" id="escNewName" placeholder="Person's name"></div>
+        <div><label for="escNewPhone">Phone</label><input type="tel" id="escNewPhone" placeholder="+966 5X XXX XXXX"></div>
+        <div style="grid-column: 1 / -1;"><label for="escNewWhen">When (scenario)</label><input type="text" id="escNewWhen" placeholder="When to escalate to this tier"></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn-primary" id="escAddBtn">Add tier</button>
+        <span id="escMsg" style="font-size:12px; color:var(--text-muted); align-self:center; margin-left:auto;"></span>
+      </div>
+    </div>
+  </div>
+
+    <!-- AUDIT -->
   <div class="admin-panel" data-panel="audit">
     <div class="filter-bar">
       <input type="text" id="auditFilter" placeholder="Filter by action, operator, target…">
@@ -420,11 +566,241 @@
       : (d.toISOString().slice(5,16).replace('T',' '));
   }
 
+  // ============ PLANNED REPOSITION ============
+  let _ALL_UNITS = [];
+
+  async function loadUnitDropdown() {
+    try {
+      const r = await HAJJ.authedCall('unit_availability', {});
+      if (!r || !r.ok) return;
+      _ALL_UNITS = (r.units || []).filter(u => u.code).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+      const sel = document.getElementById('prpUnit');
+      sel.innerHTML = '<option value="">— select unit —</option>' +
+        _ALL_UNITS.map(u => '<option value="' + esc(u.code) + '">' + esc(u.code) + ' · ' + esc(u.type || '') + ' · ' + esc(u.home_station || '') + '</option>').join('');
+    } catch (_) {}
+  }
+
+  function populateHourDropdown() {
+    const sel = document.getElementById('prpHour');
+    if (!sel) return;
+    const opts = [];
+    for (let h = 0; h < 24; h++) opts.push('<option value="' + String(h).padStart(2,'0') + ':00">' + String(h).padStart(2,'0') + ':00</option>');
+    sel.innerHTML = opts.join('');
+  }
+
+  async function loadPlannedRepos() {
+    const r = await HAJJ.authedCall('reposition_planned_list', { include_done: '1' });
+    const pendingBody = document.getElementById('plannedPendingBody');
+    const doneBody = document.getElementById('plannedDoneBody');
+    if (!r || !r.ok) {
+      pendingBody.innerHTML = '<tr><td colspan="8" class="empty-state">Failed to load.</td></tr>';
+      return;
+    }
+    const items = r.items || [];
+    const pending = items.filter(x => x.status === 'pending' || x.status === 'approved');
+    const done = items.filter(x => x.status === 'executed' || x.status === 'cancelled');
+    document.getElementById('plannedCount').textContent = pending.length;
+
+    pendingBody.innerHTML = pending.length ? pending.map(function(p) {
+      return '<tr>'
+        + '<td><strong>' + esc(p.unit_code || '') + '</strong></td>'
+        + '<td>' + esc(p.to_station || '') + '</td>'
+        + '<td>DH ' + esc(String(p.planned_dh || '')) + '</td>'
+        + '<td style="font-family:ui-monospace,monospace;">' + esc(p.planned_hour || '') + '</td>'
+        + '<td>' + esc(p.reason || '—') + '</td>'
+        + '<td>' + esc(p.created_by_name || p.created_by_nid || '—') + '</td>'
+        + '<td>' + fmtTime(p.created_at ? new Date(p.created_at * 1000).toISOString() : '') + '</td>'
+        + '<td><button class="btn-success" data-prp-exec="' + esc(p.id) + '">Execute now</button> '
+        +     '<button class="btn-danger" data-prp-cancel="' + esc(p.id) + '">Cancel</button></td>'
+        + '</tr>';
+    }).join('') : '<tr><td colspan="8" class="empty-state">No scheduled moves.</td></tr>';
+
+    doneBody.innerHTML = done.length ? done.slice(0, 30).map(function(p) {
+      return '<tr>'
+        + '<td><span class="reposition-status ' + esc(p.status) + '">' + esc(p.status || '') + '</span></td>'
+        + '<td><strong>' + esc(p.unit_code || '') + '</strong></td>'
+        + '<td>' + esc(p.to_station || '') + '</td>'
+        + '<td>DH ' + esc(String(p.planned_dh || '')) + '</td>'
+        + '<td style="font-family:ui-monospace,monospace;">' + esc(p.planned_hour || '') + '</td>'
+        + '<td>' + esc(p.reason || '—') + '</td>'
+        + '<td>' + fmtTime(p.created_at ? new Date(p.created_at * 1000).toISOString() : '') + '</td>'
+        + '<td>' + fmtTime((p.executed_at || p.cancelled_at) ? new Date((p.executed_at || p.cancelled_at) * 1000).toISOString() : '') + '</td>'
+        + '</tr>';
+    }).join('') : '<tr><td colspan="8" class="empty-state">No completed plans.</td></tr>';
+
+    // Wire action buttons
+    document.querySelectorAll('[data-prp-exec]').forEach(b => {
+      b.addEventListener('click', async () => {
+        if (!confirm('Execute this move NOW? Unit will reposition immediately and reflect on /units, /active, /positioning.')) return;
+        const r = await HAJJ.authedCall('reposition_planned_execute', { id: b.dataset.prpExec });
+        toast(r && r.ok ? 'Move executed' : 'Failed: ' + ((r && r.error) || 'unknown'), r && r.ok ? 'success' : 'error');
+        loadPlannedRepos();
+      });
+    });
+    document.querySelectorAll('[data-prp-cancel]').forEach(b => {
+      b.addEventListener('click', async () => {
+        if (!confirm('Cancel this planned move?')) return;
+        const r = await HAJJ.authedCall('reposition_planned_cancel', { id: b.dataset.prpCancel });
+        toast(r && r.ok ? 'Cancelled' : 'Failed: ' + ((r && r.error) || 'unknown'), r && r.ok ? 'success' : 'error');
+        loadPlannedRepos();
+      });
+    });
+  }
+
+  // ============ ESCALATION EDITOR ============
+  async function loadEscalation() {
+    const r = await HAJJ.authedCall('escalation_matrix', {});
+    const body = document.getElementById('escBody');
+    const srcLabel = document.getElementById('escSourceLabel');
+    if (!r || !r.ok) {
+      body.innerHTML = '<tr><td colspan="7" class="empty-state">Failed to load.</td></tr>';
+      return;
+    }
+    const levels = r.levels || [];
+    document.getElementById('escalationCount').textContent = levels.length;
+    if (srcLabel) srcLabel.innerHTML = 'Current source: <strong>' + esc(r.source || 'unknown') + '</strong> · ' + levels.length + ' tiers';
+
+    // We need to know which tiers are D1 overrides vs sheet/fallback.
+    // The escalation_matrix response gives merged data with 'source' string. To color per-row, we re-query D1 separately.
+    let d1Tiers = new Set();
+    if (r.source === 'd1_overrides_sheet' || r.source === 'd1_only') {
+      // Best effort: we don't have per-row source, so we cannot perfectly color.
+      // For now color all rows by overall source — admin can refresh after edits.
+    }
+
+    body.innerHTML = levels.map(function(l) {
+      return '<tr data-tier="' + esc(String(l.tier)) + '">'
+        + '<td><strong>' + esc(String(l.tier)) + '</strong></td>'
+        + '<td>' + esc(l.role || '') + '</td>'
+        + '<td style="font-size:11px; color:var(--text-muted);">' + esc(l.when || '') + '</td>'
+        + '<td class="esc-name">' + esc(l.name || '') + '</td>'
+        + '<td class="esc-phone" style="font-family:ui-monospace,monospace;"><a href="tel:' + esc(String(l.phone || '').replace(/\s/g,'')) + '" style="color:#67e8f9; text-decoration:none;">' + esc(l.phone || '—') + '</a></td>'
+        + '<td><span class="esc-source-pill ' + (r.source === 'd1_only' || r.source === 'd1_overrides_sheet' ? 'd1' : (r.source === 'google_sheet' ? 'sheet' : 'fallback')) + '">' + esc((r.source || '').replace('_', ' ')) + '</span></td>'
+        + '<td><button class="btn-secondary" data-esc-edit="' + esc(String(l.tier)) + '" style="padding:4px 10px;font-size:11px;">Edit</button> '
+        +     '<button class="btn-danger" data-esc-reset="' + esc(String(l.tier)) + '">Reset</button></td>'
+        + '</tr>';
+    }).join('');
+
+    // Wire row actions
+    document.querySelectorAll('[data-esc-edit]').forEach(b => {
+      b.addEventListener('click', () => openEscalationEdit(b.dataset.escEdit, levels));
+    });
+    document.querySelectorAll('[data-esc-reset]').forEach(b => {
+      b.addEventListener('click', async () => {
+        if (!confirm('Remove the D1 override for tier ' + b.dataset.escReset + '? The Google Sheet (or hardcoded fallback) will take over.')) return;
+        const r = await HAJJ.authedCall('escalation_delete', { tier: b.dataset.escReset });
+        toast(r && r.ok ? 'Override removed' : 'Failed', r && r.ok ? 'success' : 'error');
+        loadEscalation();
+      });
+    });
+  }
+
+  function openEscalationEdit(tier, levels) {
+    const l = levels.find(x => String(x.tier) === String(tier)) || {};
+    const row = document.querySelector('tr[data-tier="' + tier + '"]');
+    if (!row) return;
+    // Replace cells with inputs
+    row.classList.add('esc-edit-row');
+    const cells = row.querySelectorAll('td');
+    // td[3] = name, td[4] = phone (entire <a> wrapper)
+    cells[3].innerHTML = '<input type="text" data-field="name" value="' + esc(l.name || '') + '">';
+    cells[4].innerHTML = '<input type="tel" data-field="phone" value="' + esc(l.phone || '') + '" placeholder="+966 5X XXX XXXX">';
+    cells[6].innerHTML = '<button class="btn-primary" style="padding:4px 10px;font-size:11px;" data-esc-save="' + esc(tier) + '">Save</button> '
+      + '<button class="btn-secondary" data-esc-cancel="' + esc(tier) + '" style="padding:4px 10px;font-size:11px;">Cancel</button>';
+
+    row.querySelector('[data-esc-save]').addEventListener('click', async () => {
+      const name = row.querySelector('input[data-field="name"]').value.trim();
+      const phone = row.querySelector('input[data-field="phone"]').value.trim();
+      const r = await HAJJ.authedCall('escalation_set', {
+        tier: tier,
+        role: l.role || '',
+        when: l.when || '',
+        name: name,
+        phone: phone,
+        contact: name + (phone ? ' · ' + phone : '')
+      });
+      toast(r && r.ok ? 'Saved (D1 override)' : 'Failed: ' + ((r && r.error) || 'unknown'), r && r.ok ? 'success' : 'error');
+      loadEscalation();
+    });
+    row.querySelector('[data-esc-cancel]').addEventListener('click', () => loadEscalation());
+  }
+
+  // Wire up form actions
+  document.getElementById('prpSubmit').addEventListener('click', async () => {
+    const unit = document.getElementById('prpUnit').value;
+    const to = document.getElementById('prpToStation').value;
+    const dh = document.getElementById('prpDH').value;
+    const hr = document.getElementById('prpHour').value;
+    const reason = document.getElementById('prpReason').value;
+    const msg = document.getElementById('prpMsg');
+    if (!unit || !to || !dh) { msg.textContent = 'Unit + station + DH are required'; msg.style.color = '#fca5a5'; return; }
+    msg.textContent = 'Scheduling…'; msg.style.color = '#fcd34d';
+    const r = await HAJJ.authedCall('reposition_planned_create', {
+      unit_code: unit, to_station: to, planned_dh: dh, planned_hour: hr, reason: reason
+    });
+    if (r && r.ok) {
+      msg.textContent = '✓ Scheduled (id ' + r.id + ')'; msg.style.color = '#86efac';
+      document.getElementById('prpUnit').value = '';
+      document.getElementById('prpToStation').value = '';
+      document.getElementById('prpDH').value = '';
+      document.getElementById('prpReason').value = '';
+      loadPlannedRepos();
+    } else {
+      msg.textContent = '✗ Failed: ' + ((r && r.error) || 'unknown'); msg.style.color = '#fca5a5';
+    }
+  });
+  document.getElementById('prpReset').addEventListener('click', () => {
+    ['prpUnit','prpToStation','prpDH','prpReason'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('prpHour').value = '00:00';
+    document.getElementById('prpMsg').textContent = '';
+  });
+
+  document.getElementById('escAddBtn').addEventListener('click', async () => {
+    const tier = document.getElementById('escNewTier').value;
+    const role = document.getElementById('escNewRole').value;
+    const name = document.getElementById('escNewName').value;
+    const phone = document.getElementById('escNewPhone').value;
+    const whenT = document.getElementById('escNewWhen').value;
+    if (!tier || !role || !name) {
+      toast('Tier #, role, name are required', 'error');
+      return;
+    }
+    const r = await HAJJ.authedCall('escalation_set', {
+      tier: tier, role: role, name: name, phone: phone, when: whenT,
+      contact: name + (phone ? ' · ' + phone : '')
+    });
+    if (r && r.ok) {
+      ['escNewTier','escNewRole','escNewName','escNewPhone','escNewWhen'].forEach(id => document.getElementById(id).value = '');
+      toast('Tier ' + tier + ' added', 'success');
+      loadEscalation();
+    } else {
+      toast('Failed: ' + ((r && r.error) || 'unknown'), 'error');
+    }
+  });
+
+  // Toast helper
+  function toast(msg, kind) {
+    let el = document.querySelector('.toast');
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'toast';
+      document.body.appendChild(el);
+    }
+    el.className = 'toast ' + (kind || '');
+    el.textContent = msg;
+    requestAnimationFrame(() => el.classList.add('show'));
+    setTimeout(() => el.classList.remove('show'), 3000);
+  }
+
   // Initial load
   loadAllowlist();
   loadSessions();
   loadReposition();
   loadAudit();
+  populateHourDropdown();
+  loadUnitDropdown();
+  loadPlannedRepos();
+  loadEscalation();
 
   // Refresh on tempo
   function scheduleRefresh() {
@@ -432,6 +808,7 @@
     setTimeout(function() {
       loadSessions();
       loadReposition();
+      loadPlannedRepos();
       loadAudit();
       scheduleRefresh();
     }, Math.max(ms, 30000)); // never below 30s for admin (low priority)
@@ -458,6 +835,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.2.53"></script>
+<script src="assets/version.js?v=0.9.7"></script>
 </body>
 </html>
