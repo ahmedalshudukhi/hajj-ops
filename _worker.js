@@ -2845,14 +2845,18 @@ const ACTIONS = {
       started_by_name: user.name
     } : { active: false, ended_at: now, ended_by: user.nid };
     try {
-      await env.DB.prepare(
-        `INSERT INTO sync_state (key, value, updated_at) VALUES ('drill_mode', ?1, ?2)
-         ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = ?2`
-      ).bind(JSON.stringify(dr), now).run();
-      await env.DB.prepare(
-        `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
-         VALUES (?1, ?2, 'drill', ?3, ?4)`
-      ).bind(user.nid, active ? 'drill_start' : 'drill_end', dr.scenario || 'system', JSON.stringify(dr)).run();
+      // Batch both writes in ONE D1 round trip — was 2 sequential awaits (~200ms)
+      // → now 1 batch (~100ms). Halves the perceived End-Drill latency.
+      await env.DB.batch([
+        env.DB.prepare(
+          `INSERT INTO sync_state (key, value, updated_at) VALUES ('drill_mode', ?1, ?2)
+           ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = ?2`
+        ).bind(JSON.stringify(dr), now),
+        env.DB.prepare(
+          `INSERT INTO audit_log (actor_nid, action, resource, resource_id, details)
+           VALUES (?1, ?2, 'drill', ?3, ?4)`
+        ).bind(user.nid, active ? 'drill_start' : 'drill_end', dr.scenario || 'system', JSON.stringify(dr))
+      ]);
       return { ok: true, drill: dr };
     } catch (e) {
       return { ok: false, error: 'drill_set_failed', detail: e.message };
