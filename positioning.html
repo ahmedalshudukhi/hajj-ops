@@ -1498,6 +1498,27 @@ table.heatmap-tbl td.hm-cell.handover-cell {
       });
     });
 
+    // ─────────────────────────────────────────────────────────
+    // GHOST ROWS: For each planned move TO a station, ensure the unit
+    // appears in that station's block — even if it has no baseline hours
+    // there. This lets us draw 'planned-in' overlays on the destination
+    // station's row.
+    // ─────────────────────────────────────────────────────────
+    Object.keys(ganttPlannedMap).forEach(uid => {
+      ganttPlannedMap[uid].forEach(plan => {
+        const toSt = String(plan.to_station || '').toUpperCase();
+        if (!toSt || !stations.includes(toSt)) return;
+        if (!stationData[toSt][uid]) {
+          stationData[toSt][uid] = { hours: new Set(), family: 'A', _ghost: true };
+        }
+        // Also add the source station ghost if missing (in case unit's home isn't this station's block)
+        const fromSt = String(plan.from_station || '').toUpperCase();
+        if (fromSt && stations.includes(fromSt) && !stationData[fromSt][uid]) {
+          stationData[fromSt][uid] = { hours: new Set(), family: 'A', _ghost: true };
+        }
+      });
+    });
+
     // Pick the winning family per unit (most-voted across all active hours).
     stations.forEach(st => {
       Object.keys(stationData[st]).forEach(uid => {

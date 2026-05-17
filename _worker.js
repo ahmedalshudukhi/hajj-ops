@@ -1318,15 +1318,26 @@ const ACTIONS = {
          ORDER BY planned_dh ASC, planned_hour ASC, created_at ASC`
       ).bind(parseInt(dh, 10), parseInt(dh, 10)).all();
       const allPlanned = pr.results || [];
+      // Build unit lookup so we can fill in from_station = unit.home for un-executed plans
+      const unitHomeById = {};
+      ((dj && dj.units_detail) || []).forEach(u => {
+        if (u && u.id) unitHomeById[String(u.id).toUpperCase()] = String(u.home || '').toUpperCase();
+      });
+      // Enrich every plan with a resolved from_station (home fallback) so the
+      // Gantt overlay can match 'planned-out' on the unit's source station.
+      const enrichedPlanned = allPlanned.map(p => {
+        const fromResolved = p.from_station || unitHomeById[String(p.unit_code || '').toUpperCase()] || '';
+        return { ...p, from_station: fromResolved };
+      });
       // Keep the full set so the frontend can derive Gantt overlays
-      activePlans = allPlanned.filter(p =>
+      activePlans = enrichedPlanned.filter(p =>
         !zone || zone === 'all' ||
         stations.includes(String(p.from_station || '').toUpperCase()) ||
         stations.includes(String(p.to_station || '').toUpperCase())
       );
 
       // For the banner, prefer plans that START on this DH (most actionable)
-      plannedMoves = allPlanned
+      plannedMoves = enrichedPlanned
         .filter(p => parseInt(p.planned_dh, 10) === parseInt(dh, 10))
         .filter(p => !zone || zone === 'all' || stations.includes(String(p.to_station || '').toUpperCase()));
 
@@ -1335,7 +1346,7 @@ const ACTIONS = {
       const unitsById = {};
       ((dj && dj.units_detail) || []).forEach(u => { unitsById[String(u.id).toUpperCase()] = u; });
 
-      allPlanned.forEach(p => {
+      enrichedPlanned.forEach(p => {
         const u = unitsById[String(p.unit_code).toUpperCase()];
         const paras = (u && (u.size || u.total_count)) || 1;
         const fromSt = String(p.from_station || (u && u.home) || '').toUpperCase();
