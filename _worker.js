@@ -1299,6 +1299,7 @@ const ACTIONS = {
     // ────────────────────────────────────────────────────────
     let plannedMoves = [];
     let executedMoves = [];
+    let activePlans = [];
     // projectedDelta[station] = { paras: ±N, units: ±N } — only counts
     // active planned moves overlapping this DH (start_dh <= dh <= end_dh)
     const projectedDelta = {};
@@ -1318,7 +1319,7 @@ const ACTIONS = {
       ).bind(parseInt(dh, 10), parseInt(dh, 10)).all();
       const allPlanned = pr.results || [];
       // Keep the full set so the frontend can derive Gantt overlays
-      const activePlans = allPlanned.filter(p =>
+      activePlans = allPlanned.filter(p =>
         !zone || zone === 'all' ||
         stations.includes(String(p.from_station || '').toUpperCase()) ||
         stations.includes(String(p.to_station || '').toUpperCase())
@@ -1375,7 +1376,7 @@ const ACTIONS = {
       total_roster: scopedRoster,
       rows,
       planned_moves: plannedMoves,
-      active_plans: (typeof activePlans !== 'undefined' ? activePlans : []),
+      active_plans: activePlans,
       executed_moves: executedMoves,
       projected_delta_per_station: projectedDelta,
       meta: { dh_days: allDH, movements: allMvts }
