@@ -785,6 +785,19 @@ table.heatmap-tbl td.hm-cell.handover-cell {
 .cov-cell .cov-mini-bars .mb-seg.on-n { background: rgba(99,102,241,0.85); }
 .cov-cell .cov-mini-bars .mb-seg.on-mix { background: linear-gradient(180deg, rgba(245,158,11,0.85) 50%, rgba(99,102,241,0.85) 50%); }
 
+
+/* ──────── Planned + Executed Repositions banner ──────── */
+.repo-banner { margin: 10px 0 16px; padding: 12px 14px; background: rgba(20,28,50,0.55); border: 1px solid rgba(99,179,237,0.18); border-radius: 10px; font-size: 13px; }
+.repo-banner h3 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #93a4cd; font-weight: 600; }
+.repo-banner .rb-list { display: flex; flex-direction: column; gap: 6px; }
+.repo-banner .rb-row { display: flex; gap: 10px; align-items: center; padding: 6px 10px; background: rgba(15,23,42,0.5); border-radius: 6px; font-size: 12px; flex-wrap: wrap; }
+.repo-banner .rb-row.planned   { border-left: 3px solid #f59e0b; }
+.repo-banner .rb-row.executed  { border-left: 3px solid #22c55e; }
+.repo-banner .rb-row .unit { font-family: ui-monospace, Menlo, monospace; font-weight: 700; color: #cdf1ff; min-width: 60px; }
+.repo-banner .rb-row .arrow { color: #94a3b8; font-family: ui-monospace, Menlo, monospace; }
+.repo-banner .rb-row .stn { font-weight: 600; color: #e7ecf7; }
+.repo-banner .rb-row .meta { color: #93a4cd; font-size: 11px; margin-left: auto; }
+.repo-banner .rb-row .reason { color: #cbd5e1; font-style: italic; font-size: 11px; }
 </style>
 </head>
 <body>
@@ -813,6 +826,7 @@ table.heatmap-tbl td.hm-cell.handover-cell {
     <button class="now-btn" id="btnNow">Today</button>
   </div>
 
+  <div id="repoBanner" class="repo-banner" style="display:none;"></div>
   <div class="day-summary" id="daySummary"></div>
 
   <div class="tbl-wrap">
@@ -997,6 +1011,7 @@ table.heatmap-tbl td.hm-cell.handover-cell {
     setLoading();
 
     const r = await HAJJ.authedCall('positioning_day', { dh, zone });
+    renderRepoBanner(r);
     if (!r || !r.ok) { renderError('Sync failed'); return; }
 
     // Populate DH dropdown from meta on first response (uses what's actually in data)
@@ -1999,6 +2014,46 @@ table.heatmap-tbl td.hm-cell.handover-cell {
     refresh();
   }
 })();
+
+  // Planned + Executed Repositions banner renderer
+  function renderRepoBanner(r) {
+    const banner = document.getElementById('repoBanner');
+    if (!banner) return;
+    const planned = (r && r.planned_moves) || [];
+    const executed = (r && r.executed_moves) || [];
+    if (!planned.length && !executed.length) { banner.style.display = 'none'; return; }
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+    let html = '';
+    if (planned.length) {
+      html += '<h3>📅 Planned moves for ' + esc(r.dh || '') + ' <span style="color:#fcd34d; font-weight:500; text-transform:none; letter-spacing:0;">(' + planned.length + ' pending)</span></h3>';
+      html += '<div class="rb-list">' + planned.map(p =>
+        '<div class="rb-row planned">'
+        + '<span class="unit">' + esc(p.unit_code) + '</span>'
+        + '<span class="arrow">→</span>'
+        + '<span class="stn">' + esc(p.to_station) + '</span>'
+        + '<span class="meta">DH ' + (p.planned_dh || '?') + ' · ' + esc(p.planned_hour || '00:00') + '</span>'
+        + (p.reason ? '<span class="reason">— ' + esc(p.reason) + '</span>' : '')
+        + '</div>'
+      ).join('') + '</div>';
+    }
+    if (executed.length) {
+      html += '<h3 style="margin-top:' + (planned.length ? '12px' : '0') + ';">✓ Recent moves (last 24h) <span style="color:#86efac; font-weight:500; text-transform:none; letter-spacing:0;">(' + executed.length + ' executed)</span></h3>';
+      html += '<div class="rb-list">' + executed.slice(0, 6).map(e => {
+        const tDate = new Date((e.ts || 0) * 1000);
+        const tStr = (isNaN(tDate.getTime()) ? '' : (String(tDate.getHours()).padStart(2,'0') + ':' + String(tDate.getMinutes()).padStart(2,'0')));
+        return '<div class="rb-row executed">'
+          + '<span class="unit">' + esc(e.unit_code) + '</span>'
+          + '<span>' + esc(e.from_station || '?') + '</span>'
+          + '<span class="arrow">→</span>'
+          + '<span class="stn">' + esc(e.to_station || '?') + '</span>'
+          + '<span class="meta">' + tStr + '</span>'
+          + '</div>';
+      }).join('') + '</div>';
+    }
+    banner.innerHTML = html;
+    banner.style.display = 'block';
+  }
+
 </script>
 
 </body>
