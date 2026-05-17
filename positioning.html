@@ -1504,17 +1504,32 @@ table.heatmap-tbl td.hm-cell.handover-cell {
     // there. This lets us draw 'planned-in' overlays on the destination
     // station's row.
     // ─────────────────────────────────────────────────────────
-    Object.keys(ganttPlannedMap).forEach(uid => {
-      ganttPlannedMap[uid].forEach(plan => {
+    // Build uppercase-uid → original-case-uid map from existing stationData
+    // so ghost-row insertion uses the canonical case (matches what uids array yields)
+    const uidCaseMap = {};
+    stations.forEach(st => {
+      Object.keys(stationData[st] || {}).forEach(originalUid => {
+        uidCaseMap[String(originalUid).toUpperCase()] = originalUid;
+      });
+    });
+    // Also rebuild ganttPlannedMap with canonical-case keys so lookup matches
+    const ganttPlannedMapByCanonical = {};
+    Object.keys(ganttPlannedMap).forEach(upperUid => {
+      const canonical = uidCaseMap[upperUid] || upperUid;
+      ganttPlannedMapByCanonical[canonical] = ganttPlannedMap[upperUid];
+    });
+    // Replace the reference so the cell-render loop uses canonical-case keys
+    Object.assign(ganttPlannedMap, ganttPlannedMapByCanonical);
+
+    Object.keys(ganttPlannedMapByCanonical).forEach(canonicalUid => {
+      ganttPlannedMapByCanonical[canonicalUid].forEach(plan => {
         const toSt = String(plan.to_station || '').toUpperCase();
-        if (!toSt || !stations.includes(toSt)) return;
-        if (!stationData[toSt][uid]) {
-          stationData[toSt][uid] = { hours: new Set(), family: 'A', _ghost: true };
+        if (toSt && stations.includes(toSt) && !stationData[toSt][canonicalUid]) {
+          stationData[toSt][canonicalUid] = { hours: new Set(), family: 'A', _ghost: true };
         }
-        // Also add the source station ghost if missing (in case unit's home isn't this station's block)
         const fromSt = String(plan.from_station || '').toUpperCase();
-        if (fromSt && stations.includes(fromSt) && !stationData[fromSt][uid]) {
-          stationData[fromSt][uid] = { hours: new Set(), family: 'A', _ghost: true };
+        if (fromSt && stations.includes(fromSt) && !stationData[fromSt][canonicalUid]) {
+          stationData[fromSt][canonicalUid] = { hours: new Set(), family: 'A', _ghost: true };
         }
       });
     });
