@@ -423,6 +423,11 @@ const ROLE_GATE = {
   code_blue_list: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'],
   heat_watch: null,
   schedule_overview: null,
+  my_schedule: null,
+  reposition_planned_create: ['cluster_supervisor','dispatcher','leadership','admin'],
+  reposition_planned_list: null,
+  reposition_planned_cancel: ['cluster_supervisor','dispatcher','leadership','admin'],
+  reposition_planned_execute: ['cluster_supervisor','dispatcher','leadership','admin'],
   me_summary: null,
   board_summary: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'],
   pulse_feed: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'],
@@ -464,7 +469,7 @@ const NEEDS_JSON = new Set([
   'augmentations','mobilization_plan','roster_fill','unit_availability',
   'units_list','unit_positions','active_summary','dashboard_active',
   'dashboard_dispatch','dashboard_sv','sar_summary','roster','station_status_list',
-  'unit_suggest','units_status_grid','ambulances_list','overview_summary','positioning_at','positioning_day','coverage_range','metro_data','schedule_overview','my_schedule'
+  'unit_suggest','units_status_grid','ambulances_list','overview_summary','positioning_at','positioning_day','coverage_range','metro_data','schedule_overview','my_schedule','escalation_matrix'
 ]);
 
 const STATIONS = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
@@ -3642,10 +3647,29 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
   },
 
   // ==============================================================
-  // escalation_matrix — fixed contact list per category
+  // escalation_matrix — reads from data.json 'escalation' if present
+  // (so Ahmed can edit phones in the Google Sheet), falls back to
+  // hardcoded list. Add an 'Escalation' tab to Mobilization_Plan
+  // with columns: tier, role, when, name, phone, contact.
   // ==============================================================
-  async escalation_matrix(user, env) {
-    return { ok: true, levels: [
+  async escalation_matrix(user, env, params, dj) {
+    // Prefer the Google-Sheet-driven list if present in data.json
+    const sheetList = (dj && dj.escalation && Array.isArray(dj.escalation) && dj.escalation.length)
+      ? dj.escalation.map(r => ({
+          tier: parseInt(r.tier || r.Tier || 0, 10) || 0,
+          role: String(r.role || r.Role || ''),
+          when: String(r.when || r.When || r.scenario || ''),
+          name: String(r.name || r.Name || ''),
+          phone: String(r.phone || r.Phone || r.Number || ''),
+          contact: String(r.contact || r.Contact ||
+            (r.name + (r.phone ? ' · ' + r.phone : ''))).trim()
+        })).sort((a,b) => a.tier - b.tier)
+      : null;
+    if (sheetList && sheetList.length) {
+      return { ok: true, levels: sheetList, source: 'google_sheet' };
+    }
+    // Fallback: hardcoded list (legacy). Edit the Google Sheet to override.
+    return { ok: true, source: 'hardcoded_fallback', levels: [
       { tier: 1, role: 'Cluster Supervisor', when: 'First-line clinical/operational issue',
         name: 'Cluster supervisors (Arafat / Muzdalifah / Mina)', phone: 'Radio CH-2/3/4',
         contact: 'Radio CH-2/3/4 by cluster' },
@@ -3705,6 +3729,134 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
       unit: { id: u.id, type: u.type, home: u.home, category: u.category, size: u.size, default_shift: u.default_shift, member_count: (u.members || []).length },
       shifts
     };
+  },
+
+  // ==============================================================
+  // planned_reposition — schedule a unit move at a future time
+  // Backed by D1 table planned_repositions (auto-created)
+  // ==============================================================
+  async _ensurePlannedRepositionTable(env) {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS planned_repositions (
+      id TEXT PRIMARY KEY,
+      unit_code TEXT NOT NULL,
+      from_station TEXT,
+      to_station TEXT NOT NULL,
+      planned_at INTEGER NOT NULL,
+      planned_dh INTEGER,
+      planned_hour TEXT,
+      reason TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_by_nid TEXT,
+      created_by_name TEXT,
+      created_at INTEGER NOT NULL,
+      executed_at INTEGER,
+      cancelled_at INTEGER,
+      cancelled_by_nid TEXT,
+      notes TEXT
+    )`).run();
+    await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_planned_repos_status ON planned_repositions(status, planned_at)`).run();
+    await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_planned_repos_unit ON planned_repositions(unit_code, planned_at)`).run();
+  },
+
+  async reposition_planned_create(user, env, params) {
+    await ACTIONS._ensurePlannedRepositionTable(env);
+    const unit_code = String(params.unit_code || '').toUpperCase();
+    const to_station = String(params.to_station || '').toUpperCase();
+    const planned_dh = parseInt(params.planned_dh, 10) || null;
+    const planned_hour = String(params.planned_hour || '00:00').trim();
+    const reason = String(params.reason || '').slice(0, 500);
+    if (!unit_code || !to_station) return { ok: false, error: 'missing_unit_or_station' };
+
+    // Convert DH + hour to a unix ts: DH 1 = 2026-05-27 (planning).
+    // DH 4 = 2026-05-30 (full ops). We anchor to 27 May = DH 1.
+    let planned_at = 0;
+    if (planned_dh) {
+      const base = new Date('2026-05-27T00:00:00+03:00').getTime() / 1000;
+      const h = (planned_hour.match(/^(\d{1,2})(:(\d{2}))?$/) || []);
+      const hh = parseInt(h[1] || 0, 10);
+      const mm = parseInt(h[3] || 0, 10);
+      planned_at = Math.floor(base + (planned_dh - 1) * 86400 + hh * 3600 + mm * 60);
+    } else {
+      planned_at = Math.floor(Date.now() / 1000);
+    }
+    const id = 'PRP-' + Date.now() + '-' + Math.floor(Math.random() * 9999);
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      await env.DB.prepare(
+        `INSERT INTO planned_repositions
+         (id, unit_code, from_station, to_station, planned_at, planned_dh, planned_hour, reason, status, created_by_nid, created_by_name, created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+      ).bind(id, unit_code, params.from_station || null, to_station, planned_at, planned_dh, planned_hour, reason, 'pending', user.nid, user.name || '', now).run();
+      return { ok: true, id, unit_code, to_station, planned_at, planned_dh, planned_hour };
+    } catch (e) {
+      return { ok: false, error: 'db_error', detail: String(e.message) };
+    }
+  },
+
+  async reposition_planned_list(user, env, params) {
+    await ACTIONS._ensurePlannedRepositionTable(env);
+    const includeDone = params.include_done === '1' || params.include_done === 'true';
+    try {
+      const sql = includeDone
+        ? `SELECT * FROM planned_repositions ORDER BY planned_at ASC LIMIT 500`
+        : `SELECT * FROM planned_repositions WHERE status IN ('pending','approved') ORDER BY planned_at ASC LIMIT 500`;
+      const r = await env.DB.prepare(sql).all();
+      return { ok: true, items: r.results || [] };
+    } catch (e) {
+      return { ok: false, error: 'db_error', detail: String(e.message) };
+    }
+  },
+
+  async reposition_planned_cancel(user, env, params) {
+    await ACTIONS._ensurePlannedRepositionTable(env);
+    const id = String(params.id || '').trim();
+    if (!id) return { ok: false, error: 'missing_id' };
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      await env.DB.prepare(
+        `UPDATE planned_repositions SET status='cancelled', cancelled_at=?, cancelled_by_nid=? WHERE id = ?`
+      ).bind(now, user.nid, id).run();
+      return { ok: true, id };
+    } catch (e) {
+      return { ok: false, error: 'db_error', detail: String(e.message) };
+    }
+  },
+
+  async reposition_planned_execute(user, env, params) {
+    // Execute a planned move NOW (push to reposition_log as approved)
+    await ACTIONS._ensurePlannedRepositionTable(env);
+    const id = String(params.id || '').trim();
+    if (!id) return { ok: false, error: 'missing_id' };
+    try {
+      const plan = await env.DB.prepare(
+        `SELECT * FROM planned_repositions WHERE id = ?`
+      ).bind(id).first();
+      if (!plan) return { ok: false, error: 'not_found' };
+      if (plan.status !== 'pending' && plan.status !== 'approved') {
+        return { ok: false, error: 'already_' + plan.status };
+      }
+      const now = Math.floor(Date.now() / 1000);
+      // Insert into the same reposition_log that unit_availability/positioning read
+      await env.DB.prepare(
+        `INSERT INTO reposition_log (id, unit_code, from_station, to_station, status, requested_by_nid, ts, approved_at, approved_by_nid, notes)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`
+      ).bind(
+        'RP-EXEC-' + id,
+        plan.unit_code,
+        plan.from_station,
+        plan.to_station,
+        'approved',
+        plan.created_by_nid,
+        now, now, user.nid,
+        'Executed from planned reposition ' + id + (plan.reason ? ' · ' + plan.reason : '')
+      ).run();
+      await env.DB.prepare(
+        `UPDATE planned_repositions SET status='executed', executed_at=? WHERE id = ?`
+      ).bind(now, id).run();
+      return { ok: true, id, executed_at: now };
+    } catch (e) {
+      return { ok: false, error: 'db_error', detail: String(e.message) };
+    }
   },
 
 

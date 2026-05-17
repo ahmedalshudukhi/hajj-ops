@@ -345,7 +345,20 @@
     reposition_reject:      { method: 'GET', exec: true },
     dispatch_edit:          { method: 'GET', exec: true },
     incident_audit_trail:   { method: 'GET', exec: true },
-    admin_apply_validation: { method: 'GET', exec: true }
+    admin_apply_validation: { method: 'GET', exec: true },
+
+    // Wave 9 — schedule + metro + ambulances + cross-section views
+    metro_data:             { method: 'GET', exec: true },
+    schedule_overview:      { method: 'GET', exec: true },
+    my_schedule:            { method: 'GET', exec: true },
+    ambulances_list:        { method: 'GET', exec: true },
+    overview_summary:       { method: 'GET', exec: true },
+
+    // Planned repositioning (introduced this release)
+    reposition_planned_create:  { method: 'GET', exec: true },
+    reposition_planned_list:    { method: 'GET', exec: true },
+    reposition_planned_cancel:  { method: 'GET', exec: true },
+    reposition_planned_execute: { method: 'GET', exec: true }
   };
 
   async function waitForGasToken(timeoutMs) {
