@@ -428,6 +428,7 @@ const ROLE_GATE = {
   reposition_planned_list: null,
   reposition_planned_cancel: ['cluster_supervisor','dispatcher','leadership','admin'],
   reposition_planned_execute: ['cluster_supervisor','dispatcher','leadership','admin'],
+  reposition_reverse: ['cluster_supervisor','dispatcher','leadership','admin'],
   escalation_set: ['leadership','admin'],
   escalation_delete: ['admin'],
   me_summary: null,
@@ -1298,16 +1299,51 @@ const ACTIONS = {
     // ────────────────────────────────────────────────────────
     let plannedMoves = [];
     let executedMoves = [];
+    // projectedDelta[station] = { paras: ±N, units: ±N } — only counts
+    // active planned moves overlapping this DH (start_dh <= dh <= end_dh)
+    const projectedDelta = {};
+    stations.forEach(st => { projectedDelta[st] = { paras: 0, units: 0, incoming: [], outgoing: [] }; });
+
     try {
       await ACTIONS._ensurePlannedRepositionTable(env);
-      // Planned moves filtered by DH (pending + approved, not yet executed)
+      // Planned moves whose ACTIVE WINDOW overlaps this DH
+      // (start_dh <= dh AND (end_dh IS NULL OR end_dh >= dh))
       const pr = await env.DB.prepare(
-        `SELECT id, unit_code, from_station, to_station, planned_dh, planned_hour, reason, status, created_by_name, created_at
+        `SELECT id, unit_code, from_station, to_station, planned_dh, planned_hour, planned_end_dh, planned_end_hour, reason, status, created_by_name, created_at
          FROM planned_repositions
-         WHERE status IN ('pending','approved') AND planned_dh = ?
-         ORDER BY planned_hour ASC, created_at ASC`
-      ).bind(parseInt(dh, 10)).all();
-      plannedMoves = (pr.results || []).filter(p => !zone || zone === 'all' || stations.includes(String(p.to_station || '').toUpperCase()));
+         WHERE status IN ('pending','approved')
+           AND planned_dh <= ?
+           AND (planned_end_dh IS NULL OR planned_end_dh >= ?)
+         ORDER BY planned_dh ASC, planned_hour ASC, created_at ASC`
+      ).bind(parseInt(dh, 10), parseInt(dh, 10)).all();
+      const allPlanned = pr.results || [];
+
+      // For the banner, prefer plans that START on this DH (most actionable)
+      plannedMoves = allPlanned
+        .filter(p => parseInt(p.planned_dh, 10) === parseInt(dh, 10))
+        .filter(p => !zone || zone === 'all' || stations.includes(String(p.to_station || '').toUpperCase()));
+
+      // Compute projection: for each plan active on this DH, look up the unit's size
+      // (paras count) and shift its paras from from_station to to_station.
+      const unitsById = {};
+      ((dj && dj.units_detail) || []).forEach(u => { unitsById[String(u.id).toUpperCase()] = u; });
+
+      allPlanned.forEach(p => {
+        const u = unitsById[String(p.unit_code).toUpperCase()];
+        const paras = (u && (u.size || u.total_count)) || 1;
+        const fromSt = String(p.from_station || (u && u.home) || '').toUpperCase();
+        const toSt = String(p.to_station || '').toUpperCase();
+        if (projectedDelta[fromSt]) {
+          projectedDelta[fromSt].paras -= paras;
+          projectedDelta[fromSt].units -= 1;
+          projectedDelta[fromSt].outgoing.push({ unit: p.unit_code, to: toSt, dh: p.planned_dh, hour: p.planned_hour, paras });
+        }
+        if (projectedDelta[toSt]) {
+          projectedDelta[toSt].paras += paras;
+          projectedDelta[toSt].units += 1;
+          projectedDelta[toSt].incoming.push({ unit: p.unit_code, from: fromSt, dh: p.planned_dh, hour: p.planned_hour, paras });
+        }
+      });
 
       // Executed moves in the last 24h whose from/to touches this zone
       const since = Math.floor(Date.now() / 1000) - 86400;
@@ -1334,6 +1370,7 @@ const ACTIONS = {
       rows,
       planned_moves: plannedMoves,
       executed_moves: executedMoves,
+      projected_delta_per_station: projectedDelta,
       meta: { dh_days: allDH, movements: allMvts }
     };
   },
@@ -3819,6 +3856,9 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
       planned_at INTEGER NOT NULL,
       planned_dh INTEGER,
       planned_hour TEXT,
+      planned_end_at INTEGER,
+      planned_end_dh INTEGER,
+      planned_end_hour TEXT,
       reason TEXT,
       status TEXT NOT NULL DEFAULT 'pending',
       created_by_nid TEXT,
@@ -3827,8 +3867,16 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
       executed_at INTEGER,
       cancelled_at INTEGER,
       cancelled_by_nid TEXT,
+      reversed_at INTEGER,
+      reversed_by_nid TEXT,
       notes TEXT
     )`).run();
+    // Idempotent column-adds for existing tables that pre-date end-window
+    try { await env.DB.prepare(`ALTER TABLE planned_repositions ADD COLUMN planned_end_at INTEGER`).run(); } catch(_) {}
+    try { await env.DB.prepare(`ALTER TABLE planned_repositions ADD COLUMN planned_end_dh INTEGER`).run(); } catch(_) {}
+    try { await env.DB.prepare(`ALTER TABLE planned_repositions ADD COLUMN planned_end_hour TEXT`).run(); } catch(_) {}
+    try { await env.DB.prepare(`ALTER TABLE planned_repositions ADD COLUMN reversed_at INTEGER`).run(); } catch(_) {}
+    try { await env.DB.prepare(`ALTER TABLE planned_repositions ADD COLUMN reversed_by_nid TEXT`).run(); } catch(_) {}
     await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_planned_repos_status ON planned_repositions(status, planned_at)`).run();
     await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_planned_repos_unit ON planned_repositions(unit_code, planned_at)`).run();
   },
@@ -3839,30 +3887,38 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
     const to_station = String(params.to_station || '').toUpperCase();
     const planned_dh = parseInt(params.planned_dh, 10) || null;
     const planned_hour = String(params.planned_hour || '00:00').trim();
+    const planned_end_dh = parseInt(params.planned_end_dh, 10) || null;
+    const planned_end_hour = String(params.planned_end_hour || '').trim();
     const reason = String(params.reason || '').slice(0, 500);
     if (!unit_code || !to_station) return { ok: false, error: 'missing_unit_or_station' };
 
-    // Convert DH + hour to a unix ts: DH 1 = 2026-05-27 (planning).
-    // DH 4 = 2026-05-30 (full ops). We anchor to 27 May = DH 1.
-    let planned_at = 0;
-    if (planned_dh) {
+    // Convert DH + hour to a unix ts.
+    // DH 1 anchors to 27 May 2026 (KSA) per existing convention.
+    function dhToTs(dh, hour) {
+      if (!dh) return 0;
       const base = new Date('2026-05-27T00:00:00+03:00').getTime() / 1000;
-      const h = (planned_hour.match(/^(\d{1,2})(:(\d{2}))?$/) || []);
+      const h = (hour.match(/^(\d{1,2})(:(\d{2}))?$/) || []);
       const hh = parseInt(h[1] || 0, 10);
       const mm = parseInt(h[3] || 0, 10);
-      planned_at = Math.floor(base + (planned_dh - 1) * 86400 + hh * 3600 + mm * 60);
-    } else {
-      planned_at = Math.floor(Date.now() / 1000);
+      return Math.floor(base + (dh - 1) * 86400 + hh * 3600 + mm * 60);
     }
+    const planned_at = planned_dh ? dhToTs(planned_dh, planned_hour) : Math.floor(Date.now() / 1000);
+    const planned_end_at = planned_end_dh ? dhToTs(planned_end_dh, planned_end_hour || '23:59') : null;
+
+    // Validate: end must be after start
+    if (planned_end_at && planned_end_at <= planned_at) {
+      return { ok: false, error: 'end_before_start', detail: 'End time must be after start time' };
+    }
+
     const id = 'PRP-' + Date.now() + '-' + Math.floor(Math.random() * 9999);
     const now = Math.floor(Date.now() / 1000);
     try {
       await env.DB.prepare(
         `INSERT INTO planned_repositions
-         (id, unit_code, from_station, to_station, planned_at, planned_dh, planned_hour, reason, status, created_by_nid, created_by_name, created_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
-      ).bind(id, unit_code, params.from_station || null, to_station, planned_at, planned_dh, planned_hour, reason, 'pending', user.nid, user.name || '', now).run();
-      return { ok: true, id, unit_code, to_station, planned_at, planned_dh, planned_hour };
+         (id, unit_code, from_station, to_station, planned_at, planned_dh, planned_hour, planned_end_at, planned_end_dh, planned_end_hour, reason, status, created_by_nid, created_by_name, created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+      ).bind(id, unit_code, params.from_station || null, to_station, planned_at, planned_dh, planned_hour, planned_end_at, planned_end_dh, planned_end_hour || null, reason, 'pending', user.nid, user.name || '', now).run();
+      return { ok: true, id, unit_code, to_station, planned_at, planned_dh, planned_hour, planned_end_at, planned_end_dh, planned_end_hour };
     } catch (e) {
       return { ok: false, error: 'db_error', detail: String(e.message) };
     }
@@ -3897,7 +3953,7 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
     }
   },
 
-  async reposition_planned_execute(user, env, params) {
+  async reposition_planned_execute(user, env, params, dj) {
     // Execute a planned move NOW (push to reposition_log as approved)
     await ACTIONS._ensurePlannedRepositionTable(env);
     const id = String(params.id || '').trim();
@@ -3910,6 +3966,21 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
       if (plan.status !== 'pending' && plan.status !== 'approved') {
         return { ok: false, error: 'already_' + plan.status };
       }
+      // If the plan has no from_station recorded, derive it from current state:
+      //   1. last approved reposition_log for this unit (= current location)
+      //   2. else units_detail.home from data.json
+      let from_station = plan.from_station;
+      if (!from_station) {
+        const lastRepo = await env.DB.prepare(
+          `SELECT to_station FROM reposition_log WHERE unit_code = ? AND status = 'approved' ORDER BY ts DESC LIMIT 1`
+        ).bind(plan.unit_code).first();
+        if (lastRepo && lastRepo.to_station) {
+          from_station = lastRepo.to_station;
+        } else if (dj && dj.units_detail) {
+          const u = dj.units_detail.find(x => String(x.id || '').toUpperCase() === String(plan.unit_code).toUpperCase());
+          if (u && u.home) from_station = String(u.home).toUpperCase();
+        }
+      }
       const now = Math.floor(Date.now() / 1000);
       // Insert into the same reposition_log that unit_availability/positioning read
       await env.DB.prepare(
@@ -3918,21 +3989,64 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
       ).bind(
         'RP-EXEC-' + id,
         plan.unit_code,
-        plan.from_station,
+        from_station || null,
         plan.to_station,
         'approved',
         plan.created_by_nid,
         now, now, user.nid,
         'Executed from planned reposition ' + id + (plan.reason ? ' · ' + plan.reason : '')
       ).run();
+      // Update plan with the resolved from_station so the row in /admin reflects truth
       await env.DB.prepare(
-        `UPDATE planned_repositions SET status='executed', executed_at=? WHERE id = ?`
-      ).bind(now, id).run();
-      return { ok: true, id, executed_at: now };
+        `UPDATE planned_repositions SET status='executed', executed_at=?, from_station=COALESCE(from_station, ?) WHERE id = ?`
+      ).bind(now, from_station || null, id).run();
+      return { ok: true, id, executed_at: now, from_station, to_station: plan.to_station };
     } catch (e) {
       return { ok: false, error: 'db_error', detail: String(e.message) };
     }
   },
+  // ==============================================================
+  // reposition_reverse — undo an already-executed reposition. Creates
+  // an inverse entry in reposition_log moving the unit back. Marks the
+  // original planned row as 'reversed' for audit, if there was one.
+  // ==============================================================
+  async reposition_reverse(user, env, params) {
+    await ACTIONS._ensurePlannedRepositionTable(env);
+    const planId = String(params.plan_id || params.id || '').trim();
+    if (!planId) return { ok: false, error: 'missing_plan_id' };
+    try {
+      const plan = await env.DB.prepare(
+        `SELECT * FROM planned_repositions WHERE id = ?`
+      ).bind(planId).first();
+      if (!plan) return { ok: false, error: 'plan_not_found' };
+      if (plan.status !== 'executed') return { ok: false, error: 'plan_not_executed', status: plan.status };
+      if (!plan.from_station) return { ok: false, error: 'no_from_station_to_revert_to' };
+
+      const now = Math.floor(Date.now() / 1000);
+      // Insert reverse reposition: was at to_station, now back to from_station
+      await env.DB.prepare(
+        `INSERT INTO reposition_log (id, unit_code, from_station, to_station, status, requested_by_nid, ts, approved_at, approved_by_nid, notes)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`
+      ).bind(
+        'RP-REV-' + planId + '-' + now,
+        plan.unit_code,
+        plan.to_station,                     // current location (where we executed to)
+        plan.from_station,                   // back to original
+        'approved',
+        user.nid,
+        now, now, user.nid,
+        'Reversed planned reposition ' + planId + (plan.reason ? ' (orig: ' + plan.reason + ')' : '')
+      ).run();
+      // Mark the planned row as reversed
+      await env.DB.prepare(
+        `UPDATE planned_repositions SET status='reversed', reversed_at=?, reversed_by_nid=? WHERE id = ?`
+      ).bind(now, user.nid, planId).run();
+      return { ok: true, plan_id: planId, unit_code: plan.unit_code, from: plan.to_station, to: plan.from_station, reversed_at: now };
+    } catch (e) {
+      return { ok: false, error: 'db_error', detail: String(e.message) };
+    }
+  },
+
 
 
 

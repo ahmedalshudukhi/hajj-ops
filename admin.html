@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Admin · HMG Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.9.7">
-<script src="assets/config.js?v=0.9.7"></script>
-<script src="assets/tempo.js?v=0.9.7"></script>
-<script src="assets/auth.js?v=0.9.7"></script>
-<script src="assets/shortcuts.js?v=0.9.7"></script>
-<script src="assets/topbar.js?v=0.9.7"></script>
+<link rel="stylesheet" href="assets/style.css?v=0.9.9">
+<script src="assets/config.js?v=0.9.9"></script>
+<script src="assets/tempo.js?v=0.9.9"></script>
+<script src="assets/auth.js?v=0.9.9"></script>
+<script src="assets/shortcuts.js?v=0.9.9"></script>
+<script src="assets/topbar.js?v=0.9.9"></script>
 <style>
   .admin-wrap { max-width: 1200px; margin: 0 auto; padding: 16px; }
   .admin-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; overflow-x: auto; }
@@ -73,6 +73,7 @@
   .reposition-status.active       { background: rgba(34, 197, 94, 0.15); color: #86efac; }
   .reposition-status.executed     { background: rgba(34, 197, 94, 0.15); color: #86efac; }
   .reposition-status.cancelled    { background: rgba(107, 114, 128, 0.20); color: #9ca3af; }
+  .reposition-status.reversed     { background: rgba(168, 85, 247, 0.18); color: #d8b4fe; }
 
   /* Planned reposition form */
   .form-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
@@ -235,7 +236,7 @@
           </select>
         </div>
         <div>
-          <label for="prpDH">DH day</label>
+          <label for="prpDH">Start DH day</label>
           <select id="prpDH">
             <option value="">— select —</option>
             <option value="4">DH 4 · 25 May</option>
@@ -252,8 +253,29 @@
           </select>
         </div>
         <div>
-          <label for="prpHour">Hour (KSA)</label>
+          <label for="prpHour">Start hour (KSA)</label>
           <select id="prpHour"><option value="00:00">00:00</option></select>
+        </div>
+        <div>
+          <label for="prpEndDH">End DH day</label>
+          <select id="prpEndDH">
+            <option value="">— select —</option>
+            <option value="4">DH 4 · 25 May</option>
+            <option value="5">DH 5 · 26 May</option>
+            <option value="6">DH 6 · 27 May</option>
+            <option value="7">DH 7 · 28 May</option>
+            <option value="8">DH 8 · 29 May (Tarwiyah)</option>
+            <option value="9">DH 9 · 30 May (Arafah)</option>
+            <option value="10">DH 10 · 31 May (Eid)</option>
+            <option value="11">DH 11 · 1 Jun</option>
+            <option value="12">DH 12 · 2 Jun</option>
+            <option value="13">DH 13 · 3 Jun</option>
+            <option value="14">DH 14 · 4 Jun</option>
+          </select>
+        </div>
+        <div>
+          <label for="prpEndHour">End hour (KSA)</label>
+          <select id="prpEndHour"><option value="23:59">23:59</option></select>
         </div>
         <div style="grid-column: 1 / -1;">
           <label for="prpReason">Reason / notes</label>
@@ -271,7 +293,7 @@
     <div style="overflow-x: auto;">
       <table class="admin-table">
         <thead>
-          <tr><th>Unit</th><th>To Station</th><th>DH</th><th>Hour</th><th>Reason</th><th>Created by</th><th>Created</th><th>Actions</th></tr>
+          <tr><th>Unit</th><th>To Station</th><th>Start</th><th>End</th><th>Reason</th><th>Created by</th><th>Created</th><th>Actions</th></tr>
         </thead>
         <tbody id="plannedPendingBody">
           <tr><td colspan="8" class="empty-state">Loading…</td></tr>
@@ -283,7 +305,7 @@
     <div style="overflow-x: auto;">
       <table class="admin-table">
         <thead>
-          <tr><th>Status</th><th>Unit</th><th>To Station</th><th>DH</th><th>Hour</th><th>Reason</th><th>Created</th><th>Resolved</th></tr>
+          <tr><th>Status</th><th>Unit</th><th>From → To</th><th>Window</th><th>Reason</th><th>Resolved</th><th>Actions</th></tr>
         </thead>
         <tbody id="plannedDoneBody">
           <tr><td colspan="8" class="empty-state">Loading…</td></tr>
@@ -581,11 +603,12 @@
   }
 
   function populateHourDropdown() {
-    const sel = document.getElementById('prpHour');
-    if (!sel) return;
     const opts = [];
     for (let h = 0; h < 24; h++) opts.push('<option value="' + String(h).padStart(2,'0') + ':00">' + String(h).padStart(2,'0') + ':00</option>');
-    sel.innerHTML = opts.join('');
+    const start = document.getElementById('prpHour');
+    if (start) start.innerHTML = opts.join('');
+    const end = document.getElementById('prpEndHour');
+    if (end) end.innerHTML = opts.join('') + '<option value="23:59">23:59</option>';
   }
 
   async function loadPlannedRepos() {
@@ -602,11 +625,15 @@
     document.getElementById('plannedCount').textContent = pending.length;
 
     pendingBody.innerHTML = pending.length ? pending.map(function(p) {
+      const startTxt = 'DH ' + esc(String(p.planned_dh || '')) + ' · ' + esc(p.planned_hour || '');
+      const endTxt = p.planned_end_dh
+        ? 'DH ' + esc(String(p.planned_end_dh)) + ' · ' + esc(p.planned_end_hour || '23:59')
+        : '<span style="color:var(--text-muted); font-style:italic;">open-ended</span>';
       return '<tr>'
         + '<td><strong>' + esc(p.unit_code || '') + '</strong></td>'
         + '<td>' + esc(p.to_station || '') + '</td>'
-        + '<td>DH ' + esc(String(p.planned_dh || '')) + '</td>'
-        + '<td style="font-family:ui-monospace,monospace;">' + esc(p.planned_hour || '') + '</td>'
+        + '<td style="font-family:ui-monospace,monospace;">' + startTxt + '</td>'
+        + '<td style="font-family:ui-monospace,monospace;">' + endTxt + '</td>'
         + '<td>' + esc(p.reason || '—') + '</td>'
         + '<td>' + esc(p.created_by_name || p.created_by_nid || '—') + '</td>'
         + '<td>' + fmtTime(p.created_at ? new Date(p.created_at * 1000).toISOString() : '') + '</td>'
@@ -616,17 +643,24 @@
     }).join('') : '<tr><td colspan="8" class="empty-state">No scheduled moves.</td></tr>';
 
     doneBody.innerHTML = done.length ? done.slice(0, 30).map(function(p) {
+      const windowTxt = 'DH ' + esc(String(p.planned_dh || '')) + ' · ' + esc(p.planned_hour || '')
+        + (p.planned_end_dh ? ' → DH ' + esc(String(p.planned_end_dh)) + ' · ' + esc(p.planned_end_hour || '') : '');
+      const resolved = (p.executed_at || p.cancelled_at || p.reversed_at);
+      const fromTo = '<strong>' + esc(p.from_station || '?') + '</strong> → <strong>' + esc(p.to_station || '?') + '</strong>';
+      // Reverse button shown ONLY on executed rows (not cancelled, not already reversed)
+      const actions = (p.status === 'executed')
+        ? '<button class="btn-secondary" data-prp-reverse="' + esc(p.id) + '" style="padding:4px 10px; font-size:11px; background:rgba(168,85,247,0.15); color:#d8b4fe; border-color:rgba(168,85,247,0.3);">↺ Reverse</button>'
+        : '<span style="color:var(--text-muted); font-size:11px;">—</span>';
       return '<tr>'
         + '<td><span class="reposition-status ' + esc(p.status) + '">' + esc(p.status || '') + '</span></td>'
-        + '<td><strong>' + esc(p.unit_code || '') + '</strong></td>'
-        + '<td>' + esc(p.to_station || '') + '</td>'
-        + '<td>DH ' + esc(String(p.planned_dh || '')) + '</td>'
-        + '<td style="font-family:ui-monospace,monospace;">' + esc(p.planned_hour || '') + '</td>'
+        + '<td>' + esc(p.unit_code || '') + '</td>'
+        + '<td>' + fromTo + '</td>'
+        + '<td style="font-family:ui-monospace,monospace;">' + windowTxt + '</td>'
         + '<td>' + esc(p.reason || '—') + '</td>'
-        + '<td>' + fmtTime(p.created_at ? new Date(p.created_at * 1000).toISOString() : '') + '</td>'
-        + '<td>' + fmtTime((p.executed_at || p.cancelled_at) ? new Date((p.executed_at || p.cancelled_at) * 1000).toISOString() : '') + '</td>'
+        + '<td>' + fmtTime(resolved ? new Date(resolved * 1000).toISOString() : '') + '</td>'
+        + '<td>' + actions + '</td>'
         + '</tr>';
-    }).join('') : '<tr><td colspan="8" class="empty-state">No completed plans.</td></tr>';
+    }).join('') : '<tr><td colspan="7" class="empty-state">No completed plans.</td></tr>';
 
     // Wire action buttons
     document.querySelectorAll('[data-prp-exec]').forEach(b => {
@@ -642,6 +676,18 @@
         if (!confirm('Cancel this planned move?')) return;
         const r = await HAJJ.authedCall('reposition_planned_cancel', { id: b.dataset.prpCancel });
         toast(r && r.ok ? 'Cancelled' : 'Failed: ' + ((r && r.error) || 'unknown'), r && r.ok ? 'success' : 'error');
+        loadPlannedRepos();
+      });
+    });
+    document.querySelectorAll('[data-prp-reverse]').forEach(b => {
+      b.addEventListener('click', async () => {
+        if (!confirm('Reverse this move? The unit will be repositioned BACK to its original station immediately.')) return;
+        const r = await HAJJ.authedCall('reposition_reverse', { plan_id: b.dataset.prpReverse });
+        if (r && r.ok) {
+          toast('Reversed: ' + r.unit_code + ' moved back to ' + r.to, 'success');
+        } else {
+          toast('Failed: ' + ((r && r.error) || 'unknown') + (r && r.detail ? ' (' + r.detail + ')' : ''), 'error');
+        }
         loadPlannedRepos();
       });
     });
@@ -731,26 +777,37 @@
     const to = document.getElementById('prpToStation').value;
     const dh = document.getElementById('prpDH').value;
     const hr = document.getElementById('prpHour').value;
+    const endDh = document.getElementById('prpEndDH').value;
+    const endHr = document.getElementById('prpEndHour').value;
     const reason = document.getElementById('prpReason').value;
     const msg = document.getElementById('prpMsg');
-    if (!unit || !to || !dh) { msg.textContent = 'Unit + station + DH are required'; msg.style.color = '#fca5a5'; return; }
+    if (!unit || !to || !dh) { msg.textContent = 'Unit + To station + Start DH are required'; msg.style.color = '#fca5a5'; return; }
+    if (endDh) {
+      // Validate end > start
+      const startKey = parseInt(dh, 10) * 10000 + parseInt(hr.replace(':',''), 10);
+      const endKey = parseInt(endDh, 10) * 10000 + parseInt(endHr.replace(':',''), 10);
+      if (endKey <= startKey) {
+        msg.textContent = 'End must be after start'; msg.style.color = '#fca5a5'; return;
+      }
+    }
     msg.textContent = 'Scheduling…'; msg.style.color = '#fcd34d';
     const r = await HAJJ.authedCall('reposition_planned_create', {
-      unit_code: unit, to_station: to, planned_dh: dh, planned_hour: hr, reason: reason
+      unit_code: unit, to_station: to,
+      planned_dh: dh, planned_hour: hr,
+      planned_end_dh: endDh || '', planned_end_hour: endHr || '',
+      reason: reason
     });
     if (r && r.ok) {
       msg.textContent = '✓ Scheduled (id ' + r.id + ')'; msg.style.color = '#86efac';
-      document.getElementById('prpUnit').value = '';
-      document.getElementById('prpToStation').value = '';
-      document.getElementById('prpDH').value = '';
-      document.getElementById('prpReason').value = '';
+      ['prpUnit','prpToStation','prpDH','prpEndDH','prpReason'].forEach(id => document.getElementById(id).value = '');
       loadPlannedRepos();
     } else {
-      msg.textContent = '✗ Failed: ' + ((r && r.error) || 'unknown'); msg.style.color = '#fca5a5';
+      msg.textContent = '✗ Failed: ' + ((r && r.error) || 'unknown') + (r.detail ? ' (' + r.detail + ')' : '');
+      msg.style.color = '#fca5a5';
     }
   });
   document.getElementById('prpReset').addEventListener('click', () => {
-    ['prpUnit','prpToStation','prpDH','prpReason'].forEach(id => document.getElementById(id).value = '');
+    ['prpUnit','prpToStation','prpDH','prpEndDH','prpReason'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('prpHour').value = '00:00';
     document.getElementById('prpMsg').textContent = '';
   });
@@ -835,6 +892,6 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.9.7"></script>
+<script src="assets/version.js?v=0.9.9"></script>
 </body>
 </html>

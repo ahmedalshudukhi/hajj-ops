@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Positioning · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.9.8">
+<link rel="stylesheet" href="assets/style.css?v=0.9.9">
 <style>
 body { background: var(--bg); }
 .content { padding: 12px 14px 80px; max-width: 1280px; margin: 0 auto; }
@@ -786,6 +786,10 @@ table.heatmap-tbl td.hm-cell.handover-cell {
 .cov-cell .cov-mini-bars .mb-seg.on-mix { background: linear-gradient(180deg, rgba(245,158,11,0.85) 50%, rgba(99,102,241,0.85) 50%); }
 
 
+/* Projected paras delta pill on station rows */
+.proj-delta { line-height: 1.4; }
+.proj-delta:hover { filter: brightness(1.1); }
+
 /* ──────── Planned + Executed Repositions banner ──────── */
 .repo-banner { margin: 10px 0 16px; padding: 12px 14px; background: rgba(20,28,50,0.55); border: 1px solid rgba(99,179,237,0.18); border-radius: 10px; font-size: 13px; }
 .repo-banner h3 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #93a4cd; font-weight: 600; }
@@ -802,10 +806,10 @@ table.heatmap-tbl td.hm-cell.handover-cell {
 </head>
 <body>
 <div id="topbar"></div>
-<script src="assets/version.js?v=0.9.8"></script>
-<script src="assets/config.js?v=0.9.8"></script>
-<script src="assets/auth.js?v=0.9.8"></script>
-<script src="assets/topbar.js?v=0.9.8"></script>
+<script src="assets/version.js?v=0.9.9"></script>
+<script src="assets/config.js?v=0.9.9"></script>
+<script src="assets/auth.js?v=0.9.9"></script>
+<script src="assets/topbar.js?v=0.9.9"></script>
 
 <div class="content">
   <div class="picker">
@@ -1012,6 +1016,7 @@ table.heatmap-tbl td.hm-cell.handover-cell {
 
     const r = await HAJJ.authedCall('positioning_day', { dh, zone });
     renderRepoBanner(r);
+    renderProjectedDeltas(r);
     if (!r || !r.ok) { renderError('Sync failed'); return; }
 
     // Populate DH dropdown from meta on first response (uses what's actually in data)
