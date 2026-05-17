@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Positioning · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.9.9">
+<link rel="stylesheet" href="assets/style.css?v=0.9.10">
 <style>
 body { background: var(--bg); }
 .content { padding: 12px 14px 80px; max-width: 1280px; margin: 0 auto; }
@@ -339,6 +339,21 @@ table.heatmap-tbl td.hm-cell.handover-cell {
 .ug-bar.fam-empty { background: rgba(148,163,184,0.04); cursor: default; }
 .ug-bar.fam-empty:hover { filter: none; outline: none; }
 .ug-bar.is-now { box-shadow: inset 0 0 0 1px #fcd34d; }
+/* Planned reposition overlay on the Gantt — outline + diagonal stripe = upcoming move */
+.ug-bar.planned-out {
+  background: repeating-linear-gradient(45deg, rgba(168,85,247,0.55) 0 4px, rgba(245,158,11,0.45) 4px 8px) !important;
+  outline: 1px dashed rgba(168,85,247,0.8);
+  outline-offset: -1px;
+}
+.ug-bar.planned-in {
+  background: repeating-linear-gradient(45deg, rgba(34,197,94,0.55) 0 4px, rgba(245,158,11,0.45) 4px 8px) !important;
+  outline: 1px dashed rgba(34,197,94,0.85);
+  outline-offset: -1px;
+}
+.ug-bar.fam-empty.planned-in {
+  /* Unit not normally on duty here but planned to arrive */
+  background: repeating-linear-gradient(45deg, rgba(34,197,94,0.35) 0 4px, transparent 4px 8px) !important;
+}
 .ug-empty-station {
   padding: 16px; text-align: center;
   color: var(--text-muted); font-size: 11px;
@@ -806,10 +821,10 @@ table.heatmap-tbl td.hm-cell.handover-cell {
 </head>
 <body>
 <div id="topbar"></div>
-<script src="assets/version.js?v=0.9.9"></script>
-<script src="assets/config.js?v=0.9.9"></script>
-<script src="assets/auth.js?v=0.9.9"></script>
-<script src="assets/topbar.js?v=0.9.9"></script>
+<script src="assets/version.js?v=0.9.10"></script>
+<script src="assets/config.js?v=0.9.10"></script>
+<script src="assets/auth.js?v=0.9.10"></script>
+<script src="assets/topbar.js?v=0.9.10"></script>
 
 <div class="content">
   <div class="picker">
@@ -895,6 +910,8 @@ table.heatmap-tbl td.hm-cell.handover-cell {
     <div class="unit-gantt-intro">
       Drag the handles to span 1–11 days. Each unit's bar shows when it's on duty
       across the chosen range. Amber = Day family, indigo = Night, gray = 24/7.
+      <span style="display:inline-block; margin-left:6px; padding:1px 6px; background:repeating-linear-gradient(45deg, rgba(168,85,247,0.55) 0 4px, rgba(245,158,11,0.45) 4px 8px); outline:1px dashed rgba(168,85,247,0.8); outline-offset:-1px; border-radius:2px; font-size:10px; color:#fff;">planned out</span>
+      <span style="display:inline-block; margin-left:4px; padding:1px 6px; background:repeating-linear-gradient(45deg, rgba(34,197,94,0.55) 0 4px, rgba(245,158,11,0.45) 4px 8px); outline:1px dashed rgba(34,197,94,0.85); outline-offset:-1px; border-radius:2px; font-size:10px; color:#fff;">planned in</span>
     </div>
 
     <!-- LIVE DEBUG STATUS (so Ahmed can see what the slider state is at a glance) -->
@@ -1385,6 +1402,29 @@ table.heatmap-tbl td.hm-cell.handover-cell {
     const sample = days.map(d => dataByDh[d]).find(r => r && r.ok);
     if (!sample) { wrap.innerHTML = '<div class="cov-loading">No data.</div>'; return; }
 
+    // ─────────────────────────────────────────────────────────
+    // Build per-unit map of active planned moves across this Gantt window.
+    // Each dataByDh[d] has `active_plans` (full plan rows whose window covers d).
+    // We merge them into ganttPlannedMap[unit_code] = [plan, plan, ...].
+    // ─────────────────────────────────────────────────────────
+    const ganttPlannedMap = {};
+    const seenPlanIds = new Set();
+    days.forEach(d => {
+      const r = dataByDh[d];
+      if (!r || !r.active_plans) return;
+      r.active_plans.forEach(p => {
+        if (seenPlanIds.has(p.id)) return;
+        seenPlanIds.add(p.id);
+        const uid = String(p.unit_code || '').toUpperCase();
+        if (!uid) return;
+        ganttPlannedMap[uid] = ganttPlannedMap[uid] || [];
+        ganttPlannedMap[uid].push(p);
+      });
+    });
+    if (Object.keys(ganttPlannedMap).length) {
+      console.log('[Gantt] planned overlay: ' + Object.keys(ganttPlannedMap).length + ' units have active plans');
+    }
+
     // Zone filter
     const zoneFilter = _ganttZone;
     const stations = (sample.stations || []).filter(st => {
@@ -1561,11 +1601,36 @@ table.heatmap-tbl td.hm-cell.handover-cell {
             else classes.push('fam-empty');
             if (isNow) classes.push('is-now');
             if (isDayBoundary) classes.push('day-boundary');
+            // Planned overlay: is this (uid, dh, h) covered by an active planned move?
+            // ganttPlannedMap[uid] = [{ from, to, start_dh, start_hour, end_dh, end_hour, reason }]
+            const planList = ganttPlannedMap[uid] || [];
+            let planOverlay = '';
+            let planTip = '';
+            for (const p of planList) {
+              const sH = parseInt((p.planned_hour || '00:00').split(':')[0], 10) || 0;
+              const eH = parseInt((p.planned_end_hour || '23:59').split(':')[0], 10) || 23;
+              const sDH = parseInt(p.planned_dh, 10);
+              const eDH = p.planned_end_dh ? parseInt(p.planned_end_dh, 10) : sDH;
+              const beforeEnd = (dh < eDH) || (dh === eDH && h <= eH);
+              const afterStart = (dh > sDH) || (dh === sDH && h >= sH);
+              if (afterStart && beforeEnd) {
+                // Determine if this station IS where the unit is going (planned-in) or its baseline station (planned-out)
+                if (String(p.to_station || '').toUpperCase() === String(st || '').toUpperCase()) {
+                  planOverlay = 'planned-in';
+                  planTip = '📅 Planned in: from ' + (p.from_station || '?') + ' at DH ' + p.planned_dh + ' ' + (p.planned_hour || '00:00') + (p.reason ? ' — ' + p.reason : '');
+                } else if (String(p.from_station || '').toUpperCase() === String(st || '').toUpperCase()) {
+                  planOverlay = 'planned-out';
+                  planTip = '📅 Planned out: → ' + (p.to_station || '?') + ' at DH ' + p.planned_dh + ' ' + (p.planned_hour || '00:00') + (p.reason ? ' — ' + p.reason : '');
+                }
+                if (planOverlay) break;
+              }
+            }
+            if (planOverlay) classes.push(planOverlay);
             const tip = on
-              ? uid + ' · DH ' + dh + ' · ' + String(h).padStart(2,'0') + ':00 · ' + st
-              : '';
+              ? uid + ' · DH ' + dh + ' · ' + String(h).padStart(2,'0') + ':00 · ' + st + (planTip ? '\n' + planTip : '')
+              : (planTip || '');
             html += '<div class="' + classes.join(' ') + '" '
-                  + (on ? 'title="' + tip + '"' : '')
+                  + (tip ? 'title="' + tip.replace(/"/g, '&quot;') + '"' : '')
                   + (on ? ' data-uid="' + uid + '" data-dh="' + dh + '" data-hour="' + h + '" data-st="' + st + '"' : '')
                   + '></div>';
           }
@@ -2019,6 +2084,32 @@ table.heatmap-tbl td.hm-cell.handover-cell {
     refresh();
   }
 })();
+
+  // Projected manpower deltas — overlays "+N proj" / "-N proj" pills on each station row
+  function renderProjectedDeltas(r) {
+    const delta = (r && r.projected_delta_per_station) || {};
+    const tbody = document.getElementById('posBody');
+    if (!tbody) return;
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]); }
+    const rows = tbody.querySelectorAll('tr');
+    rows.forEach(tr => {
+      const stnCell = tr.querySelector('td:first-child');
+      if (!stnCell) return;
+      const stationCode = (stnCell.textContent || '').trim().split(/\s+/)[0].toUpperCase();
+      const d = delta[stationCode];
+      if (!d || (d.paras === 0 && d.units === 0)) return;
+      const parasCell = tr.querySelectorAll('td')[1];
+      if (!parasCell) return;
+      // Strip prior annotation
+      parasCell.innerHTML = parasCell.innerHTML.replace(/<span class="proj-delta"[\s\S]*?<\/span>/g, '');
+      const sign = d.paras >= 0 ? '+' : '';
+      const color = d.paras >= 0 ? '#86efac' : '#fca5a5';
+      const incoming = (d.incoming || []).length ? (d.incoming.map(i => '+' + i.unit + ' @' + i.dh + 'DH ' + i.hour).join(', ')) : '';
+      const outgoing = (d.outgoing || []).length ? (d.outgoing.map(i => '-' + i.unit + ' @' + i.dh + 'DH ' + i.hour).join(', ')) : '';
+      const tip = ['Projected effect of planned moves at this DH:', incoming, outgoing].filter(Boolean).join(' | ').replace(/"/g, '&quot;');
+      parasCell.innerHTML += ' <span class="proj-delta" style="display:inline-block;padding:1px 5px;border-radius:3px;font-size:10px;background:rgba(245,158,11,0.18);color:' + color + ';font-family:ui-monospace,Menlo,monospace;cursor:help;" title="' + tip + '">' + sign + d.paras + ' proj</span>';
+    });
+  }
 
   // Planned + Executed Repositions banner renderer
   function renderRepoBanner(r) {

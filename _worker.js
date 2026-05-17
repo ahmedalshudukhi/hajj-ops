@@ -1317,6 +1317,12 @@ const ACTIONS = {
          ORDER BY planned_dh ASC, planned_hour ASC, created_at ASC`
       ).bind(parseInt(dh, 10), parseInt(dh, 10)).all();
       const allPlanned = pr.results || [];
+      // Keep the full set so the frontend can derive Gantt overlays
+      const activePlans = allPlanned.filter(p =>
+        !zone || zone === 'all' ||
+        stations.includes(String(p.from_station || '').toUpperCase()) ||
+        stations.includes(String(p.to_station || '').toUpperCase())
+      );
 
       // For the banner, prefer plans that START on this DH (most actionable)
       plannedMoves = allPlanned
@@ -1369,6 +1375,7 @@ const ACTIONS = {
       total_roster: scopedRoster,
       rows,
       planned_moves: plannedMoves,
+      active_plans: (typeof activePlans !== 'undefined' ? activePlans : []),
       executed_moves: executedMoves,
       projected_delta_per_station: projectedDelta,
       meta: { dh_days: allDH, movements: allMvts }
