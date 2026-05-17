@@ -1292,6 +1292,38 @@ const ACTIONS = {
       };
     });
 
+    // ────────────────────────────────────────────────────────
+    // Surface planned + recently executed repositions for this DH.
+    // Read from D1 so /positioning reflects the same plans visible in /admin.
+    // ────────────────────────────────────────────────────────
+    let plannedMoves = [];
+    let executedMoves = [];
+    try {
+      await ACTIONS._ensurePlannedRepositionTable(env);
+      // Planned moves filtered by DH (pending + approved, not yet executed)
+      const pr = await env.DB.prepare(
+        `SELECT id, unit_code, from_station, to_station, planned_dh, planned_hour, reason, status, created_by_name, created_at
+         FROM planned_repositions
+         WHERE status IN ('pending','approved') AND planned_dh = ?
+         ORDER BY planned_hour ASC, created_at ASC`
+      ).bind(parseInt(dh, 10)).all();
+      plannedMoves = (pr.results || []).filter(p => !zone || zone === 'all' || stations.includes(String(p.to_station || '').toUpperCase()));
+
+      // Executed moves in the last 24h whose from/to touches this zone
+      const since = Math.floor(Date.now() / 1000) - 86400;
+      const er = await env.DB.prepare(
+        `SELECT unit_code, from_station, to_station, ts, notes
+         FROM reposition_log
+         WHERE status = 'approved' AND ts >= ?
+         ORDER BY ts DESC LIMIT 30`
+      ).bind(since).all();
+      executedMoves = (er.results || []).filter(p =>
+        !zone || zone === 'all' ||
+        stations.includes(String(p.from_station || '').toUpperCase()) ||
+        stations.includes(String(p.to_station || '').toUpperCase())
+      );
+    } catch (_) {}
+
     return {
       ok: true,
       dh: dh + ' DH',
@@ -1300,6 +1332,8 @@ const ACTIONS = {
       zone_scoped: zone !== 'all',
       total_roster: scopedRoster,
       rows,
+      planned_moves: plannedMoves,
+      executed_moves: executedMoves,
       meta: { dh_days: allDH, movements: allMvts }
     };
   },
