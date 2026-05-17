@@ -176,14 +176,32 @@
     const pages = pagesForRole(role);
 
     const TILE_META = {
-      'lobby.html':    { icon:'🏠', desc:'Page selector — you are here', accent:'#4ade80' },
-      'active.html':   { icon:'📊', desc:'Live operations — incidents, units, station status, augmentations, PCRs', accent:'#3b82f6' },
-      'dispatch.html': { icon:'🚑', desc:'Create incidents, dispatch units, file PCRs, log timeline events', accent:'#ef4444' },
-      'sv.html':       { icon:'⚙️', desc:'Cluster supervisor — set station status, request unit reposition', accent:'#a855f7' },
-      'sar.html':      { icon:'👁️', desc:'SAR partner — read-only redacted operations summary', accent:'#06b6d4' },
-      'admin.html':    { icon:'🔐', desc:'Allowlist, sessions, reposition queue, audit log', accent:'#f59e0b' },
-      'me.html':       { icon:'📅', desc:'Your shift schedule and assignments', accent:'#10b981' },
-      'diagnostic.html': { icon:'🩺', desc:'Backend health check — ping every endpoint, see what is actually deployed', accent:'#ef4444' }
+      'lobby.html':       { icon:'🏠', desc:'Page selector — you are here', accent:'#4ade80' },
+      'command.html':     { icon:'🎛️', desc:'OCC command center — top-level overview for leadership', accent:'#3b82f6' },
+      'active.html':      { icon:'📊', desc:'Live operations — incidents, units, station status, augmentations, PCRs', accent:'#3b82f6' },
+      'dispatch.html':    { icon:'🚑', desc:'Create incidents, dispatch units, file PCRs, log timeline events', accent:'#ef4444' },
+      'sv.html':          { icon:'⚙️', desc:'Cluster supervisor — set station status, request unit reposition', accent:'#a855f7' },
+      'sar.html':         { icon:'👁️', desc:'SAR partner — read-only redacted operations summary', accent:'#06b6d4' },
+      'admin.html':       { icon:'🔐', desc:'Allowlist, sessions, reposition queue, audit log', accent:'#f59e0b' },
+      'reports.html':     { icon:'📑', desc:'Operational reports — shift, daily, command summaries', accent:'#8b5cf6' },
+      'protocols.html':   { icon:'📋', desc:'Clinical protocols and triage cards', accent:'#0ea5e9' },
+      'timeline.html':    { icon:'⏳', desc:'Hajj timeline — DH days, movements, phases', accent:'#f59e0b' },
+      'incidents.html':   { icon:'🚨', desc:'Incident log — open, closed, filterable by station and category', accent:'#ef4444' },
+      'units.html':       { icon:'👥', desc:'Unit roster — staffing, positions, member contact info', accent:'#06b6d4' },
+      'positioning.html': { icon:'📍', desc:'Coverage by hour, station, day — heatmap and Gantt', accent:'#10b981' },
+      'metro.html':       { icon:'🚆', desc:'SAR train movements, platforms, tafweej', accent:'#06b6d4' },
+      'pcr.html':         { icon:'📝', desc:'PCR drafts and Q-PCRs — file or review patient care reports', accent:'#3b82f6' },
+      'escalation.html':  { icon:'📞', desc:'Escalation matrix — tier contacts and phone numbers', accent:'#ef4444' },
+      'map.html':         { icon:'🗺️', desc:'Geographic view of stations and units', accent:'#10b981' },
+      'code.html':        { icon:'⚡', desc:'Code Blue — cardiac arrest dispatch and protocol', accent:'#ef4444' },
+      'me.html':          { icon:'📅', desc:'Your shift schedule and assignments', accent:'#10b981' },
+      'board.html':       { icon:'📌', desc:'Operations board — open incidents, transfers, station status', accent:'#3b82f6' },
+      'diagnostic.html':  { icon:'🩺', desc:'Backend health check — ping every endpoint, see what is actually deployed', accent:'#ef4444' },
+      'system.html':      { icon:'🖥️', desc:'System health, version info, config', accent:'#6b7280' },
+      'training.html':    { icon:'🎓', desc:'Training materials, drills, certifications', accent:'#a855f7' },
+      'schedule.html':    { icon:'📆', desc:'Full staff and unit schedule across DH 4 → DH 14', accent:'#10b981' },
+      'kpi.html':         { icon:'📈', desc:'KPI dashboard — operational performance metrics', accent:'#f59e0b' },
+      'pulse.html':       { icon:'💓', desc:'Live pulse — real-time incident and unit activity feed', accent:'#ef4444' }
     };
 
     mount.innerHTML = pages.map(function(p) {
