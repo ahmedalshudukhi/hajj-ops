@@ -138,6 +138,19 @@
   </div>
 
 
+  <!-- ===== DISPATCHES (zone-scoped) ===== -->
+  <div class="sv-section">
+    <h3>Dispatches <span style="color:#9ca3af; font-weight:400;" id="svDispatchesMeta">—</span></h3>
+    <div style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
+      <button class="btn btn--small btn--ghost" data-disp-filter="open" style="color:#fcd34d;">🟡 Open</button>
+      <button class="btn btn--small btn--ghost" data-disp-filter="closed" style="color:#86efac;">🟢 Closed today</button>
+      <button class="btn btn--small btn--ghost" data-disp-filter="all">All</button>
+    </div>
+    <div id="svDispatchesBody" style="max-height:400px; overflow-y:auto; font-size:12px;">
+      <div class="empty-state">Loading dispatches…</div>
+    </div>
+  </div>
+
   <!-- ===== UNITS OVERVIEW + STATUS ===== -->
   <div class="sv-section">
     <h3>Units overview <span style="color:#9ca3af; font-weight:400;" id="unitsSummary">—</span></h3>
@@ -245,7 +258,7 @@
       // Re-render all panels affected by the zone filter
       try { renderStationGrid(); } catch(_) {}
       try { renderUnitsOverview(); } catch(_) {}
-      try { renderReposHistory && renderReposHistory(); } catch(_) {}
+      try { loadSvDispatches(); } catch(_) {}  // dispatches are server-filtered, refetch
     });
   }, 50);
 
@@ -601,6 +614,94 @@
 
 
 
+  // ===== Dispatches (zone-scoped, server-filtered via ?cluster=) =====
+  let _allDispatches = [];
+  let _dispFilter = 'open';
+
+  async function loadSvDispatches() {
+    const body = document.getElementById('svDispatchesBody');
+    if (!body) return;
+    // Determine cluster param from _viewZoneStations
+    let clusterParam = '';
+    if (_viewZoneStations) {
+      const arr = Array.from(_viewZoneStations);
+      if (arr[0] && arr[0].startsWith('ARF')) clusterParam = 'arafat';
+      else if (arr[0] && arr[0].startsWith('MUZ')) clusterParam = 'muzdalifah';
+      else if (arr[0] && arr[0].startsWith('MIN')) clusterParam = 'mina';
+    }
+    try {
+      const params = { limit: 100 };
+      if (clusterParam) params.cluster = clusterParam;
+      // Use incidents_search (returns from dispatch_log, zone-filterable server-side)
+      const r = await HAJJ.authedCall('incidents_search', params);
+      if (!r || !r.ok) {
+        body.innerHTML = '<div class="empty-state">Could not load dispatches' + (r && r.error ? ': ' + r.error : '') + '</div>';
+        return;
+      }
+      _allDispatches = r.results || [];
+      renderSvDispatches();
+    } catch (e) {
+      console.error('[sv] dispatches load failed', e);
+      body.innerHTML = '<div class="empty-state">Error loading dispatches: ' + (e && e.message || e) + '</div>';
+    }
+  }
+
+  function renderSvDispatches() {
+    const body = document.getElementById('svDispatchesBody');
+    const meta = document.getElementById('svDispatchesMeta');
+    if (!body) return;
+    const CLOSED = new Set(['complete','closed','cancelled']);
+    const todayStart = Math.floor(Date.now()/1000) - 86400;  // last 24h
+    let filtered = _allDispatches;
+    if (_dispFilter === 'open') {
+      filtered = _allDispatches.filter(function(i) { return !CLOSED.has(i.status); });
+    } else if (_dispFilter === 'closed') {
+      filtered = _allDispatches.filter(function(i) {
+        return CLOSED.has(i.status) && (i.closed_at || i.ts) >= todayStart;
+      });
+    }
+    const open = _allDispatches.filter(function(i) { return !CLOSED.has(i.status); }).length;
+    const closedToday = _allDispatches.filter(function(i) {
+      return CLOSED.has(i.status) && (i.closed_at || i.ts) >= todayStart;
+    }).length;
+    if (meta) meta.textContent = '· ' + open + ' open · ' + closedToday + ' closed today';
+    if (!filtered.length) {
+      body.innerHTML = '<div class="empty-state">No dispatches in this view.</div>';
+      return;
+    }
+    const triageColor = { red:'#fca5a5', yellow:'#fcd34d', green:'#86efac', black:'#9ca3af' };
+    body.innerHTML = filtered.slice(0, 50).map(function(i) {
+      const isOpen = !CLOSED.has(i.status);
+      const t = new Date(i.ts * 1000).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:false});
+      const dt = new Date(i.ts * 1000).toLocaleDateString('en-US', {month:'short', day:'numeric'});
+      const tCol = triageColor[i.triage] || '#9ca3af';
+      const drillFlag = i.is_drill ? '<span style="color:#d8b4fe; font-size:9px; padding:1px 5px; background:rgba(168,85,247,0.15); border-radius:3px; margin-right:4px;">DRILL</span>' : '';
+      const cardiac = i.cardiac_arrest ? '<span title="Cardiac arrest" style="color:#fca5a5; margin-right:3px;">⚠</span>' : '';
+      return '<div onclick="window.location.href=\'/dispatch?incident=' + i.incident_id + '\'" style="display:grid; grid-template-columns: 24px 90px 50px 60px 1fr 70px; gap:6px; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,0.05); cursor:pointer; align-items:center;">'
+        + '<span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:' + tCol + ';" title="' + (i.triage||'?') + '"></span>'
+        + '<span style="font-family:ui-monospace,monospace; color:#cdf1ff; font-size:11px;">' + drillFlag + cardiac + i.incident_id + '</span>'
+        + '<span style="color:' + (isOpen ? '#fcd34d' : '#9ca3af') + '; font-size:10px; text-transform:uppercase;">' + (isOpen ? 'OPEN' : i.status) + '</span>'
+        + '<span style="color:#e5e7eb;">' + (i.station || '?') + '</span>'
+        + '<span style="color:#9ca3af; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + esc(i.complaint || '') + '</span>'
+        + '<span style="color:#6b7d9e; font-size:10px; text-align:right;">' + t + '<br><span style="font-size:9px;">' + dt + '</span></span>'
+        + '</div>';
+    }).join('');
+  }
+
+  // Wire dispatch filter buttons
+  document.querySelectorAll('[data-disp-filter]').forEach(function(b) {
+    b.addEventListener('click', function() {
+      _dispFilter = b.dataset.dispFilter;
+      document.querySelectorAll('[data-disp-filter]').forEach(function(x) { x.classList.remove('btn--active'); });
+      b.classList.add('btn--active');
+      renderSvDispatches();
+    });
+  });
+
+  // Initial load + auto-refresh every 30s
+  setTimeout(loadSvDispatches, 200);
+  setInterval(loadSvDispatches, 30000);
+
   // ===== Units Overview =====
   let _allUnits = [];
   let _unitFilter = 'all';
@@ -714,32 +815,47 @@
   // Hook the dashboard load to populate _allUnits
   const _origLoadAll = window.loadAll || function() {};
   // Hijack the dash load — append units rendering
-  setTimeout(async function() {
+  // Robust units loader: fires on page load + retries on failure.
+  async function _loadUnits() {
+    const body = document.getElementById('unitsOverview');
+    if (!body) { console.error('unitsOverview element missing'); return; }
     try {
-      const dash = await HAJJ.authedCallSWR('dashboard_sv');
+      const dash = await HAJJ.authedCall('dashboard_sv');  // bypass SWR cache for fresh data
+      console.log('[sv] dashboard_sv response:', dash && {
+        ok: dash.ok,
+        units_ok: dash.units && dash.units.ok,
+        units_count: dash.units && dash.units.units ? dash.units.units.length : 0
+      });
       if (dash && dash.units && dash.units.ok && Array.isArray(dash.units.units)) {
         _allUnits = dash.units.units;
-        // NOTE: do NOT filter by allowedStations here — we want all units in memory.
-        // The render function applies _viewZoneStations on the fly so the user can
-        // switch zones without re-fetching.
       } else {
         _allUnits = [];
-        console.warn('dashboard_sv: units missing or invalid', dash);
-        // Surface error to the user instead of leaving "Loading units…" forever
-        const body = document.getElementById('unitsOverview');
-        if (body) body.innerHTML = '<div class="empty-state">Could not load units. ' +
-          (dash && dash.units && dash.units.error ? 'Reason: ' + dash.units.error : '(no response)') + '</div>';
+        body.innerHTML = '<div class="empty-state">Could not load units. ' +
+          (dash && dash.units && dash.units.error ? 'Reason: ' + dash.units.error : '(unexpected response shape)') + '</div>';
         return;
       }
     } catch (e) {
-      console.error('units load failed', e);
+      console.error('[sv] units load failed', e);
       _allUnits = [];
-      const body = document.getElementById('unitsOverview');
-      if (body) body.innerHTML = '<div class="empty-state">Error loading units: ' + (e.message || e) + '</div>';
+      body.innerHTML = '<div class="empty-state">Error loading units: ' + (e && e.message || e) + '</div>';
       return;
     }
-    renderUnitsOverview();
-  }, 500);
+    // Wrap render in its own try/catch so a render error doesn't leave the panel stuck
+    try {
+      renderUnitsOverview();
+    } catch (e) {
+      console.error('[sv] renderUnitsOverview crashed', e);
+      body.innerHTML = '<div class="empty-state">Render error: ' + (e && e.message || e) + '. Check console.</div>';
+    }
+  }
+  // Kick off immediately + retry once after 2s if _allUnits still empty
+  setTimeout(_loadUnits, 100);
+  setTimeout(function() {
+    if (!_allUnits || !_allUnits.length) {
+      console.warn('[sv] units still empty after initial load — retrying');
+      _loadUnits();
+    }
+  }, 2500);
 
   // Inline toast — visible without DevTools
   function cadShowToast(text, kind) {
