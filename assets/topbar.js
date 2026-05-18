@@ -112,7 +112,7 @@
     { href: 'system.html',    label: 'System',     roles: ['admin','leadership'] },
     { href: 'training.html',  label: 'Training',   roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'] },
     { href: 'schedule.html', label: 'Schedule',   roles: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin','sar'] },
-    { href: 'kpi.html',       label: 'KPI',        roles: ['cluster_supervisor','dispatcher','leadership','admin','sar'] },
+    { href: 'kpi.html',       label: 'KPI',        roles: ['cluster_supervisor','dispatcher','leadership','admin'] },
     { href: 'pulse.html',     label: 'Live Pulse', roles: ['paramedic','gp','cluster_supervisor','dispatcher','leadership','admin','sar'] }
   ];
 

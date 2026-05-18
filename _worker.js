@@ -443,7 +443,7 @@ const ROLE_GATE = {
   wellness_save: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'],
   wellness_list: ['cluster_supervisor','leadership','admin'],
   wellness_my_recent: null,
-  sla_summary: ['cluster_supervisor','dispatcher','leadership','admin','sar'],
+  sla_summary: ['cluster_supervisor','dispatcher','leadership','admin'],
   training_scenarios: null,
   training_start_drill: ['paramedic','gp','dispatcher','cluster_supervisor','leadership','admin'],
   sar_summary: ['sar','admin'],
@@ -495,6 +495,16 @@ function maskMobile(m) {
   if (!m) return '';
   const s = String(m).replace(/\D/g,'');
   return s.length >= 4 ? '****' + s.slice(-4) : '****';
+}
+
+// Returns the array of stations a cluster supervisor is scoped to, or null
+// for any other role (no restriction). Used by read-side queries to auto-filter
+// dispatches/incidents to a cluster sup's zone. Pass ?scope=all to opt out.
+function clusterStationsFor(user) {
+  if (user && user.role === 'cluster_supervisor' && user.cluster) {
+    return CLUSTER_STATIONS[String(user.cluster).toLowerCase()] || null;
+  }
+  return null;
 }
 
 // === ACTION HANDLERS ===
@@ -2074,11 +2084,18 @@ const ACTIONS = {
     // 1a. LIVE counts — currently-open incidents are time-INVARIANT. Always show real-time truth
     //     regardless of date window (an incident open from 3 days ago should still show as open today).
     try {
-      const liveR = await env.DB.prepare(
-        `SELECT incident_id, station, triage, cardiac_arrest, status
+      // Scope to cluster supervisor's zone if applicable (unless scope=all)
+      const _cs = clusterStationsFor(user);
+      const _scopeAll = params.scope === 'all';
+      let _liveQ = `SELECT incident_id, station, triage, cardiac_arrest, status
          FROM dispatch_log
-         WHERE status NOT IN ('complete','cancelled','closed')`
-      ).all();
+         WHERE status NOT IN ('complete','cancelled','closed')`;
+      const _liveBinds = [];
+      if (_cs && !_scopeAll) {
+        _liveQ += ` AND station IN (${_cs.map(() => '?').join(',')})`;
+        _cs.forEach(st => _liveBinds.push(st));
+      }
+      const liveR = await env.DB.prepare(_liveQ).bind(..._liveBinds).all();
       (liveR.results || []).forEach(inc => {
         result.dispatch.open++;
         const station = inc.station || 'UNK';
@@ -3474,6 +3491,22 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
       binds.push('%' + q + '%');
     }
     if (station) { where.push(`station = ?${binds.length + 1}`); binds.push(station); }
+    // Auto-scope cluster supervisors to their zone's stations (unless they passed scope=all
+    // or explicitly requested a station — the explicit-station check still applies upstream).
+    const _userClusterStations = clusterStationsFor(user);
+    const _scopeAll = params.scope === 'all';
+    if (_userClusterStations && !_scopeAll) {
+      if (station && !_userClusterStations.includes(station)) {
+        // Asked for a station outside their cluster → return empty
+        return { ok: true, count: 0, results: [], _scoped_to_cluster: user.cluster, _denied_station: station };
+      }
+      if (!station) {
+        // No station filter — restrict to their cluster's 3 stations
+        const ph = _userClusterStations.map((_, i) => `?${binds.length + 1 + i}`).join(',');
+        where.push(`station IN (${ph})`);
+        _userClusterStations.forEach(st => binds.push(st));
+      }
+    }
     if (triage) { where.push(`triage = ?${binds.length + 1}`); binds.push(triage); }
     if (status_filter === 'open') where.push(`status NOT IN ('complete','closed','cancelled')`);
     else if (status_filter === 'closed') where.push(`status IN ('complete','closed')`);
