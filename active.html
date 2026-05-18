@@ -1166,6 +1166,15 @@
 })();
 </script>
 
-<script src="assets/version.js?v=0.9.5"></script>
+<script src="assets/version.js?v=0.9.5">
+  // Re-fetch active_summary when zone filter changes
+  (function() {
+    const zf = document.getElementById('filterZone');
+    if (zf) zf.addEventListener('change', function() {
+      try { refresh(); } catch(_) {}
+      try { applyFilters(); } catch(_) {}
+    });
+  })();
+</script>
 </body>
 </html>
