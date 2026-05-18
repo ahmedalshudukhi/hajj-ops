@@ -80,6 +80,20 @@
 
 <div class="sv-wrap">
 
+  <!-- ===== ZONE FILTER ===== -->
+  <div class="sv-section" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+    <div style="display:flex; flex-direction:column; gap:2px;">
+      <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:#9ca3af;">View zone</label>
+      <select id="svZone" style="padding:6px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:#e5e7eb; font-size:14px; min-width:160px;">
+        <option value="">All zones</option>
+        <option value="arafat">Arafat</option>
+        <option value="muzdalifah">Muzdalifah</option>
+        <option value="mina">Mina</option>
+      </select>
+    </div>
+    <div id="svZoneMeta" style="font-size:11px; color:#9ca3af; margin-left:auto;">—</div>
+  </div>
+
   <!-- ===== STATION STATUS ===== -->
   <div class="sv-section">
     <h3>Station status — tap to set</h3>
@@ -206,6 +220,46 @@
     return allowedStations.has(String(station).toUpperCase());
   }
 
+  // ===== VIEW ZONE FILTER (separate from allowedStations security gate) =====
+  // allowedStations = what user is permitted to edit (cluster sup limited to their cluster).
+  // _viewZoneStations = what user currently wants to SEE (can be changed via dropdown).
+  // Defaults: cluster sup → their cluster; leadership/admin → all zones.
+  let _viewZoneStations = role === 'cluster_supervisor'
+    ? new Set(CLUSTER_STATIONS[cluster] || [])
+    : null; // null = show all
+  function inViewZone(station) {
+    if (!_viewZoneStations) return true;
+    return _viewZoneStations.has(String(station).toUpperCase());
+  }
+  // Wire dropdown — preselect current zone, listen for changes
+  setTimeout(function() {
+    const sel = document.getElementById('svZone');
+    if (!sel) return;
+    // Preselect to user's cluster if they have one
+    if (cluster && CLUSTER_STATIONS[cluster]) sel.value = cluster;
+    updateZoneMeta();
+    sel.addEventListener('change', function() {
+      const z = sel.value.toLowerCase();
+      _viewZoneStations = z && CLUSTER_STATIONS[z] ? new Set(CLUSTER_STATIONS[z]) : null;
+      updateZoneMeta();
+      // Re-render all panels affected by the zone filter
+      try { renderStationGrid(); } catch(_) {}
+      try { renderUnitsOverview(); } catch(_) {}
+      try { renderReposHistory && renderReposHistory(); } catch(_) {}
+    });
+  }, 50);
+
+  function updateZoneMeta() {
+    const meta = document.getElementById('svZoneMeta');
+    if (!meta) return;
+    if (_viewZoneStations) {
+      const stations = Array.from(_viewZoneStations).join(' · ');
+      meta.textContent = 'Showing: ' + stations;
+    } else {
+      meta.textContent = 'Showing all 9 stations';
+    }
+  }
+
   // ============ STATION STATUS ============
 
   let LATEST_STATUS = {};
@@ -220,9 +274,13 @@
 
   function renderStationGrid() {
     const grid = document.getElementById('stationGrid');
-    const stations = role === 'cluster_supervisor'
-      ? (CLUSTER_STATIONS[cluster] || [])
-      : ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+    // View list driven by zone dropdown. Cluster sups can VIEW any zone now
+    // (for relocation flexibility) — but editing is still gated server-side
+    // by cross_cluster_forbidden when they try to modify outside their cluster.
+    const allStations = ['ARF1','ARF2','ARF3','MUZ1','MUZ2','MUZ3','MIN1','MIN2','MIN3'];
+    const stations = _viewZoneStations
+      ? allStations.filter(function(s) { return _viewZoneStations.has(s); })
+      : allStations;
 
     if (!stations.length) {
       grid.innerHTML = '<div class="empty-state">No stations in your cluster.</div>';
@@ -556,13 +614,27 @@
       body.innerHTML = '<div class="empty-state">No units loaded.</div>';
       return;
     }
+    // Step 1: apply zone filter (only show units whose home OR current station is in view zone)
+    const zoneFiltered = _viewZoneStations
+      ? _allUnits.filter(function(u) {
+          const h = String(u.home_station || '').toUpperCase();
+          const c = String(u.current_station || '').toUpperCase();
+          return _viewZoneStations.has(h) || _viewZoneStations.has(c);
+        })
+      : _allUnits;
+    // Step 2: apply state filter (available / busy / etc)
     const filtered = _unitFilter === 'all'
-      ? _allUnits
-      : _allUnits.filter(function(u) { return u.state === _unitFilter; });
+      ? zoneFiltered
+      : zoneFiltered.filter(function(u) { return u.state === _unitFilter; });
 
     const counts = { available:0, busy:0, off_duty:0, oos:0, maintenance:0, unknown:0 };
-    _allUnits.forEach(function(u) { counts[u.state] = (counts[u.state]||0) + 1; });
-    if (summary) summary.textContent = '· ' + counts.available + ' available · ' + counts.busy + ' busy · ' + counts.off_duty + ' off · ' + counts.oos + ' oos';
+    zoneFiltered.forEach(function(u) { counts[u.state] = (counts[u.state]||0) + 1; });
+    if (summary) {
+      const totalLabel = _viewZoneStations
+        ? ' (' + zoneFiltered.length + ' in zone)'
+        : '';
+      summary.textContent = totalLabel + ' · ' + counts.available + ' available · ' + counts.busy + ' busy · ' + counts.off_duty + ' off · ' + counts.oos + ' oos';
+    }
 
     if (!filtered.length) {
       body.innerHTML = '<div class="empty-state" style="grid-column:1/-1;">No units in this state.</div>';
@@ -643,15 +715,30 @@
   const _origLoadAll = window.loadAll || function() {};
   // Hijack the dash load — append units rendering
   setTimeout(async function() {
-    const dash = await HAJJ.authedCallSWR('dashboard_sv');
-    if (dash && dash.units && dash.units.ok && dash.units.units) {
-      _allUnits = dash.units.units;
-      // Filter by cluster for SVs
-      if (allowedStations) {
-        _allUnits = _allUnits.filter(function(u) { return isAllowed(u.home_station) || isAllowed(u.current_station); });
+    try {
+      const dash = await HAJJ.authedCallSWR('dashboard_sv');
+      if (dash && dash.units && dash.units.ok && Array.isArray(dash.units.units)) {
+        _allUnits = dash.units.units;
+        // NOTE: do NOT filter by allowedStations here — we want all units in memory.
+        // The render function applies _viewZoneStations on the fly so the user can
+        // switch zones without re-fetching.
+      } else {
+        _allUnits = [];
+        console.warn('dashboard_sv: units missing or invalid', dash);
+        // Surface error to the user instead of leaving "Loading units…" forever
+        const body = document.getElementById('unitsOverview');
+        if (body) body.innerHTML = '<div class="empty-state">Could not load units. ' +
+          (dash && dash.units && dash.units.error ? 'Reason: ' + dash.units.error : '(no response)') + '</div>';
+        return;
       }
-      renderUnitsOverview();
+    } catch (e) {
+      console.error('units load failed', e);
+      _allUnits = [];
+      const body = document.getElementById('unitsOverview');
+      if (body) body.innerHTML = '<div class="empty-state">Error loading units: ' + (e.message || e) + '</div>';
+      return;
     }
+    renderUnitsOverview();
   }, 500);
 
   // Inline toast — visible without DevTools
