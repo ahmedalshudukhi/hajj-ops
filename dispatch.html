@@ -719,8 +719,22 @@
   function renderCards() {
     const grid = document.getElementById('cards');
     grid.innerHTML = '';
-    const items = Object.values(incidentsById)
+    // Zone filter
+    const zoneSel = document.getElementById('dispZone');
+    const zone = zoneSel ? zoneSel.value.toLowerCase() : '';
+    const prefix = zone === 'arafat' ? 'ARF' : zone === 'muzdalifah' ? 'MUZ' : zone === 'mina' ? 'MIN' : '';
+    let items = Object.values(incidentsById)
       .sort((a, b) => new Date(b.Created_At) - new Date(a.Created_At));
+    if (prefix) {
+      items = items.filter(i => String(i.Station || '').toUpperCase().startsWith(prefix));
+    }
+    // Update zone meta
+    const meta = document.getElementById('dispZoneMeta');
+    if (meta) {
+      meta.textContent = prefix
+        ? 'Showing ' + items.length + ' incidents in ' + zone.charAt(0).toUpperCase() + zone.slice(1)
+        : items.length + ' incidents across all zones';
+    }
     if (!items.length) { document.getElementById('emptyState').hidden = false; return; }
     document.getElementById('emptyState').hidden = true;
     items.forEach(inc => grid.appendChild(buildCard(inc)));
@@ -1349,6 +1363,12 @@
   sourceSel.addEventListener('change', update);
   update();
 })();
+
+  // Re-render cards when zone filter changes
+  setTimeout(function() {
+    const dz = document.getElementById('dispZone');
+    if (dz) dz.addEventListener('change', function() { renderCards(); });
+  }, 100);
 </script>
 
 </body>
