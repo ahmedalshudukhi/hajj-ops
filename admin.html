@@ -100,6 +100,81 @@
   .toast.show { opacity: 1; }
   .toast.error { border-color: #ef4444; color: #fca5a5; }
   .toast.success { border-color: #22c55e; color: #86efac; }
+
+  /* Multi-select unit picker (move scheduling) */
+  .ms-control {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+    padding: 6px 8px; min-height: 38px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px; cursor: pointer;
+  }
+  .ms-control:hover { border-color: rgba(255,255,255,0.30); }
+  .ms-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 4px 2px 8px; font-size: 12px; line-height: 1;
+    background: rgba(56,189,248,0.15); color: #cdf1ff;
+    border: 1px solid rgba(56,189,248,0.3); border-radius: 4px;
+    font-family: ui-monospace, monospace;
+  }
+  .ms-chip-x {
+    background: transparent; border: none; color: #cdf1ff;
+    cursor: pointer; padding: 2px 4px; font-size: 14px; line-height: 1;
+    border-radius: 2px;
+  }
+  .ms-chip-x:hover { background: rgba(255,255,255,0.10); color: #fca5a5; }
+  .ms-toggle {
+    background: transparent; border: 1px dashed rgba(255,255,255,0.25);
+    color: var(--text-muted); padding: 3px 10px; font-size: 12px;
+    border-radius: 4px; cursor: pointer;
+  }
+  .ms-toggle:hover { color: #e5e7eb; border-color: rgba(255,255,255,0.50); }
+  .ms-empty { color: var(--text-muted); font-style: italic; font-size: 12px; padding: 4px 8px; }
+  .ms-panel {
+    position: relative; margin-top: 6px; padding: 10px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px; max-height: 380px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .ms-search-row {
+    display: flex; gap: 8px; align-items: center;
+  }
+  .ms-search-row input[type=search] {
+    flex: 1; padding: 5px 10px; background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.15); border-radius: 4px;
+    color: #e5e7eb; font-size: 13px;
+  }
+  .ms-actions {
+    display: flex; gap: 6px; align-items: center; font-size: 11px;
+  }
+  .ms-actions button {
+    padding: 3px 10px; font-size: 11px; border-radius: 4px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.15);
+    color: #e5e7eb; cursor: pointer;
+  }
+  .ms-actions button:hover { background: rgba(255,255,255,0.10); }
+  .ms-count { color: var(--text-muted); margin-left: auto; font-family: ui-monospace, monospace; }
+  .ms-list {
+    flex: 1; overflow-y: auto; min-height: 100px; max-height: 250px;
+    background: rgba(0,0,0,0.20); border-radius: 4px;
+  }
+  .ms-item {
+    display: flex; gap: 8px; align-items: center; padding: 5px 10px;
+    cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 12px;
+  }
+  .ms-item:hover { background: rgba(255,255,255,0.04); }
+  .ms-item input[type=checkbox] { margin: 0; cursor: pointer; }
+  .ms-item-code { font-family: ui-monospace, monospace; color: #e5e7eb; min-width: 90px; }
+  .ms-item-meta { color: var(--text-muted); font-size: 11px; }
+
+  /* Sortable table headers */
+  th[data-sort] {
+    cursor: pointer; user-select: none;
+    transition: background 0.15s;
+  }
+  th[data-sort]:hover { background: rgba(255,255,255,0.06); }
+  th[data-sort].sort-active { color: #fcd34d; }
+  .sort-arrow { display: inline-block; margin-left: 4px; font-size: 10px; color: #fcd34d; }
+
 </style>
 </head>
 <body>
@@ -221,9 +296,25 @@
     <div class="form-card">
       <h3>Schedule a unit move</h3>
       <div class="form-row">
-        <div>
-          <label for="prpUnit">Unit</label>
-          <select id="prpUnit"><option value="">Loading units…</option></select>
+        <div style="grid-column: 1 / -1;">
+          <label for="prpUnit">Units (one or more)</label>
+          <div class="ms-control" id="msToggleControl" tabindex="0">
+            <div id="msChips" style="display:flex; flex-wrap:wrap; gap:4px; flex:1;"></div>
+            <button type="button" class="ms-toggle" id="msToggle">+ Add units</button>
+          </div>
+          <div class="ms-panel" id="msPanel" hidden>
+            <div class="ms-search-row">
+              <input type="search" id="msSearch" placeholder="Filter by code, type, or station…" autocomplete="off">
+            </div>
+            <div class="ms-actions">
+              <button type="button" id="msSelectVisible">Select all visible</button>
+              <button type="button" id="msClearAll">Clear all</button>
+              <span class="ms-count" id="msCount">0 selected</span>
+            </div>
+            <div class="ms-list" id="msList"></div>
+          </div>
+          <!-- legacy single-select kept hidden so any stray code does not break -->
+          <select id="prpUnit" style="display:none;"></select>
         </div>
         <div>
           <label for="prpToStation">To station</label>
@@ -291,9 +382,18 @@
 
     <h3 style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 16px 0 8px;">Scheduled (pending)</h3>
     <div style="overflow-x: auto;">
-      <table class="admin-table">
+      <table class="admin-table" id="plannedPendingTable">
         <thead>
-          <tr><th>Unit</th><th>To Station</th><th>Start</th><th>End</th><th>Reason</th><th>Created by</th><th>Created</th><th>Actions</th></tr>
+          <tr>
+            <th data-sort="unit_code">Unit<span class="sort-arrow"></span></th>
+            <th data-sort="to_station">To Station<span class="sort-arrow"></span></th>
+            <th data-sort="planned_at">Start<span class="sort-arrow"></span></th>
+            <th data-sort="planned_end_at">End<span class="sort-arrow"></span></th>
+            <th data-sort="reason">Reason<span class="sort-arrow"></span></th>
+            <th data-sort="created_by_name">Created by<span class="sort-arrow"></span></th>
+            <th data-sort="created_at">Created<span class="sort-arrow"></span></th>
+            <th>Actions</th>
+          </tr>
         </thead>
         <tbody id="plannedPendingBody">
           <tr><td colspan="8" class="empty-state">Loading…</td></tr>
@@ -303,9 +403,17 @@
 
     <h3 style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 24px 0 8px;">Executed / Cancelled</h3>
     <div style="overflow-x: auto;">
-      <table class="admin-table">
+      <table class="admin-table" id="plannedDoneTable">
         <thead>
-          <tr><th>Status</th><th>Unit</th><th>From → To</th><th>Window</th><th>Reason</th><th>Resolved</th><th>Actions</th></tr>
+          <tr>
+            <th data-sort="status">Status<span class="sort-arrow"></span></th>
+            <th data-sort="unit_code">Unit<span class="sort-arrow"></span></th>
+            <th data-sort="to_station">From → To<span class="sort-arrow"></span></th>
+            <th data-sort="planned_at">Window<span class="sort-arrow"></span></th>
+            <th data-sort="reason">Reason<span class="sort-arrow"></span></th>
+            <th data-sort="resolved_at">Resolved<span class="sort-arrow"></span></th>
+            <th>Actions</th>
+          </tr>
         </thead>
         <tbody id="plannedDoneBody">
           <tr><td colspan="8" class="empty-state">Loading…</td></tr>
@@ -596,11 +704,182 @@
       const r = await HAJJ.authedCall('unit_availability', {});
       if (!r || !r.ok) return;
       _ALL_UNITS = (r.units || []).filter(u => u.code).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+      // Legacy hidden single-select (kept for backward compat)
       const sel = document.getElementById('prpUnit');
-      sel.innerHTML = '<option value="">— select unit —</option>' +
+      if (sel) sel.innerHTML = '<option value="">— select unit —</option>' +
         _ALL_UNITS.map(u => '<option value="' + esc(u.code) + '">' + esc(u.code) + ' · ' + esc(u.type || '') + ' · ' + esc(u.home_station || '') + '</option>').join('');
+      // Populate the multi-select list
+      renderMsList();
     } catch (_) {}
   }
+
+  // ===== Multi-select unit picker =====
+  const _msSelected = new Set();  // unit codes (uppercase)
+
+  function renderMsChips() {
+    const chips = document.getElementById('msChips');
+    if (!chips) return;
+    if (_msSelected.size === 0) {
+      chips.innerHTML = '<span class="ms-empty">No units selected</span>';
+      return;
+    }
+    chips.innerHTML = Array.from(_msSelected).sort((a,b) => a.localeCompare(b, undefined, {numeric:true})).map(function(code) {
+      return '<span class="ms-chip">' + esc(code) +
+        '<button type="button" class="ms-chip-x" data-remove="' + esc(code) + '" title="Remove">×</button></span>';
+    }).join('');
+    chips.querySelectorAll('[data-remove]').forEach(function(b) {
+      b.addEventListener('click', function(e) {
+        e.stopPropagation();
+        _msSelected.delete(b.dataset.remove);
+        renderMsChips();
+        renderMsList();
+      });
+    });
+  }
+
+  function renderMsList() {
+    const list = document.getElementById('msList');
+    const search = document.getElementById('msSearch');
+    const count = document.getElementById('msCount');
+    if (!list) return;
+    const q = (search && search.value || '').toLowerCase().trim();
+    const visible = _ALL_UNITS.filter(function(u) {
+      if (!q) return true;
+      return String(u.code||'').toLowerCase().includes(q)
+        || String(u.type||'').toLowerCase().includes(q)
+        || String(u.home_station||'').toLowerCase().includes(q);
+    });
+    list.innerHTML = visible.length
+      ? visible.map(function(u) {
+          const checked = _msSelected.has(u.code) ? 'checked' : '';
+          return '<label class="ms-item">'
+            + '<input type="checkbox" data-code="' + esc(u.code) + '" ' + checked + '>'
+            + '<span class="ms-item-code">' + esc(u.code) + '</span>'
+            + '<span class="ms-item-meta">' + esc(u.type || '') + ' · ' + esc(u.home_station || '') + '</span>'
+            + '</label>';
+        }).join('')
+      : '<div class="ms-empty" style="padding:14px; text-align:center;">No units match</div>';
+    list.querySelectorAll('input[type=checkbox]').forEach(function(cb) {
+      cb.addEventListener('change', function() {
+        if (cb.checked) _msSelected.add(cb.dataset.code);
+        else _msSelected.delete(cb.dataset.code);
+        if (count) count.textContent = _msSelected.size + ' selected';
+        renderMsChips();
+      });
+    });
+    if (count) count.textContent = _msSelected.size + ' selected';
+  }
+
+  // Wire multi-select interactions (idempotent — uses setTimeout to ensure DOM ready)
+  setTimeout(function() {
+    const toggle = document.getElementById('msToggle');
+    const ctrl = document.getElementById('msToggleControl');
+    const panel = document.getElementById('msPanel');
+    const search = document.getElementById('msSearch');
+    const selectVis = document.getElementById('msSelectVisible');
+    const clearAll = document.getElementById('msClearAll');
+    if (!toggle || !panel) return;
+
+    function openPanel() {
+      panel.hidden = false;
+      renderMsList();
+      if (search) search.focus();
+    }
+    function closePanel() { panel.hidden = true; }
+    function togglePanel() { panel.hidden ? openPanel() : closePanel(); }
+
+    toggle.addEventListener('click', function(e) { e.stopPropagation(); togglePanel(); });
+    ctrl.addEventListener('click', function() { if (panel.hidden) openPanel(); });
+
+    if (search) search.addEventListener('input', renderMsList);
+
+    if (selectVis) selectVis.addEventListener('click', function() {
+      const q = (search && search.value || '').toLowerCase().trim();
+      _ALL_UNITS.forEach(function(u) {
+        const matches = !q
+          || String(u.code||'').toLowerCase().includes(q)
+          || String(u.type||'').toLowerCase().includes(q)
+          || String(u.home_station||'').toLowerCase().includes(q);
+        if (matches) _msSelected.add(u.code);
+      });
+      renderMsList();
+      renderMsChips();
+    });
+
+    if (clearAll) clearAll.addEventListener('click', function() {
+      _msSelected.clear();
+      renderMsList();
+      renderMsChips();
+    });
+
+    // Close panel on outside click
+    document.addEventListener('click', function(e) {
+      if (panel.hidden) return;
+      if (panel.contains(e.target) || ctrl.contains(e.target)) return;
+      closePanel();
+    });
+
+    renderMsChips();
+  }, 200);
+
+  // ===== Sort state for scheduled-moves tables =====
+  let _pendingSort = { key: 'created_at', dir: 'desc' };
+  let _doneSort    = { key: 'resolved_at', dir: 'desc' };
+
+  function sortItems(items, key, dir) {
+    const direction = dir === 'asc' ? 1 : -1;
+    return items.slice().sort(function(a, b) {
+      let av = a[key], bv = b[key];
+      if (av == null) av = '';
+      if (bv == null) bv = '';
+      // Numbers: compare as numbers
+      const aNum = typeof av === 'number' ? av : (av === '' ? NaN : Number(av));
+      const bNum = typeof bv === 'number' ? bv : (bv === '' ? NaN : Number(bv));
+      if (!isNaN(aNum) && !isNaN(bNum)) return (aNum - bNum) * direction;
+      // Strings: locale-aware natural sort
+      return String(av).toLowerCase().localeCompare(String(bv).toLowerCase(), undefined, { numeric: true }) * direction;
+    });
+  }
+
+  function updateSortArrows() {
+    document.querySelectorAll('th[data-sort]').forEach(function(th) {
+      const arrow = th.querySelector('.sort-arrow');
+      if (arrow) arrow.textContent = '';
+      th.classList.remove('sort-active');
+    });
+    const pTh = document.querySelector('#plannedPendingTable th[data-sort="' + _pendingSort.key + '"]');
+    if (pTh) {
+      pTh.classList.add('sort-active');
+      const a = pTh.querySelector('.sort-arrow');
+      if (a) a.textContent = _pendingSort.dir === 'asc' ? ' ↑' : ' ↓';
+    }
+    const dTh = document.querySelector('#plannedDoneTable th[data-sort="' + _doneSort.key + '"]');
+    if (dTh) {
+      dTh.classList.add('sort-active');
+      const a = dTh.querySelector('.sort-arrow');
+      if (a) a.textContent = _doneSort.dir === 'asc' ? ' ↑' : ' ↓';
+    }
+  }
+
+  // Wire sortable headers — clicking toggles direction, switching column resets to desc
+  setTimeout(function() {
+    document.querySelectorAll('#plannedPendingTable th[data-sort]').forEach(function(th) {
+      th.addEventListener('click', function() {
+        const k = th.dataset.sort;
+        if (_pendingSort.key === k) _pendingSort.dir = _pendingSort.dir === 'asc' ? 'desc' : 'asc';
+        else { _pendingSort.key = k; _pendingSort.dir = 'desc'; }
+        loadPlannedRepos();
+      });
+    });
+    document.querySelectorAll('#plannedDoneTable th[data-sort]').forEach(function(th) {
+      th.addEventListener('click', function() {
+        const k = th.dataset.sort;
+        if (_doneSort.key === k) _doneSort.dir = _doneSort.dir === 'asc' ? 'desc' : 'asc';
+        else { _doneSort.key = k; _doneSort.dir = 'desc'; }
+        loadPlannedRepos();
+      });
+    });
+  }, 250);
 
   function populateHourDropdown() {
     const opts = [];
@@ -619,9 +898,16 @@
       pendingBody.innerHTML = '<tr><td colspan="8" class="empty-state">Failed to load.</td></tr>';
       return;
     }
-    const items = r.items || [];
-    const pending = items.filter(x => x.status === 'pending' || x.status === 'approved');
-    const done = items.filter(x => x.status === 'executed' || x.status === 'cancelled');
+    const items = (r.items || []).map(function(p) {
+      // Normalize resolved_at so sort works on done items
+      return Object.assign({}, p, {
+        resolved_at: p.executed_at || p.cancelled_at || p.reversed_at || null
+      });
+    });
+    let pending = items.filter(function(x) { return x.status === 'pending' || x.status === 'approved'; });
+    let done    = items.filter(function(x) { return x.status === 'executed' || x.status === 'cancelled'; });
+    pending = sortItems(pending, _pendingSort.key, _pendingSort.dir);
+    done    = sortItems(done,    _doneSort.key,    _doneSort.dir);
     document.getElementById('plannedCount').textContent = pending.length;
 
     pendingBody.innerHTML = pending.length ? pending.map(function(p) {
@@ -691,6 +977,7 @@
         loadPlannedRepos();
       });
     });
+    updateSortArrows();
   }
 
   // ============ ESCALATION EDITOR ============
@@ -773,7 +1060,7 @@
 
   // Wire up form actions
   document.getElementById('prpSubmit').addEventListener('click', async () => {
-    const unit = document.getElementById('prpUnit').value;
+    const units = Array.from(_msSelected);
     const to = document.getElementById('prpToStation').value;
     const dh = document.getElementById('prpDH').value;
     const hr = document.getElementById('prpHour').value;
@@ -781,35 +1068,61 @@
     const endHr = document.getElementById('prpEndHour').value;
     const reason = document.getElementById('prpReason').value;
     const msg = document.getElementById('prpMsg');
-    if (!unit || !to || !dh) { msg.textContent = 'Unit + To station + Start DH are required'; msg.style.color = '#fca5a5'; return; }
+    if (!units.length) { msg.textContent = 'Select at least one unit'; msg.style.color = '#fca5a5'; return; }
+    if (!to || !dh) { msg.textContent = 'To station + Start DH are required'; msg.style.color = '#fca5a5'; return; }
     if (endDh) {
-      // Validate end > start
       const startKey = parseInt(dh, 10) * 10000 + parseInt(hr.replace(':',''), 10);
-      const endKey = parseInt(endDh, 10) * 10000 + parseInt(endHr.replace(':',''), 10);
+      const endKey   = parseInt(endDh, 10) * 10000 + parseInt(endHr.replace(':',''), 10);
       if (endKey <= startKey) {
         msg.textContent = 'End must be after start'; msg.style.color = '#fca5a5'; return;
       }
     }
-    msg.textContent = 'Scheduling…'; msg.style.color = '#fcd34d';
-    const r = await HAJJ.authedCall('reposition_planned_create', {
-      unit_code: unit, to_station: to,
-      planned_dh: dh, planned_hour: hr,
-      planned_end_dh: endDh || '', planned_end_hour: endHr || '',
-      reason: reason
-    });
-    if (r && r.ok) {
-      msg.textContent = '✓ Scheduled (id ' + r.id + ')'; msg.style.color = '#86efac';
-      ['prpUnit','prpToStation','prpDH','prpEndDH','prpReason'].forEach(id => document.getElementById(id).value = '');
-      loadPlannedRepos();
+    // Loop: one create call per selected unit. Track success / failure separately.
+    msg.style.color = '#fcd34d';
+    const submitBtn = document.getElementById('prpSubmit');
+    submitBtn.disabled = true;
+    let ok = 0;
+    const failed = [];
+    for (let i = 0; i < units.length; i++) {
+      const u = units[i];
+      msg.textContent = 'Scheduling ' + (i + 1) + ' / ' + units.length + '  ·  ' + u;
+      try {
+        const r = await HAJJ.authedCall('reposition_planned_create', {
+          unit_code: u, to_station: to,
+          planned_dh: dh, planned_hour: hr,
+          planned_end_dh: endDh || '', planned_end_hour: endHr || '',
+          reason: reason
+        });
+        if (r && r.ok) ok++;
+        else failed.push(u + ' (' + ((r && r.error) || 'unknown') + ')');
+      } catch (e) {
+        failed.push(u + ' (' + (e.message || 'error') + ')');
+      }
+    }
+    submitBtn.disabled = false;
+    if (failed.length === 0) {
+      msg.textContent = '✓ Scheduled ' + ok + ' move' + (ok === 1 ? '' : 's');
+      msg.style.color = '#86efac';
+      _msSelected.clear();
+      renderMsChips();
+      renderMsList();
+      ['prpToStation','prpDH','prpEndDH','prpReason'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    } else if (ok > 0) {
+      msg.textContent = '✓ ' + ok + ' scheduled · ✗ ' + failed.length + ' failed: ' + failed.join('; ');
+      msg.style.color = '#fcd34d';
     } else {
-      msg.textContent = '✗ Failed: ' + ((r && r.error) || 'unknown') + (r.detail ? ' (' + r.detail + ')' : '');
+      msg.textContent = '✗ All ' + failed.length + ' failed: ' + failed.join('; ');
       msg.style.color = '#fca5a5';
     }
+    loadPlannedRepos();
   });
   document.getElementById('prpReset').addEventListener('click', () => {
-    ['prpUnit','prpToStation','prpDH','prpEndDH','prpReason'].forEach(id => document.getElementById(id).value = '');
-    document.getElementById('prpHour').value = '00:00';
-    document.getElementById('prpMsg').textContent = '';
+    _msSelected.clear();
+    renderMsChips();
+    renderMsList();
+    ['prpToStation','prpDH','prpEndDH','prpReason'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    const hrEl = document.getElementById('prpHour'); if (hrEl) hrEl.value = '00:00';
+    const msgEl = document.getElementById('prpMsg'); if (msgEl) msgEl.textContent = '';
   });
 
   document.getElementById('escAddBtn').addEventListener('click', async () => {
