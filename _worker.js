@@ -2084,14 +2084,14 @@ const ACTIONS = {
     // 1a. LIVE counts — currently-open incidents are time-INVARIANT. Always show real-time truth
     //     regardless of date window (an incident open from 3 days ago should still show as open today).
     try {
-      // Scope to cluster supervisor's zone if applicable (unless scope=all)
-      const _cs = clusterStationsFor(user);
-      const _scopeAll = params.scope === 'all';
+      // Optional explicit cluster filter via ?cluster=Arafat|Muzdalifah|Mina
+      const _clusterParam = String(params.cluster || '').toLowerCase();
+      const _cs = CLUSTER_STATIONS[_clusterParam] || null;
       let _liveQ = `SELECT incident_id, station, triage, cardiac_arrest, status
          FROM dispatch_log
          WHERE status NOT IN ('complete','cancelled','closed')`;
       const _liveBinds = [];
-      if (_cs && !_scopeAll) {
+      if (_cs) {
         _liveQ += ` AND station IN (${_cs.map(() => '?').join(',')})`;
         _cs.forEach(st => _liveBinds.push(st));
       }
@@ -3491,20 +3491,20 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
       binds.push('%' + q + '%');
     }
     if (station) { where.push(`station = ?${binds.length + 1}`); binds.push(station); }
-    // Auto-scope cluster supervisors to their zone's stations (unless they passed scope=all
-    // or explicitly requested a station — the explicit-station check still applies upstream).
-    const _userClusterStations = clusterStationsFor(user);
-    const _scopeAll = params.scope === 'all';
-    if (_userClusterStations && !_scopeAll) {
-      if (station && !_userClusterStations.includes(station)) {
-        // Asked for a station outside their cluster → return empty
-        return { ok: true, count: 0, results: [], _scoped_to_cluster: user.cluster, _denied_station: station };
+    // Optional explicit cluster filter — pass ?cluster=Arafat|Muzdalifah|Mina to scope
+    // to a zone's 3 stations. Any role can use this (cluster sups, dispatchers, leadership).
+    // Default behavior: NO auto-filtering — every user sees all zones unless they pick one.
+    const _clusterParam = String(params.cluster || '').toLowerCase();
+    if (_clusterParam && CLUSTER_STATIONS[_clusterParam]) {
+      const _cs = CLUSTER_STATIONS[_clusterParam];
+      if (station && !_cs.includes(station)) {
+        // Station + cluster contradicting each other → empty
+        return { ok: true, count: 0, results: [], _cluster: _clusterParam, _denied_station: station };
       }
       if (!station) {
-        // No station filter — restrict to their cluster's 3 stations
-        const ph = _userClusterStations.map((_, i) => `?${binds.length + 1 + i}`).join(',');
+        const ph = _cs.map((_, i) => `?${binds.length + 1 + i}`).join(',');
         where.push(`station IN (${ph})`);
-        _userClusterStations.forEach(st => binds.push(st));
+        _cs.forEach(st => binds.push(st));
       }
     }
     if (triage) { where.push(`triage = ?${binds.length + 1}`); binds.push(triage); }

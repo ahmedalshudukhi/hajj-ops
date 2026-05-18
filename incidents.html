@@ -35,6 +35,11 @@ body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-ser
 
   <div class="in-controls">
     <div><label>Search</label><input type="text" id="inQ" placeholder="ID, complaint, location" /></div>
+    <div><label>Zone</label><select id="inCluster"><option value="">All zones</option>
+      <option value="arafat">Arafat</option>
+      <option value="muzdalifah">Muzdalifah</option>
+      <option value="mina">Mina</option>
+    </select></div>
     <div><label>Station</label><select id="inStation"><option value="">All</option>
       <option>ARF1</option><option>ARF2</option><option>ARF3</option>
       <option>MUZ1</option><option>MUZ2</option><option>MUZ3</option>
@@ -75,6 +80,7 @@ body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-ser
   async function search() {
     const params = {
       q: document.getElementById('inQ').value,
+      cluster: document.getElementById('inCluster').value,
       station: document.getElementById('inStation').value,
       triage: document.getElementById('inTriage').value,
       status: document.getElementById('inStatus').value,
@@ -105,6 +111,20 @@ body { background:#0a0e1a; color:#e7ecf7; font-family:'Inter',system-ui,sans-ser
     }).join('');
   }
 
+  // Auto-narrow Station dropdown when Zone changes — keeps station/zone consistent
+  document.getElementById('inCluster').addEventListener('change', function() {
+    const cluster = this.value;
+    const stationSel = document.getElementById('inStation');
+    const prefix = cluster === 'arafat' ? 'ARF' : cluster === 'muzdalifah' ? 'MUZ' : cluster === 'mina' ? 'MIN' : '';
+    Array.from(stationSel.options).forEach(opt => {
+      if (!opt.value) { opt.style.display = ''; return; }
+      opt.style.display = (!prefix || opt.value.startsWith(prefix)) ? '' : 'none';
+    });
+    // If selected station no longer matches the zone, clear it
+    if (prefix && stationSel.value && !stationSel.value.startsWith(prefix)) {
+      stationSel.value = '';
+    }
+  });
   document.getElementById('inSearch').addEventListener('click', search);
   document.getElementById('inQ').addEventListener('keypress', e => { if (e.key === 'Enter') search(); });
   ['inStation','inTriage','inStatus','inDrills'].forEach(id => document.getElementById(id).addEventListener('change', search));

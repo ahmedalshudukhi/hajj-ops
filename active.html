@@ -288,6 +288,15 @@
         <!-- Legacy filterDate kept for any referencing code -->
         <input type="date" id="filterDate" min="2026-05-01" max="2026-06-12" value="" style="display:none;">
         <div style="display:flex; flex-direction:column; gap:2px;">
+          <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-muted, #9ca3af);">Zone</label>
+          <select id="filterZone" style="padding:6px 10px; background:rgba(255,255,255,0.05); border:1px solid var(--border, #1f2937); border-radius:6px; color:#e5e7eb; font-size:13px;">
+            <option value="">All zones</option>
+            <option value="arafat">Arafat</option>
+            <option value="muzdalifah">Muzdalifah</option>
+            <option value="mina">Mina</option>
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:2px;">
           <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-muted, #9ca3af);">Movement</label>
           <select id="filterMovement" style="padding:6px 10px; background:rgba(255,255,255,0.05); border:1px solid var(--border, #1f2937); border-radius:6px; color:#e5e7eb; font-size:13px;">
             <option value="">All movements</option>
@@ -462,6 +471,9 @@
     const scopeParams = _isRange
       ? { start_date: _selectedDate, end_date: _endDate }
       : (_selectedDate ? { date: _selectedDate } : {});
+    // Add zone filter if set
+    const _zoneSel = document.getElementById('filterZone');
+    if (_zoneSel && _zoneSel.value) scopeParams.cluster = _zoneSel.value;
     // Fire all data calls in PARALLEL so first paint happens at fastest endpoint
     const [summary, augs, roster, units, avail] = await Promise.all([
       HAJJ.authedCallSWR('active_summary', scopeParams),
