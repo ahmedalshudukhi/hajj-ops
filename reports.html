@@ -259,6 +259,9 @@
   
   <!-- BULK EXPORT -->
   <div class="rp-pane" data-pane="bulk_export">
+    <div id="bxVersionBadge" style="display:inline-block; padding:3px 9px; background:rgba(14,116,144,0.18); border:1px solid #0e7490; border-radius:4px; font-size:11px; color:#a5f3fc; margin-bottom:10px; font-weight:600;">
+      📦 Bulk Export v1.0.11 — <span id="bxSelfTest">self-test loading…</span>
+    </div>
     <p style="color:#93a4cd; margin: 0 0 16px;">
       Export operational datasets to Excel (multi-tab workbook) or PDF.
       Schedule, positions, roster, units, ambulances, stations, and live incident / audit data — all in one extract.
@@ -1329,9 +1332,37 @@
     return s;
   }
 
+  // -------- Self-test (runs on tab init; proves to the user this is v1.0.11) --------
+  async function runSelfTest() {
+    const out = document.getElementById('bxSelfTest');
+    if (!out) return;
+    const xlsxLoaded = (typeof window.XLSX !== 'undefined');
+    const pdfLoaded  = (typeof window.jspdf !== 'undefined');
+    if (!xlsxLoaded || !pdfLoaded) {
+      out.textContent = (!xlsxLoaded ? 'SheetJS NOT LOADED ' : '') + (!pdfLoaded ? 'jsPDF NOT LOADED' : '');
+      out.style.color = '#fca5a5';
+      return;
+    }
+    try {
+      const r = await fetch('/data.json', { cache: 'no-store' });
+      if (!r.ok) { out.textContent = 'data.json HTTP ' + r.status; out.style.color = '#fca5a5'; return; }
+      const d = await r.json();
+      const units = d.units_detail || [];
+      let roster = 0; units.forEach(u => (u.members||[]).forEach(_ => roster++));
+      const ambs = units.filter(u => u && u.type === 'Ambulance').length;
+      const augN = (d.augmentations && Array.isArray(d.augmentations.sample)) ? d.augmentations.sample.length : 0;
+      out.textContent = '✓ ready · ' + roster + ' people · ' + ambs + ' ambs · ' + Object.keys(d.stations_detail||{}).length + ' stations · ' + augN + ' aug rows';
+      out.style.color = '#86efac';
+    } catch (e) {
+      out.textContent = 'FAIL: ' + e.message;
+      out.style.color = '#fca5a5';
+    }
+  }
+
   // -------- Wire everything up --------
   function wireBulkExport() {
     renderDatasetChecklist();
+    runSelfTest();
 
     const selectAll = document.getElementById('bxSelectAll');
     const clearAll = document.getElementById('bxClearAll');
