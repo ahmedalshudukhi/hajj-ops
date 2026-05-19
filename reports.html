@@ -689,7 +689,7 @@
 
 // ========================================================
 //   BULK EXPORT — Schedule / Positions / Roster / etc.
-//   v1.0.9
+//   v1.0.10 — extractors realigned to actual data.json shape
 // ========================================================
 (function () {
   // -------- Dataset registry --------
@@ -848,31 +848,46 @@
   }
 
   function extractRoster(d) {
-    const r = d.roster || {};
+    // Real people live in units_detail[*].members[].
+    // Roster top-level only carries scalar counts (para_total, para_vacant, etc.).
+    const units = d.units_detail || [];
     const rows = [];
-    // roster has groups by role/category
-    Object.entries(r).forEach(([category, members]) => {
-      if (!Array.isArray(members)) return;
+    units.forEach(u => {
+      const members = Array.isArray(u.members) ? u.members : [];
       members.forEach(m => {
         if (m == null) return;
         rows.push({
-          Category: category,
-          NID: m.nid || m.id || '',
-          Name: m.name || m.full_name || '',
-          Role: m.role || category,
-          Station: m.station || m.home_station || '',
-          Unit: m.unit || m.unit_code || '',
-          Phone: m.phone || m.mobile || '',
-          Email: m.email || '',
-          Cluster: m.cluster || '',
-          Shift: m.shift || ''
+          Category:  u.category || '',
+          Unit:      u.id || '',
+          Unit_Type: u.type || '',
+          Station:   u.home || '',
+          Cluster:   clusterOf(u.home),
+          Shift:     u.default_shift || '',
+          Staff_ID:  m.staff_id || m.nid || '',
+          Name:      m.name || '',
+          Role:      m.role || '',
+          Call_Sign: m.call_sign || '',
+          Status:    m.status || '',
+          Phone:     m.phone || '',
+          Email:     m.email || '',
+          Slot:      m.slot || ''
         });
       });
     });
     return {
-      columns: ['Category','NID','Name','Role','Station','Unit','Phone','Email','Cluster','Shift'],
+      columns: ['Category','Unit','Unit_Type','Station','Cluster','Shift',
+                'Staff_ID','Name','Role','Call_Sign','Status','Phone','Email','Slot'],
       rows
     };
+  }
+
+  function clusterOf(station) {
+    const s = String(station || '').toUpperCase();
+    if (s.startsWith('ARF')) return 'Arafat';
+    if (s.startsWith('MUZ')) return 'Muzdalifah';
+    if (s.startsWith('MIN')) return 'Mina';
+    if (s === 'OCC') return 'OCC';
+    return '';
   }
 
   function extractUnits(d) {
@@ -897,32 +912,59 @@
   }
 
   function extractAmbulances(d) {
-    const ambs = d.ambulance_roster || [];
+    // ambulance_roster is empty; the 25 ALS rigs live in units_detail with type === 'Ambulance'.
+    const ambs = (d.units_detail || []).filter(u => u && u.type === 'Ambulance');
     if (!ambs.length) return { columns: ['(empty)'], rows: [] };
-    return genericFlatten(ambs);
+    const rows = ambs.map(u => ({
+      Ambulance_ID: u.id || '',
+      Category:     u.category || '',
+      Class:        u.tags || '',
+      Home_Station: u.home || '',
+      Cluster:      clusterOf(u.home),
+      Default_Shift: u.default_shift || '',
+      Crew_Total:   u.total_count || u.size || '',
+      Crew_Filled:  u.filled_count || '',
+      Crew_Lead:    (Array.isArray(u.members) && u.members[0] && u.members[0].name) || '',
+      Notes:        u.notes || ''
+    }));
+    return {
+      columns: ['Ambulance_ID','Category','Class','Home_Station','Cluster',
+                'Default_Shift','Crew_Total','Crew_Filled','Crew_Lead','Notes'],
+      rows
+    };
   }
 
   function extractStations(d) {
+    // stations_detail[code] = { units: [{id, type, category, size, filled, total, ready}, ...] }
+    // Counts must be computed from the inner units array.
     const stat = d.stations_detail || {};
     const rows = Object.entries(stat).map(([code, info]) => {
-      const i = info || {};
+      const units = (info && Array.isArray(info.units)) ? info.units : [];
+      const byType = {};
+      let totalSize = 0, totalFilled = 0, ambs = 0;
+      units.forEach(u => {
+        const t = u.type || 'Other';
+        byType[t] = (byType[t] || 0) + 1;
+        totalSize   += Number(u.total  || u.size || 0);
+        totalFilled += Number(u.filled || 0);
+        if (t === 'Ambulance') ambs += 1;
+      });
       return {
         Station_Code: code,
-        Name: i.name || '',
-        Cluster: i.cluster || '',
-        Zone: i.zone || '',
-        Units_Assigned: i.units_count || (i.units && i.units.length) || '',
-        Ambulances: i.ambulances_count || '',
-        Daytime_Para: i.day_paramedics || '',
-        Night_Para: i.night_paramedics || '',
-        GP_Day: i.gp_day || '',
-        GP_Night: i.gp_night || '',
-        Lat: i.lat || '',
-        Lng: i.lng || ''
+        Cluster:      clusterOf(code),
+        Units_Count:  units.length,
+        Ambulances:   ambs,
+        Medical_Mike:  byType['Medical'] || byType['Mike']  || 0,
+        Foot_Romeo:    byType['Foot-Runner'] || byType['Romeo'] || 0,
+        Other_Units:   units.length - ambs - (byType['Medical']||byType['Mike']||0) - (byType['Foot-Runner']||byType['Romeo']||0),
+        Crew_Total:   totalSize,
+        Crew_Filled:  totalFilled,
+        Fill_Pct:     totalSize ? Math.round((totalFilled / totalSize) * 1000) / 10 : 0
       };
     });
     return {
-      columns: ['Station_Code','Name','Cluster','Zone','Units_Assigned','Ambulances','Daytime_Para','Night_Para','GP_Day','GP_Night','Lat','Lng'],
+      columns: ['Station_Code','Cluster','Units_Count','Ambulances',
+                'Medical_Mike','Foot_Romeo','Other_Units','Crew_Total','Crew_Filled','Fill_Pct'],
       rows
     };
   }
@@ -937,17 +979,27 @@
 
   function extractAugmentations(d) {
     const a = d.augmentations || {};
-    if (Array.isArray(a)) return genericFlatten(a);
-    // Object of arrays
-    const rows = [];
-    Object.entries(a).forEach(([key, items]) => {
-      if (Array.isArray(items)) {
-        items.forEach(item => rows.push(Object.assign({ Phase: key }, item)));
-      } else if (items && typeof items === 'object') {
-        rows.push(Object.assign({ Phase: key }, items));
-      }
-    });
-    return genericFlattenFromRows(rows);
+    // Prefer the full sample list if present (AUG-001 ... rows with all fields).
+    if (Array.isArray(a.sample) && a.sample.length) {
+      return genericFlatten(a.sample);
+    }
+    // Fall back: unfold the donor → recipient matrix.
+    if (a.matrix && a.matrix.all && typeof a.matrix.all === 'object') {
+      const rows = [];
+      Object.entries(a.matrix.all).forEach(([donor, recipients]) => {
+        if (recipients && typeof recipients === 'object') {
+          Object.entries(recipients).forEach(([rec, count]) => {
+            rows.push({ From_Unit: donor, To_Station: rec, Count: count });
+          });
+        }
+      });
+      if (rows.length) return genericFlattenFromRows(rows);
+    }
+    // Last resort: dump the summary scalars as a key/value table so the user sees something.
+    const rows = Object.entries(a)
+      .filter(([k, v]) => typeof v !== 'object')
+      .map(([k, v]) => ({ Metric: k, Value: String(v) }));
+    return { columns: ['Metric','Value'], rows };
   }
 
   function extractGPCoverage(d) {
