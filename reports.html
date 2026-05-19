@@ -142,6 +142,10 @@
     .print-header .meta { font-size: 11px; color: #64748b; }
   }
 </style>
+  <!-- Bulk export libraries -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
 <div id="topbar"></div>
@@ -155,6 +159,7 @@
     <div class="rp-tab" data-pane="incident">Incident Detail</div>
     <div class="rp-tab" data-pane="audit">Audit Log</div>
     <div class="rp-tab" data-pane="handoff_script">Handoff Script</div>
+    <div class="rp-tab" data-pane="bulk_export">📦 Bulk Export</div>
   </div>
 
   <!-- DAILY SUMMARY -->
@@ -251,7 +256,56 @@
       <button class="rp-btn print" onclick="window.print()">🖨️ Print</button>
     </div>
     <div id="hsOut"></div>
+  
+  <!-- BULK EXPORT -->
+  <div class="rp-pane" data-pane="bulk_export">
+    <p style="color:#93a4cd; margin: 0 0 16px;">
+      Export operational datasets to Excel (multi-tab workbook) or PDF.
+      Schedule, positions, roster, units, ambulances, stations, and live incident / audit data — all in one extract.
+    </p>
+
+    <div class="rp-controls" style="flex-wrap:wrap; align-items:flex-start;">
+      <div style="flex:1; min-width:280px;">
+        <label style="display:block; margin-bottom:8px;">Datasets to include</label>
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+          <button type="button" class="rp-btn" id="bxSelectAll" style="font-size:11px; padding:4px 10px;">Select all</button>
+          <button type="button" class="rp-btn" id="bxClearAll" style="font-size:11px; padding:4px 10px; background:transparent; border:1px solid rgba(255,255,255,0.2); color:#94a3b8;">Clear</button>
+        </div>
+        <div id="bxDatasets" style="max-height:340px; overflow-y:auto; background:rgba(0,0,0,0.20); border-radius:6px; padding:8px 12px;">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:8px; min-width:200px;">
+        <div>
+          <label style="font-size:11px;">From date <span style="color:#64748b; font-weight:400;">(live data)</span></label>
+          <input type="date" id="bxFromDate" style="width:100%;">
+        </div>
+        <div>
+          <label style="font-size:11px;">To date <span style="color:#64748b; font-weight:400;">(live data)</span></label>
+          <input type="date" id="bxToDate" style="width:100%;">
+        </div>
+        <div>
+          <label style="font-size:11px;">Live data row limit</label>
+          <select id="bxLimit" style="width:100%;">
+            <option value="500">500 rows / dataset</option>
+            <option value="2000" selected>2,000 rows / dataset</option>
+            <option value="10000">10,000 rows / dataset (slower)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:10px; margin-top:16px; align-items:center; flex-wrap:wrap;">
+      <button class="rp-btn" id="bxExportXlsx" style="background:#0e7490; padding:10px 16px; font-weight:600;">📊 Export Excel (.xlsx)</button>
+      <button class="rp-btn" id="bxExportPdf" style="background:#7c3aed; padding:10px 16px; font-weight:600;">📄 Export PDF</button>
+      <button class="rp-btn" id="bxExportCsv" style="background:transparent; border:1px solid rgba(255,255,255,0.2); color:#cdf1ff; padding:10px 16px;">📋 Export CSV (zip)</button>
+      <span id="bxStatus" style="margin-left:16px; color:#94a3b8; font-size:13px;"></span>
+    </div>
+
+    <div id="bxLog" style="margin-top:16px; max-height:180px; overflow-y:auto; font-family:ui-monospace,monospace; font-size:11px; color:#94a3b8; background:rgba(0,0,0,0.20); border-radius:6px; padding:10px; display:none;"></div>
   </div>
+</div>
 </div>
 
 <script src="assets/auth.js?v=0.2.61"></script>
@@ -632,6 +686,626 @@
   // Auto-load today's daily on first view
   document.getElementById('dailyGen').click();
 })();
+
+// ========================================================
+//   BULK EXPORT — Schedule / Positions / Roster / etc.
+//   v1.0.9
+// ========================================================
+(function () {
+  // -------- Dataset registry --------
+  // Each entry: {key, label, source, extract}
+  //   source: "static" (reads from /data.json) or "live" (authedCall)
+  //   extract: receives the source data, returns {columns, rows}
+  const DATASETS = [
+    // ---- Static (from data.json) ----
+    { key: 'schedule', label: 'Schedule (per-unit shift grid)', source: 'static',
+      extract: (d) => extractSchedule(d) },
+    { key: 'positions', label: 'Positions (current home + live status)', source: 'static',
+      extract: (d) => extractPositions(d) },
+    { key: 'roster', label: 'Roster (all staff: NID, name, role, station)', source: 'static',
+      extract: (d) => extractRoster(d) },
+    { key: 'units', label: 'Units (full unit roster)', source: 'static',
+      extract: (d) => extractUnits(d) },
+    { key: 'ambulances', label: 'Ambulances (25 ALS fleet)', source: 'static',
+      extract: (d) => extractAmbulances(d) },
+    { key: 'stations', label: 'Stations (9 sites + OCC)', source: 'static',
+      extract: (d) => extractStations(d) },
+    { key: 'calendar', label: 'Calendar (DH 4–14, operational days)', source: 'static',
+      extract: (d) => extractCalendar(d) },
+    { key: 'movements', label: 'Movements (movement phases)', source: 'static',
+      extract: (d) => extractMovements(d) },
+    { key: 'augmentations', label: 'Augmentations (planned redeployments)', source: 'static',
+      extract: (d) => extractAugmentations(d) },
+    { key: 'gp_coverage', label: 'GP Coverage', source: 'static',
+      extract: (d) => extractGPCoverage(d) },
+    { key: 'personnel', label: 'Personnel (HR snapshot)', source: 'static',
+      extract: (d) => extractPersonnel(d) },
+    { key: 'accommodation', label: 'Accommodation (site readiness)', source: 'static',
+      extract: (d) => extractAccommodation(d) },
+    { key: 'org_structure', label: 'Org structure', source: 'static',
+      extract: (d) => extractOrgStructure(d) },
+    { key: 'metro', label: 'Metro / SAR data', source: 'static',
+      extract: (d) => extractMetro(d) },
+
+    // ---- Live (D1-backed via authedCall) ----
+    { key: 'live_incidents', label: 'LIVE Incidents (all dispatches)', source: 'live',
+      action: 'incidents_search',
+      extract: (r, params) => extractLiveIncidents(r, params) },
+    { key: 'live_audit', label: 'LIVE Audit log', source: 'live',
+      action: 'audit_search',
+      extract: (r, params) => extractLiveAudit(r, params) },
+    { key: 'live_station_status', label: 'LIVE Station status overrides', source: 'live',
+      action: 'station_status_list',
+      extract: (r, params) => extractLiveStationStatus(r, params) },
+    { key: 'live_repositions', label: 'LIVE Repositions (planned + executed)', source: 'live',
+      action: 'reposition_list',
+      extract: (r, params) => extractLiveRepositions(r, params) },
+    { key: 'live_unit_locations', label: 'LIVE Unit location overrides', source: 'live',
+      action: 'unit_locations_list',
+      extract: (r, params) => extractLiveUnitLocations(r, params) },
+  ];
+
+  // -------- Render dataset checkboxes --------
+  function renderDatasetChecklist() {
+    const box = document.getElementById('bxDatasets');
+    if (!box) return;
+    box.innerHTML = DATASETS.map(ds => {
+      const liveBadge = ds.source === 'live'
+        ? ' <span style="color:#fcd34d; font-size:10px; font-weight:bold; padding:1px 5px; background:rgba(252,211,77,0.15); border-radius:3px;">LIVE</span>'
+        : '';
+      return `<label style="display:flex; align-items:center; gap:8px; padding:5px 0; font-size:13px; cursor:pointer;">
+          <input type="checkbox" class="bx-ds" data-key="${ds.key}" checked>
+          <span>${escHtml(ds.label)}${liveBadge}</span>
+        </label>`;
+    }).join('');
+  }
+
+  function escHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function getSelectedKeys() {
+    return Array.from(document.querySelectorAll('#bxDatasets input.bx-ds:checked'))
+      .map(el => el.dataset.key);
+  }
+
+  function logLine(msg, color) {
+    const log = document.getElementById('bxLog');
+    if (!log) return;
+    log.style.display = 'block';
+    const line = document.createElement('div');
+    line.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+    if (color) line.style.color = color;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function setStatus(msg, color) {
+    const s = document.getElementById('bxStatus');
+    if (s) { s.textContent = msg; s.style.color = color || '#94a3b8'; }
+  }
+
+  // -------- Data fetchers --------
+  let _DATA_JSON_CACHE = null;
+  async function getStaticData() {
+    if (_DATA_JSON_CACHE) return _DATA_JSON_CACHE;
+    setStatus('Fetching /data.json (1.5 MB)…');
+    const r = await fetch('/data.json', { cache: 'no-store' });
+    if (!r.ok) throw new Error('data.json fetch failed: ' + r.status);
+    _DATA_JSON_CACHE = await r.json();
+    return _DATA_JSON_CACHE;
+  }
+
+  async function fetchLive(ds, params) {
+    try {
+      const r = await HAJJ.authedCall(ds.action, params || {});
+      if (!r || !r.ok) return { error: (r && r.error) || 'no response' };
+      return r;
+    } catch (e) {
+      return { error: e.message };
+    }
+  }
+
+  // -------- Static extractors --------
+
+  function extractSchedule(d) {
+    const grid = d.schedule_grid || {};
+    const rows = [];
+    Object.keys(grid).sort((a,b) => +a - +b).forEach(dh => {
+      const slots = grid[dh] || {};
+      Object.keys(slots).sort().forEach(slot => {
+        const units = slots[slot] || {};
+        Object.entries(units).forEach(([unit_id, value]) => {
+          rows.push({
+            DH: dh, Slot: slot, Unit_ID: unit_id,
+            Value: typeof value === 'object' ? JSON.stringify(value) : String(value || '')
+          });
+        });
+      });
+    });
+    return { columns: ['DH','Slot','Unit_ID','Value'], rows };
+  }
+
+  function extractPositions(d) {
+    const units = d.units_detail || [];
+    const rows = units.map(u => ({
+      Unit_Code: u.code || '',
+      Unit_Type: u.type || '',
+      Home_Station: u.home || u.home_station || '',
+      Current_Station: u.current_station || u.current || '',
+      Crew_Count: u.crew_count || (u.crew && u.crew.length) || '',
+      Lead_Name: u.lead_name || (u.crew && u.crew[0] && u.crew[0].name) || '',
+      Cluster: u.cluster || '',
+      Shift: u.shift || '',
+      Notes: u.notes || ''
+    }));
+    return {
+      columns: ['Unit_Code','Unit_Type','Home_Station','Current_Station','Crew_Count','Lead_Name','Cluster','Shift','Notes'],
+      rows
+    };
+  }
+
+  function extractRoster(d) {
+    const r = d.roster || {};
+    const rows = [];
+    // roster has groups by role/category
+    Object.entries(r).forEach(([category, members]) => {
+      if (!Array.isArray(members)) return;
+      members.forEach(m => {
+        if (m == null) return;
+        rows.push({
+          Category: category,
+          NID: m.nid || m.id || '',
+          Name: m.name || m.full_name || '',
+          Role: m.role || category,
+          Station: m.station || m.home_station || '',
+          Unit: m.unit || m.unit_code || '',
+          Phone: m.phone || m.mobile || '',
+          Email: m.email || '',
+          Cluster: m.cluster || '',
+          Shift: m.shift || ''
+        });
+      });
+    });
+    return {
+      columns: ['Category','NID','Name','Role','Station','Unit','Phone','Email','Cluster','Shift'],
+      rows
+    };
+  }
+
+  function extractUnits(d) {
+    const units = d.units_detail || [];
+    if (!units.length) return { columns: [], rows: [] };
+    const allKeys = new Set();
+    units.forEach(u => Object.keys(u || {}).forEach(k => {
+      if (typeof u[k] !== 'object' || u[k] === null) allKeys.add(k);
+    }));
+    const cols = Array.from(allKeys);
+    return {
+      columns: cols,
+      rows: units.map(u => {
+        const row = {};
+        cols.forEach(c => {
+          const v = u[c];
+          row[c] = (v == null) ? '' : String(v);
+        });
+        return row;
+      })
+    };
+  }
+
+  function extractAmbulances(d) {
+    const ambs = d.ambulance_roster || [];
+    if (!ambs.length) return { columns: ['(empty)'], rows: [] };
+    return genericFlatten(ambs);
+  }
+
+  function extractStations(d) {
+    const stat = d.stations_detail || {};
+    const rows = Object.entries(stat).map(([code, info]) => {
+      const i = info || {};
+      return {
+        Station_Code: code,
+        Name: i.name || '',
+        Cluster: i.cluster || '',
+        Zone: i.zone || '',
+        Units_Assigned: i.units_count || (i.units && i.units.length) || '',
+        Ambulances: i.ambulances_count || '',
+        Daytime_Para: i.day_paramedics || '',
+        Night_Para: i.night_paramedics || '',
+        GP_Day: i.gp_day || '',
+        GP_Night: i.gp_night || '',
+        Lat: i.lat || '',
+        Lng: i.lng || ''
+      };
+    });
+    return {
+      columns: ['Station_Code','Name','Cluster','Zone','Units_Assigned','Ambulances','Daytime_Para','Night_Para','GP_Day','GP_Night','Lat','Lng'],
+      rows
+    };
+  }
+
+  function extractCalendar(d) {
+    return genericFlatten(d.calendar || []);
+  }
+
+  function extractMovements(d) {
+    return genericFlatten(d.movements || []);
+  }
+
+  function extractAugmentations(d) {
+    const a = d.augmentations || {};
+    if (Array.isArray(a)) return genericFlatten(a);
+    // Object of arrays
+    const rows = [];
+    Object.entries(a).forEach(([key, items]) => {
+      if (Array.isArray(items)) {
+        items.forEach(item => rows.push(Object.assign({ Phase: key }, item)));
+      } else if (items && typeof items === 'object') {
+        rows.push(Object.assign({ Phase: key }, items));
+      }
+    });
+    return genericFlattenFromRows(rows);
+  }
+
+  function extractGPCoverage(d) {
+    return genericFlatten(d.gp_coverage || []);
+  }
+
+  function extractPersonnel(d) {
+    const p = d.personnel || {};
+    if (Array.isArray(p)) return genericFlatten(p);
+    const rows = [];
+    Object.entries(p).forEach(([cat, items]) => {
+      if (Array.isArray(items)) {
+        items.forEach(item => rows.push(Object.assign({ Category: cat }, item)));
+      } else if (typeof items === 'object' && items !== null) {
+        // numeric counts etc.
+        rows.push({ Category: cat, Detail: JSON.stringify(items) });
+      } else {
+        rows.push({ Category: cat, Detail: String(items) });
+      }
+    });
+    return genericFlattenFromRows(rows);
+  }
+
+  function extractAccommodation(d) {
+    const acc = d.accommodation || [];
+    const live = d.accommodation_live || [];
+    // Merge by site code if possible
+    const liveByCode = {};
+    live.forEach(l => { if (l && l.code) liveByCode[l.code] = l; });
+    const rows = acc.map(a => {
+      const l = liveByCode[a.code] || {};
+      return Object.assign({}, a, {
+        Live_Status: l.status || '',
+        Live_Bedding: l.bedding_pct || '',
+        Live_Bathroom: l.bathroom_pct || ''
+      });
+    });
+    return genericFlattenFromRows(rows);
+  }
+
+  function extractOrgStructure(d) {
+    return genericFlatten(d.org_structure || []);
+  }
+
+  function extractMetro(d) {
+    const m = d.metro || {};
+    if (Array.isArray(m)) return genericFlatten(m);
+    const rows = Object.entries(m).map(([k, v]) => ({
+      Key: k,
+      Value: typeof v === 'object' ? JSON.stringify(v) : String(v)
+    }));
+    return { columns: ['Key','Value'], rows };
+  }
+
+  // ---- Live extractors ----
+  function extractLiveIncidents(r) {
+    const items = r.results || r.incidents || [];
+    return genericFlatten(items);
+  }
+  function extractLiveAudit(r) {
+    const items = r.results || r.events || [];
+    return genericFlatten(items);
+  }
+  function extractLiveStationStatus(r) {
+    const items = r.results || r.stations || r.status || [];
+    return genericFlatten(items);
+  }
+  function extractLiveRepositions(r) {
+    const items = r.results || r.items || [];
+    return genericFlatten(items);
+  }
+  function extractLiveUnitLocations(r) {
+    const items = r.results || r.locations || [];
+    return genericFlatten(items);
+  }
+
+  // -------- Generic flatten (array of objects → columns + rows) --------
+  function genericFlatten(arr) {
+    if (!Array.isArray(arr) || !arr.length) return { columns: [], rows: [] };
+    return genericFlattenFromRows(arr);
+  }
+
+  function genericFlattenFromRows(arr) {
+    if (!Array.isArray(arr) || !arr.length) return { columns: [], rows: [] };
+    const keySet = new Set();
+    arr.forEach(r => {
+      if (r && typeof r === 'object') {
+        Object.keys(r).forEach(k => keySet.add(k));
+      }
+    });
+    const cols = Array.from(keySet);
+    const rows = arr.map(r => {
+      const out = {};
+      cols.forEach(c => {
+        const v = r ? r[c] : '';
+        if (v == null) out[c] = '';
+        else if (typeof v === 'object') out[c] = JSON.stringify(v);
+        else out[c] = String(v);
+      });
+      return out;
+    });
+    return { columns: cols, rows };
+  }
+
+  // -------- Build datasets for export --------
+  async function buildSelectedDatasets() {
+    const keys = getSelectedKeys();
+    if (!keys.length) throw new Error('Select at least one dataset.');
+
+    const fromDate = document.getElementById('bxFromDate').value;
+    const toDate = document.getElementById('bxToDate').value;
+    const limit = parseInt(document.getElementById('bxLimit').value, 10) || 2000;
+
+    const liveParams = { limit };
+    if (fromDate) liveParams.from_date = fromDate;
+    if (toDate) liveParams.to_date = toDate;
+
+    let staticData = null;
+    const results = [];
+
+    for (const key of keys) {
+      const ds = DATASETS.find(x => x.key === key);
+      if (!ds) continue;
+      try {
+        logLine('Fetching ' + ds.label + '…');
+        let extracted;
+        if (ds.source === 'static') {
+          if (!staticData) staticData = await getStaticData();
+          extracted = ds.extract(staticData);
+        } else if (ds.source === 'live') {
+          const r = await fetchLive(ds, liveParams);
+          if (r.error) {
+            logLine('  ✗ ' + ds.label + ': ' + r.error, '#fca5a5');
+            continue;
+          }
+          extracted = ds.extract(r, liveParams);
+        }
+        if (extracted && extracted.rows && extracted.rows.length) {
+          results.push({ key: ds.key, title: ds.label, ...extracted });
+          logLine('  ✓ ' + ds.label + ' (' + extracted.rows.length + ' rows)', '#86efac');
+        } else {
+          logLine('  ⚠ ' + ds.label + ' empty', '#fcd34d');
+        }
+      } catch (e) {
+        logLine('  ✗ ' + ds.label + ': ' + e.message, '#fca5a5');
+      }
+    }
+    return results;
+  }
+
+  // -------- XLSX export (multi-tab) --------
+  async function exportXlsx() {
+    try {
+      setStatus('Building Excel workbook…', '#fcd34d');
+      document.getElementById('bxLog').innerHTML = '';
+      const datasets = await buildSelectedDatasets();
+      if (!datasets.length) {
+        setStatus('No data to export.', '#fca5a5');
+        return;
+      }
+
+      const wb = XLSX.utils.book_new();
+
+      // First tab: overview
+      const overviewRows = [
+        ['Hajj CAD Export'],
+        ['Generated', new Date().toLocaleString()],
+        ['Generated by', (HAJJ.getUser && (HAJJ.getUser().name || HAJJ.getUser().nid)) || ''],
+        ['System', 'hajj.shuki.tech'],
+        [],
+        ['Tab', 'Dataset', 'Rows'],
+        ...datasets.map((d, i) => [`Tab ${i + 2}`, d.title, d.rows.length])
+      ];
+      const ovWs = XLSX.utils.aoa_to_sheet(overviewRows);
+      ovWs['!cols'] = [{ wch: 10 }, { wch: 50 }, { wch: 10 }];
+      XLSX.utils.book_append_sheet(wb, ovWs, 'Overview');
+
+      // One tab per dataset
+      datasets.forEach((d, i) => {
+        const aoa = [d.columns, ...d.rows.map(r => d.columns.map(c => r[c]))];
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        // Column widths: max(header.length, max cell length)
+        ws['!cols'] = d.columns.map((c, ci) => {
+          let max = String(c).length;
+          d.rows.forEach(r => {
+            const v = String(r[c] || '');
+            if (v.length > max) max = v.length;
+          });
+          return { wch: Math.min(Math.max(max + 2, 10), 60) };
+        });
+        // Tab name max 31 chars, no special chars
+        let tabName = d.title.replace(/[\\/?*:\[\]]/g, '').substring(0, 28);
+        // dedupe
+        if (wb.SheetNames.includes(tabName)) tabName = tabName.substring(0, 26) + ' ' + (i + 1);
+        XLSX.utils.book_append_sheet(wb, ws, tabName);
+      });
+
+      const ts = new Date().toISOString().replace(/[T:]/g, '-').substring(0, 16);
+      const fname = `Hajj_CAD_Export_${ts}.xlsx`;
+      XLSX.writeFile(wb, fname);
+      setStatus('✓ Excel exported: ' + fname, '#86efac');
+      logLine('Excel saved: ' + fname + ' (' + datasets.length + ' tabs)', '#86efac');
+    } catch (e) {
+      setStatus('✗ Excel export failed: ' + e.message, '#fca5a5');
+      logLine('ERROR: ' + e.message, '#fca5a5');
+      console.error(e);
+    }
+  }
+
+  // -------- PDF export --------
+  async function exportPdf() {
+    try {
+      setStatus('Building PDF…', '#fcd34d');
+      document.getElementById('bxLog').innerHTML = '';
+      const datasets = await buildSelectedDatasets();
+      if (!datasets.length) {
+        setStatus('No data to export.', '#fca5a5');
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+
+      // Cover
+      doc.setFontSize(22); doc.setTextColor(27, 58, 92);
+      doc.text('Hajj CAD Operational Export', 40, 60);
+      doc.setFontSize(11); doc.setTextColor(100, 116, 139);
+      doc.text('Generated ' + new Date().toLocaleString(), 40, 82);
+      doc.text('System: hajj.shuki.tech  ·  Hajj 2026 MMMP-SL', 40, 98);
+
+      doc.setFontSize(13); doc.setTextColor(27, 58, 92);
+      doc.text('Datasets included:', 40, 140);
+      doc.setFontSize(10); doc.setTextColor(40, 40, 40);
+      datasets.forEach((d, i) => {
+        doc.text(`${i + 1}. ${d.title}  —  ${d.rows.length} rows`, 60, 162 + i * 16);
+      });
+
+      // One section per dataset
+      datasets.forEach((d, i) => {
+        doc.addPage();
+        doc.setFontSize(16); doc.setTextColor(27, 58, 92);
+        doc.text(`${i + 1}. ${d.title}`, 40, 50);
+        doc.setFontSize(9); doc.setTextColor(100, 116, 139);
+        doc.text(d.rows.length + ' rows', 40, 68);
+
+        // Truncate long columns for PDF readability (autoTable handles wrap but be friendly)
+        const maxRowsPerPdf = 500;
+        const rowsToShow = d.rows.slice(0, maxRowsPerPdf);
+        const truncNote = d.rows.length > maxRowsPerPdf
+          ? ' (showing first ' + maxRowsPerPdf + ' of ' + d.rows.length + ' — full data in Excel export)'
+          : '';
+        if (truncNote) {
+          doc.setTextColor(180, 83, 9);
+          doc.text(truncNote, 40, 86);
+        }
+
+        doc.autoTable({
+          startY: 100,
+          head: [d.columns],
+          body: rowsToShow.map(r => d.columns.map(c => {
+            const v = String(r[c] || '');
+            return v.length > 60 ? v.substring(0, 57) + '...' : v;
+          })),
+          styles: { fontSize: 7, cellPadding: 3, overflow: 'linebreak' },
+          headStyles: { fillColor: [27, 58, 92], textColor: [255, 255, 255], fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [249, 250, 251] },
+          margin: { left: 40, right: 40 },
+        });
+      });
+
+      const ts = new Date().toISOString().replace(/[T:]/g, '-').substring(0, 16);
+      const fname = `Hajj_CAD_Export_${ts}.pdf`;
+      doc.save(fname);
+      setStatus('✓ PDF exported: ' + fname, '#86efac');
+      logLine('PDF saved: ' + fname + ' (' + datasets.length + ' sections)', '#86efac');
+    } catch (e) {
+      setStatus('✗ PDF export failed: ' + e.message, '#fca5a5');
+      logLine('ERROR: ' + e.message, '#fca5a5');
+      console.error(e);
+    }
+  }
+
+  // -------- CSV export (zip-free; one file per dataset, downloaded sequentially) --------
+  async function exportCsv() {
+    try {
+      setStatus('Building CSVs…', '#fcd34d');
+      document.getElementById('bxLog').innerHTML = '';
+      const datasets = await buildSelectedDatasets();
+      if (!datasets.length) {
+        setStatus('No data to export.', '#fca5a5');
+        return;
+      }
+      const ts = new Date().toISOString().replace(/[T:]/g, '-').substring(0, 16);
+
+      // Build a single combined CSV with section headers (simpler than zip)
+      const lines = [];
+      lines.push('# Hajj CAD Export — ' + new Date().toLocaleString());
+      lines.push('');
+      datasets.forEach((d, i) => {
+        lines.push('## ' + d.title);
+        lines.push(d.columns.map(csvEscape).join(','));
+        d.rows.forEach(r => {
+          lines.push(d.columns.map(c => csvEscape(r[c])).join(','));
+        });
+        lines.push('');
+      });
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Hajj_CAD_Export_' + ts + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setStatus('✓ CSV exported', '#86efac');
+      logLine('CSV saved (' + datasets.length + ' sections in one file)', '#86efac');
+    } catch (e) {
+      setStatus('✗ CSV export failed: ' + e.message, '#fca5a5');
+      logLine('ERROR: ' + e.message, '#fca5a5');
+      console.error(e);
+    }
+  }
+  function csvEscape(v) {
+    const s = String(v == null ? '' : v);
+    if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+
+  // -------- Wire everything up --------
+  function wireBulkExport() {
+    renderDatasetChecklist();
+
+    const selectAll = document.getElementById('bxSelectAll');
+    const clearAll = document.getElementById('bxClearAll');
+    const xlsxBtn = document.getElementById('bxExportXlsx');
+    const pdfBtn = document.getElementById('bxExportPdf');
+    const csvBtn = document.getElementById('bxExportCsv');
+
+    if (selectAll) selectAll.addEventListener('click', () => {
+      document.querySelectorAll('#bxDatasets input.bx-ds').forEach(cb => cb.checked = true);
+    });
+    if (clearAll) clearAll.addEventListener('click', () => {
+      document.querySelectorAll('#bxDatasets input.bx-ds').forEach(cb => cb.checked = false);
+    });
+    if (xlsxBtn) xlsxBtn.addEventListener('click', exportXlsx);
+    if (pdfBtn) pdfBtn.addEventListener('click', exportPdf);
+    if (csvBtn) csvBtn.addEventListener('click', exportCsv);
+  }
+
+  // Wait for DOM
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wireBulkExport);
+  } else {
+    wireBulkExport();
+  }
+})();
+
 </script>
 </body>
 </html>
