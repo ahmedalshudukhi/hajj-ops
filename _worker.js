@@ -2064,6 +2064,7 @@ const ACTIONS = {
       dispatch: {
         open: 0, red_open: 0, cardiac_open: 0, in_transfer: 0, closed_today: 0,
         by_station: {},
+        transfers: { initiated: 0, to_hospital: 0, handover: 0, by_station: {} },
         response_time: { mean_ms: 0, p50_ms: 0, p95_ms: 0, count: 0 },
         recent: []
       },
@@ -2164,6 +2165,34 @@ const ACTIONS = {
         }
       } catch (e) {
         result.dispatch._response_time_err = String(e.message);
+      }
+
+      // 1d. TRANSFERS — transport funnel within the scope window (real cases only)
+      try {
+        const trR = await env.DB.prepare(
+          `SELECT e.event_type AS et, d.station AS st, e.incident_id AS iid
+           FROM incident_events e JOIN dispatch_log d ON d.incident_id = e.incident_id
+           WHERE e.event_type IN ('transfer_start','hospital_arrival','handover')
+             AND COALESCE(d.is_drill,0) = 0
+             AND e.ts >= ?1 AND e.ts <= ?2`
+        ).bind(startTs, endTs).all();
+        const tset = { transfer_start: new Set(), hospital_arrival: new Set(), handover: new Set() };
+        const tByStation = {};
+        (trR.results || []).forEach(row => {
+          if (tset[row.et]) tset[row.et].add(row.iid);
+          if (row.et === 'transfer_start') {
+            const st = row.st || 'UNK';
+            (tByStation[st] || (tByStation[st] = new Set())).add(row.iid);
+          }
+        });
+        result.dispatch.transfers.initiated   = tset.transfer_start.size;
+        result.dispatch.transfers.to_hospital = tset.hospital_arrival.size;
+        result.dispatch.transfers.handover    = tset.handover.size;
+        Object.keys(tByStation).forEach(st => {
+          result.dispatch.transfers.by_station[st] = tByStation[st].size;
+        });
+      } catch (e) {
+        result.dispatch._transfers_err = String(e.message);
       }
 
       // Recent strip: last 20 in scope
@@ -5520,28 +5549,41 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
   //   top units, response time stats, key events
   // ==============================================================
   async report_daily(user, env, params) {
-    // Date param: YYYY-MM-DD or default today (Riyadh +03 timezone for ops)
-    const dateStr = String(params.date || '').slice(0, 10);
-    let dayStart, dayEnd, dateLabel;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      const [y,m,d] = dateStr.split('-').map(Number);
-      // Riyadh +03 — day starts at 00:00 KSA
-      dayStart = Math.floor(Date.UTC(y, m-1, d, -3) / 1000);  // -3hr offset
-      dayEnd = dayStart + 86400;
-      dateLabel = dateStr;
-    } else {
+    // Flexible window (Riyadh +03). Accepts:
+    //   ?date=YYYY-MM-DD                  -> single full day
+    //   ?start=YYYY-MM-DD&end=YYYY-MM-DD  -> inclusive date range
+    //   &from_hour=H&to_hour=H  (0..24)   -> narrow the hour window
+    const ksaMidnight = (s) => {
+      const [y,m,d] = s.split('-').map(Number);
+      return Math.floor(Date.UTC(y, m-1, d, -3) / 1000);
+    };
+    const todayKsa = () => {
       const now = new Date();
-      // Riyadh date today
       const ksa = new Date(now.getTime() + (3*3600 - now.getTimezoneOffset()*60) * 1000);
-      const y = ksa.getUTCFullYear(), m = ksa.getUTCMonth(), d = ksa.getUTCDate();
-      dayStart = Math.floor(Date.UTC(y, m, d, -3) / 1000);
-      dayEnd = dayStart + 86400;
-      dateLabel = ksa.toISOString().slice(0,10);
-    }
+      return ksa.toISOString().slice(0,10);
+    };
+    const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s||''));
+    let sDate = isDate(params.start) ? String(params.start).slice(0,10)
+              : isDate(params.date)  ? String(params.date).slice(0,10)  : todayKsa();
+    let eDate = isDate(params.end)   ? String(params.end).slice(0,10)
+              : isDate(params.date)  ? String(params.date).slice(0,10)  : sDate;
+    if (eDate < sDate) { const _t = sDate; sDate = eDate; eDate = _t; }
+    let fromHour = parseInt(params.from_hour, 10); if (!(fromHour >= 0 && fromHour <= 23)) fromHour = 0;
+    let toHour   = parseInt(params.to_hour, 10);   if (!(toHour   >= 1 && toHour   <= 24)) toHour   = 24;
+    let dayStart = ksaMidnight(sDate) + fromHour * 3600;
+    let dayEnd   = ksaMidnight(eDate) + toHour   * 3600;
+    if (dayEnd <= dayStart) dayEnd = dayStart + 3600;
+    const sameDay = (sDate === eDate);
+    const fullDay = (fromHour === 0 && toHour === 24);
+    const dateLabel = sameDay ? sDate : (sDate + ' \u2192 ' + eDate);
+    const windowLabel = (sameDay && fullDay) ? sDate
+      : (sDate + ' ' + String(fromHour).padStart(2,'0') + ':00  \u2192  '
+         + eDate + ' ' + String(toHour).padStart(2,'0') + ':00');
 
     const out = {
       ok: true,
       date: dateLabel,
+      window_label: windowLabel,
       hajj_day: ACTIONS._hajjDay((dayStart + dayEnd) / 2),
       window: { start_ts: dayStart, end_ts: dayEnd },
       generated_at: Math.floor(Date.now() / 1000),
@@ -5549,7 +5591,9 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
       summary: { total: 0, closed: 0, still_open: 0, cancelled: 0 },
       by_triage: {},
       by_station: {},
-      by_hour: [],            // 24 buckets
+      by_bucket: [],          // adaptive: hourly (<=48h) or daily buckets
+      bucket_unit: 'hour',
+      transfers: { initiated: 0, to_hospital: 0, handover: 0, by_station: {} },
       by_cluster: { Arafat: 0, Muzdalifah: 0, Mina: 0, Other: 0 },
       top_units: [],          // [{unit_code, count}]
       response_time: { count: 0, mean_sec: null, median_sec: null, p95_sec: null, max_sec: null },
@@ -5569,8 +5613,23 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
 
       out.summary.total = incs.length;
       const ARFAT = ['ARF1','ARF2','ARF3'], MUZ = ['MUZ1','MUZ2','MUZ3'], MIN = ['MIN1','MIN2','MIN3'];
-      // Init hourly buckets (KSA hours)
-      for (let h = 0; h < 24; h++) out.by_hour.push({ hour: h, dispatched: 0, closed: 0, by_triage: {} });
+      // Adaptive distribution buckets: hourly when window <= 48h, else daily.
+      const spanHours = (dayEnd - dayStart) / 3600;
+      const bucketSec = (spanHours <= 48) ? 3600 : 86400;
+      out.bucket_unit = (bucketSec === 3600) ? 'hour' : 'day';
+      const nBuckets = Math.min(240, Math.max(1, Math.ceil((dayEnd - dayStart) / bucketSec)));
+      for (let b = 0; b < nBuckets; b++) {
+        const bStart = dayStart + b * bucketSec;
+        const dt = new Date(bStart * 1000 + 3*3600*1000); // KSA local
+        const label = (bucketSec === 3600)
+          ? String(dt.getUTCHours()).padStart(2,'0') + ':00'
+          : (dt.getUTCMonth()+1) + '/' + dt.getUTCDate();
+        out.by_bucket.push({ idx: b, label, start_ts: bStart, dispatched: 0, closed: 0 });
+      }
+      const bucketOf = (ts) => {
+        const i = Math.floor((ts - dayStart) / bucketSec);
+        return (i >= 0 && i < nBuckets) ? i : -1;
+      };
 
       const unitCounts = {};
       incs.forEach(i => {
@@ -5595,15 +5654,12 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
         else if (MIN.includes(st)) out.by_cluster.Mina++;
         else out.by_cluster.Other++;
 
-        // Hour bucket (KSA local)
-        const ksaHour = Math.floor((i.ts - dayStart) / 3600);
-        if (ksaHour >= 0 && ksaHour < 24) {
-          out.by_hour[ksaHour].dispatched++;
-          out.by_hour[ksaHour].by_triage[tri] = (out.by_hour[ksaHour].by_triage[tri] || 0) + 1;
-        }
+        // Distribution bucket
+        const bi = bucketOf(i.ts);
+        if (bi >= 0) out.by_bucket[bi].dispatched++;
         if (i.closed_at) {
-          const closedHour = Math.floor((i.closed_at - dayStart) / 3600);
-          if (closedHour >= 0 && closedHour < 24) out.by_hour[closedHour].closed++;
+          const bc = bucketOf(i.closed_at);
+          if (bc >= 0) out.by_bucket[bc].closed++;
         }
 
         // Unit attribution
@@ -5656,6 +5712,30 @@ Patient age/sex: ${ageStr} ${genderWord || ''}
         }));
         out.mci_events = out.key_events.filter(e => e.action.startsWith('mci_'));
       } catch (_) {}
+
+      // Transfers — transport funnel within the window (event-timed, real cases only)
+      try {
+        const trR = await env.DB.prepare(
+          `SELECT e.event_type AS et, d.station AS st, e.incident_id AS iid
+           FROM incident_events e JOIN dispatch_log d ON d.incident_id = e.incident_id
+           WHERE e.event_type IN ('transfer_start','hospital_arrival','handover')
+             AND COALESCE(d.is_drill,0) = 0
+             AND e.ts >= ?1 AND e.ts < ?2`
+        ).bind(dayStart, dayEnd).all();
+        const tset = { transfer_start: new Set(), hospital_arrival: new Set(), handover: new Set() };
+        const tByStation = {};
+        (trR.results || []).forEach(row => {
+          if (tset[row.et]) tset[row.et].add(row.iid);
+          if (row.et === 'transfer_start') {
+            const st = row.st || 'UNK';
+            (tByStation[st] || (tByStation[st] = new Set())).add(row.iid);
+          }
+        });
+        out.transfers.initiated   = tset.transfer_start.size;
+        out.transfers.to_hospital = tset.hospital_arrival.size;
+        out.transfers.handover    = tset.handover.size;
+        Object.keys(tByStation).forEach(st => { out.transfers.by_station[st] = tByStation[st].size; });
+      } catch (e) { out.transfers._err = String(e.message); }
     } catch (e) {
       out.error = String(e.message);
     }

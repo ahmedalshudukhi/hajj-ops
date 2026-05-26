@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#0f172a">
 <title>Active Insights · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=1.0.7">
+<link rel="stylesheet" href="assets/style.css?v=1.0.13">
 
 <style>
   body { background: var(--bg); }
@@ -277,6 +277,19 @@
       </div>
     </div>
 
+    <!-- ====== PATIENT TRANSFERS ====== -->
+    <div class="panel">
+      <div class="panel-title"><span>Patient transfers</span><span class="meta" id="trMeta"></span></div>
+      <div id="trBody">
+        <div class="rt-panel">
+          <div class="rt-cell"><div class="rt-num" id="trInit">—</div><div class="rt-label">Initiated</div></div>
+          <div class="rt-cell"><div class="rt-num" id="trHosp">—</div><div class="rt-label">To hospital</div></div>
+          <div class="rt-cell"><div class="rt-num" id="trHand">—</div><div class="rt-label">Handover</div></div>
+        </div>
+        <div id="trByStation" style="margin-top:10px;"></div>
+      </div>
+    </div>
+
     <!-- ====== Filter strip ====== -->
     <div class="panel" style="grid-column: 1 / -1; padding: 12px 14px;">
       <div class="panel-title" style="margin-bottom:8px;">
@@ -393,12 +406,12 @@
 
 </div>
 
-<script src="assets/config.js?v=1.0.7"></script>
-<script src="assets/tempo.js?v=1.0.7"></script>
-<script src="assets/auth.js?v=1.0.7"></script>
-<script src="assets/shortcuts.js?v=1.0.7"></script>
-<script src="assets/topbar.js?v=1.0.7"></script>
-<script src="assets/dateBar.js?v=1.0.7"></script>
+<script src="assets/config.js?v=1.0.13"></script>
+<script src="assets/tempo.js?v=1.0.13"></script>
+<script src="assets/auth.js?v=1.0.13"></script>
+<script src="assets/shortcuts.js?v=1.0.13"></script>
+<script src="assets/topbar.js?v=1.0.13"></script>
+<script src="assets/dateBar.js?v=1.0.13"></script>
 <script>
 (function () {
 
@@ -524,6 +537,7 @@
     renderScopeBanner(r);
     renderHero(r);
     renderStations(r.dispatch);
+    renderTransfers(r.dispatch);
     renderResponseTime(r.dispatch.response_time);
     renderAcuity(r.pcr);
     renderDispo(r.pcr);
@@ -594,6 +608,25 @@
     const min = ms / 60000;
     if (min < 1) return Math.round(ms / 1000) + 's';
     return min.toFixed(1) + 'm';
+  }
+
+  function renderTransfers(d) {
+    const t = (d && d.transfers) || { initiated:0, to_hospital:0, handover:0, by_station:{} };
+    const live = (d && d.in_transfer) || 0;
+    const set = (id,v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('trInit', t.initiated || 0);
+    set('trHosp', t.to_hospital || 0);
+    set('trHand', t.handover || 0);
+    const meta = document.getElementById('trMeta');
+    if (meta) meta.textContent = live + ' in transit now';
+    const host = document.getElementById('trByStation');
+    if (host) {
+      const rows = Object.entries(t.by_station || {}).sort((a,b) => b[1]-a[1]);
+      host.innerHTML = rows.length
+        ? '<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">By station — transfers initiated</div>'
+          + rows.map(([st,n]) => '<div class="bar-row"><div class="bar-name"><strong>'+st+'</strong></div><div class="bar-count">'+n+'</div></div>').join('')
+        : '<div class="empty-panel" style="padding:8px;">No transfers in this window.</div>';
+    }
   }
 
   function renderStations(d) {
@@ -1166,7 +1199,7 @@
 })();
 </script>
 
-<script src="assets/version.js?v=1.0.7">
+<script src="assets/version.js?v=1.0.13">
   // Re-fetch active_summary when zone filter changes
   (function() {
     const zf = document.getElementById('filterZone');

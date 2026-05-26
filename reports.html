@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0a0e1a">
 <title>Reports & Analytics · Hajj 2026</title>
-<link rel="stylesheet" href="assets/style.css?v=0.2.53">
+<link rel="stylesheet" href="assets/style.css?v=1.0.13">
 <style>
   body { background: #0a0e1a; color: #e7ecf7; font-family: 'Inter', system-ui, sans-serif; }
   .rp-shell { max-width: 1280px; margin: 0 auto; padding: 20px; }
@@ -131,15 +131,23 @@
     @page { margin: 1.5cm; size: A4; }
   }
 
-  /* HMG branding for print */
-  .print-header { display: none; }
+  /* HAJJ CAD System — report header band */
+  .print-header {
+    display: flex; justify-content: space-between; align-items: center;
+    background: #0f1f3d; color: #fff;
+    padding: 14px 20px; border-radius: 8px; margin-bottom: 20px;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .print-header .ph-system { font-size: 19px; font-weight: 800; letter-spacing: 0.04em; color: #fff; }
+  .print-header .ph-sub { font-size: 11.5px; color: #93a4cd; margin-top: 3px; }
+  .print-header .ph-logo { height: 36px; width: auto; display: block; }
+  .print-header .ph-logo-chip {
+    background: #ffffff; padding: 7px 13px; border-radius: 6px;
+    display: flex; align-items: center;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
   @media print {
-    .print-header {
-      display: flex; justify-content: space-between; align-items: center;
-      padding-bottom: 12px; border-bottom: 2px solid #0f172a; margin-bottom: 18px;
-    }
-    .print-header .logo { font-size: 14px; font-weight: 700; color: #0f172a; letter-spacing: 0.05em; }
-    .print-header .meta { font-size: 11px; color: #64748b; }
+    .print-header { background: #0f1f3d !important; border-radius: 0; }
   }
 </style>
   <!-- Bulk export libraries -->
@@ -166,12 +174,25 @@
   <div class="rp-pane active" data-pane="daily">
     <div class="rp-controls">
       <div>
-        <label>Date</label>
-        <input type="date" id="dailyDate" />
+        <label>From date</label>
+        <input type="date" id="dFromDate" />
+      </div>
+      <div>
+        <label>From hour</label>
+        <select id="dFromHour"></select>
+      </div>
+      <div>
+        <label>To date</label>
+        <input type="date" id="dToDate" />
+      </div>
+      <div>
+        <label>To hour</label>
+        <select id="dToHour"></select>
       </div>
       <button class="rp-btn" id="dailyGen">Generate Report</button>
       <button class="rp-btn print" onclick="window.print()">🖨️ Print / Save PDF</button>
     </div>
+    <div style="font-size:11px; color:#64748b; margin:-4px 0 10px;">Single day = same From/To date. Narrow the hour range for a shift or peak-window report.</div>
     <div id="dailyOut"></div>
   </div>
 
@@ -312,11 +333,11 @@
 </div>
 </div>
 
-<script src="assets/auth.js?v=0.2.61"></script>
-<script src="assets/shortcuts.js?v=0.2.53"></script>
-<script src="assets/voice.js?v=0.2.53"></script>
-<script src="assets/topbar.js?v=0.2.53"></script>
-<script src="assets/version.js?v=0.2.53"></script>
+<script src="assets/auth.js?v=1.0.13"></script>
+<script src="assets/shortcuts.js?v=1.0.13"></script>
+<script src="assets/voice.js?v=1.0.13"></script>
+<script src="assets/topbar.js?v=1.0.13"></script>
+<script src="assets/version.js?v=1.0.13"></script>
 <script>
 (async function() {
   if (!await HAJJ.requireRole(['leadership','admin','dispatcher','cluster_supervisor'])) return;
@@ -332,9 +353,20 @@
     });
   });
 
-  // Default date = today
+  // Daily report controls — default to today, full day
   const today = new Date().toISOString().slice(0, 10);
-  document.getElementById('dailyDate').value = today;
+  (function initDailyControls() {
+    const fH = document.getElementById('dFromHour'), tH = document.getElementById('dToHour');
+    for (let h = 0; h <= 23; h++) {
+      fH.insertAdjacentHTML('beforeend', `<option value="${h}">${String(h).padStart(2,'0')}:00</option>`);
+    }
+    for (let h = 1; h <= 24; h++) {
+      tH.insertAdjacentHTML('beforeend', `<option value="${h}">${String(h).padStart(2,'0')}:00</option>`);
+    }
+    document.getElementById('dFromDate').value = today;
+    document.getElementById('dToDate').value = today;
+    fH.value = '0'; tH.value = '24';
+  })();
 
   // === Helpers ===
   function fmtSec(s) {
@@ -346,17 +378,24 @@
   function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function printHeader(title, subtitle) {
     return `<div class="print-header">
-      <div class="logo">HMG · Aviation Medical Services · Hajj 2026</div>
-      <div class="meta">${title} · ${subtitle}</div>
+      <div class="ph-left">
+        <div class="ph-system">HAJJ CAD System</div>
+        <div class="ph-sub">${escHtml(title)}${subtitle ? ' · ' + escHtml(subtitle) : ''}</div>
+      </div>
+      <div class="ph-logo-chip"><img class="ph-logo" src="/assets/img/hmg_logo.png?v=2" alt="HMG — Dr. Sulaiman Al Habib Medical Group" /></div>
     </div>`;
   }
 
   // === DAILY ===
   document.getElementById('dailyGen').addEventListener('click', async () => {
-    const date = document.getElementById('dailyDate').value;
+    const start = document.getElementById('dFromDate').value;
+    const end   = document.getElementById('dToDate').value;
+    const from_hour = document.getElementById('dFromHour').value;
+    const to_hour   = document.getElementById('dToHour').value;
     const out = document.getElementById('dailyOut');
+    if (!start || !end) { out.innerHTML = '<div class="empty">Pick a From and To date.</div>'; return; }
     out.innerHTML = '<div class="empty">Loading…</div>';
-    const r = await HAJJ.authedCall('report_daily', { date });
+    const r = await HAJJ.authedCall('report_daily', { start, end, from_hour, to_hour });
     if (!r || !r.ok) { out.innerHTML = '<div class="empty">Error: ' + (r && r.error || 'unknown') + '</div>'; return; }
     renderDaily(out, r);
   });
@@ -374,13 +413,23 @@
       if (n > 0) triageBar += `<div class="${t}" style="width:${triagePct(n)}%;">${t.toUpperCase()} ${n}</div>`;
     });
 
-    // Hourly chart
-    const maxHour = Math.max(1, ...r.by_hour.map(h => h.dispatched));
-    const hourBars = r.by_hour.map(h => {
-      const ht = Math.round(h.dispatched / maxHour * 100);
-      return `<div class="hour-bar" style="height:${ht}%;" data-tooltip="${String(h.hour).padStart(2,'0')}:00 — ${h.dispatched} dispatched"></div>`;
+    // Distribution chart — adaptive hourly/daily buckets
+    const buckets = r.by_bucket || [];
+    const bUnit = r.bucket_unit === 'day' ? 'Daily' : 'Hourly';
+    const maxB = Math.max(1, ...buckets.map(b => b.dispatched));
+    const hourBars = buckets.map(b => {
+      const ht = Math.round(b.dispatched / maxB * 100);
+      return `<div class="hour-bar" style="height:${ht}%;" data-tooltip="${escHtml(b.label)} — ${b.dispatched} dispatched · ${b.closed} closed"></div>`;
     }).join('');
-    const hourAxis = r.by_hour.map(h => `<div>${String(h.hour).padStart(2,'0')}</div>`).join('');
+    const axisStep = buckets.length > 26 ? Math.ceil(buckets.length / 26) : 1;
+    const hourAxis = buckets.map((b, i) =>
+      `<div>${i % axisStep === 0 ? escHtml(b.label) : ''}</div>`).join('');
+
+    // Transfers by station
+    const transferRows = Object.entries((r.transfers && r.transfers.by_station) || {})
+      .sort(([,a],[,b]) => b - a)
+      .map(([st,n]) => `<tr><td><strong>${escHtml(st)}</strong></td><td>${n}</td></tr>`).join('');
+    const tr = r.transfers || { initiated:0, to_hospital:0, handover:0 };
 
     // Stations table
     const stationRows = Object.entries(r.by_station).sort(([,a],[,b]) => b.total - a.total).map(([st, d]) => {
@@ -432,6 +481,17 @@
         <thead><tr><th>Station</th><th>Total</th><th>By Triage</th></tr></thead>
         <tbody>${stationRows}</tbody>
       </table>` : '<div class="empty">No station data</div>'}
+
+      <h2>Patient Transfers</h2>
+      <div class="stat-grid">
+        <div class="stat-tile info"><div class="l">Initiated</div><div class="v">${tr.initiated}</div></div>
+        <div class="stat-tile warn"><div class="l">Reached Hospital</div><div class="v">${tr.to_hospital}</div></div>
+        <div class="stat-tile good"><div class="l">Handover Complete</div><div class="v">${tr.handover}</div></div>
+      </div>
+      ${transferRows ? `<table>
+        <thead><tr><th>Station</th><th>Transfers Initiated</th></tr></thead>
+        <tbody>${transferRows}</tbody>
+      </table>` : '<div class="empty">No transfers in this window</div>'}
 
       <h2>By Cluster</h2>
       <div class="stat-grid">
